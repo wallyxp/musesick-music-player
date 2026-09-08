@@ -1,5 +1,6 @@
 package com.nothing.music.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -47,6 +49,7 @@ import com.nothing.music.model.Album
 import com.nothing.music.model.PlaybackState
 import com.nothing.music.model.Track
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AlbumDetailScreen(
     album: Album,
@@ -56,8 +59,8 @@ fun AlbumDetailScreen(
     onBack: () -> Unit,
     onTrackClick: (Track, List<Track>) -> Unit,
     onTrackLongClick: ((Track) -> Unit)? = null,
-    onPlayAll: (List<Track>) -> Unit,
-    onShuffleAll: (List<Track>) -> Unit,
+    onPlayAll: (List<Track>) -> Unit = { list -> if (list.isNotEmpty()) onTrackClick(list.first(), list) },
+    onShuffleAll: (List<Track>) -> Unit = { list -> if (list.isNotEmpty()) onTrackClick(list.shuffled().first(), list.shuffled()) },
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -65,10 +68,12 @@ fun AlbumDetailScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

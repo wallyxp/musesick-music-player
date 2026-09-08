@@ -110,11 +110,14 @@ class PlaylistRepository(private val context: Context) {
     }
 
     suspend fun createPlaylist(title: String, imageUri: String?, initialTrack: Track? = null): Playlist {
+        val validTrack = initialTrack?.let {
+            if (it.id.isBlank()) it.copy(id = UUID.randomUUID().toString()) else it
+        }
         val newPlaylist = Playlist(
             id = UUID.randomUUID().toString(),
             title = title.trim(),
             imageUri = imageUri,
-            tracks = if (initialTrack != null) listOf(initialTrack) else emptyList(),
+            tracks = if (validTrack != null) listOf(validTrack) else emptyList(),
             createdAt = System.currentTimeMillis()
         )
         val existing = getPlaylists()
@@ -123,11 +126,12 @@ class PlaylistRepository(private val context: Context) {
     }
 
     suspend fun addTrackToPlaylist(playlistId: String, track: Track): List<Playlist> {
+        val validTrack = if (track.id.isBlank()) track.copy(id = UUID.randomUUID().toString()) else track
         val current = getPlaylists()
         val updated = current.map { playlist ->
             if (playlist.id == playlistId) {
-                if (playlist.tracks.none { it.id == track.id }) {
-                    playlist.copy(tracks = playlist.tracks + track)
+                if (playlist.tracks.none { it.id == validTrack.id }) {
+                    playlist.copy(tracks = playlist.tracks + validTrack)
                 } else {
                     playlist
                 }

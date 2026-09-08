@@ -261,7 +261,6 @@ fun ExistingPlaylistSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
-                        onDismiss()
                         onCreateNewClick()
                     }
                     .padding(horizontal = 20.dp, vertical = 12.dp),

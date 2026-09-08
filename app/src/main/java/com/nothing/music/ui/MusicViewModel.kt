@@ -56,6 +56,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _contextMenuTrack = MutableStateFlow<Track?>(null)
     val contextMenuTrack: StateFlow<Track?> = _contextMenuTrack.asStateFlow()
 
+    private val _targetTrackForPlaylist = MutableStateFlow<Track?>(null)
+    val targetTrackForPlaylist: StateFlow<Track?> = _targetTrackForPlaylist.asStateFlow()
+
     private val _isExistingPlaylistSheetOpen = MutableStateFlow(false)
     val isExistingPlaylistSheetOpen: StateFlow<Boolean> = _isExistingPlaylistSheetOpen.asStateFlow()
 
@@ -389,13 +392,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createPlaylist(title: String, imageUri: Uri?, initialTrack: Track? = null) {
         viewModelScope.launch {
+            val trackToAdd = initialTrack ?: _targetTrackForPlaylist.value
             val savedImagePath = imageUri?.let { playlistRepository.copyImageToInternalStorage(it) }
-            val created = playlistRepository.createPlaylist(title, savedImagePath, initialTrack)
+            val created = playlistRepository.createPlaylist(title, savedImagePath, trackToAdd)
             val all = playlistRepository.getPlaylists()
             _playlists.value = all
             if (_selectedPlaylist.value?.id == created.id) {
                 _selectedPlaylist.value = created
             }
+            _isNewPlaylistSheetOpen.value = false
+            _targetTrackForPlaylist.value = null
         }
     }
 
@@ -406,6 +412,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             if (_selectedPlaylist.value?.id == playlistId) {
                 _selectedPlaylist.value = updated.find { it.id == playlistId }
             }
+            _isExistingPlaylistSheetOpen.value = false
+            _targetTrackForPlaylist.value = null
         }
     }
 
@@ -444,19 +452,27 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _contextMenuTrack.value = null
     }
 
-    fun openExistingPlaylistSheet() {
+    fun openExistingPlaylistSheet(track: Track? = null) {
+        val target = track ?: _contextMenuTrack.value ?: _targetTrackForPlaylist.value
+        _targetTrackForPlaylist.value = target
+        _contextMenuTrack.value = null
         _isExistingPlaylistSheetOpen.value = true
     }
 
     fun closeExistingPlaylistSheet() {
         _isExistingPlaylistSheetOpen.value = false
+        _targetTrackForPlaylist.value = null
     }
 
-    fun openNewPlaylistSheet() {
+    fun openNewPlaylistSheet(track: Track? = null) {
+        val target = track ?: _contextMenuTrack.value ?: _targetTrackForPlaylist.value
+        _targetTrackForPlaylist.value = target
+        _contextMenuTrack.value = null
         _isNewPlaylistSheetOpen.value = true
     }
 
     fun closeNewPlaylistSheet() {
         _isNewPlaylistSheetOpen.value = false
+        _targetTrackForPlaylist.value = null
     }
 }

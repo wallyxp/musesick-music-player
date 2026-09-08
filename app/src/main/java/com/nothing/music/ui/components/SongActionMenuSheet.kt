@@ -162,7 +162,6 @@ fun SongActionMenuSheet(
                 subtitle = "Choose from your saved playlists",
                 onClick = {
                     onAddToExistingPlaylist()
-                    onDismiss()
                 }
             )
 
@@ -172,7 +171,6 @@ fun SongActionMenuSheet(
                 subtitle = "Create a new playlist with custom photo",
                 onClick = {
                     onAddToNewPlaylist()
-                    onDismiss()
                 }
             )
         }

@@ -1,51 +1,62 @@
 package com.nothing.music.ui.screens
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBarsPadding
+import kotlinx.coroutines.launch
 import com.nothing.music.ui.MusicViewModel
 import com.nothing.music.ui.ScreenState
 import com.nothing.music.ui.components.ExistingPlaylistSheet
 import com.nothing.music.ui.components.MiniPlayerBar
 import com.nothing.music.ui.components.NewPlaylistSheet
 import com.nothing.music.ui.components.SongActionMenuSheet
-import com.nothing.music.ui.screens.PlaylistDetailScreen
-import com.nothing.music.ui.screens.PlaylistsTab
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +64,9 @@ fun MainScreen(
     viewModel: MusicViewModel,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
     val currentScreen by viewModel.currentScreen.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
@@ -88,17 +102,39 @@ fun MainScreen(
 
     // Song Context Menu State
     val contextMenuTrack by viewModel.contextMenuTrack.collectAsState()
+    val targetTrackForPlaylist by viewModel.targetTrackForPlaylist.collectAsState()
     val isExistingPlaylistSheetOpen by viewModel.isExistingPlaylistSheetOpen.collectAsState()
     val isNewPlaylistSheetOpen by viewModel.isNewPlaylistSheetOpen.collectAsState()
 
-    BackHandler(enabled = isFullPlayerOpen || isArtistManagerOpen || contextMenuTrack != null || isExistingPlaylistSheetOpen || isNewPlaylistSheetOpen || currentScreen != ScreenState.HOME) {
+    // Swipeable pages: Stream (0), Playlist (1), Local (2)
+    val pageTitles = remember { listOf("Stream", "Playlist", "Local") }
+    val pagerState = rememberPagerState(initialPage = selectedTab.coerceIn(0, 2), pageCount = { 3 })
+
+    LaunchedEffect(pagerState.currentPage) {
+        if (viewModel.selectedTab.value != pagerState.currentPage) {
+            viewModel.setTab(pagerState.currentPage)
+        }
+    }
+
+    LaunchedEffect(selectedTab) {
+        if (pagerState.currentPage != selectedTab) {
+            pagerState.animateScrollToPage(selectedTab)
+        }
+    }
+
+    BackHandler(enabled = isFullPlayerOpen || isArtistManagerOpen || contextMenuTrack != null || isExistingPlaylistSheetOpen || isNewPlaylistSheetOpen || currentScreen != ScreenState.HOME || (currentScreen == ScreenState.HOME && pagerState.currentPage != 0)) {
         when {
             contextMenuTrack != null -> viewModel.closeSongMenu()
             isExistingPlaylistSheetOpen -> viewModel.closeExistingPlaylistSheet()
             isNewPlaylistSheetOpen -> viewModel.closeNewPlaylistSheet()
             isFullPlayerOpen -> viewModel.closeFullPlayer()
             isArtistManagerOpen -> viewModel.closeArtistManager()
-            else -> viewModel.navigateBack()
+            currentScreen != ScreenState.HOME -> viewModel.navigateBack()
+            currentScreen == ScreenState.HOME && pagerState.currentPage != 0 -> {
+                coroutineScope.launch {
+                    pagerState.animateScrollToPage(0)
+                }
+            }
         }
     }
 
@@ -110,53 +146,52 @@ fun MainScreen(
         contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             if (currentScreen == ScreenState.HOME) {
-                // Material You App Header
-                Column(
+                // Header displaying the name of the active window on the top-left
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    AnimatedContent(
+                        targetState = pageTitles.getOrElse(pagerState.currentPage) { "Stream" },
+                        transitionSpec = {
+                            (fadeIn() + slideInVertically { -it / 2 }) togetherWith
+                                    (fadeOut() + slideOutVertically { it / 2 })
+                        },
+                        label = "active_screen_title"
+                    ) { title ->
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+
+                    // Minimalist Nothing-style page indicator dots
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.MusicNote,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(26.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Music",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
-
-                        // Mode Selector Chips
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = selectedTab == 0,
-                                onClick = { viewModel.setTab(0) },
-                                label = { Text("Stream") },
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                            FilterChip(
-                                selected = selectedTab == 1,
-                                onClick = { viewModel.setTab(1) },
-                                label = { Text("Device") },
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                            FilterChip(
-                                selected = selectedTab == 2,
-                                onClick = { viewModel.setTab(2) },
-                                label = { Text("Playlists") },
-                                shape = RoundedCornerShape(20.dp)
+                        pageTitles.indices.forEach { index ->
+                            val isSelected = pagerState.currentPage == index
+                            Box(
+                                modifier = Modifier
+                                    .height(5.dp)
+                                    .width(if (isSelected) 18.dp else 6.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                    )
+                                    .clickable {
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(index)
+                                        }
+                                    }
                             )
                         }
                     }
@@ -194,37 +229,44 @@ fun MainScreen(
             ) { screen ->
                 when (screen) {
                     ScreenState.HOME -> {
-                        when (selectedTab) {
-                            0 -> StreamTab(
-                                artists = artists,
-                                searchResult = searchResult,
-                                isLoading = isSearchLoading,
-                                searchQuery = searchQuery,
-                                playbackState = playbackState,
-                                onSearchQueryChange = { viewModel.onSearchQueryChanged(it) },
-                                onArtistClick = { viewModel.selectArtist(it) },
-                                onAlbumClick = { viewModel.selectAlbum(it) },
-                                onSongClick = { track, list -> viewModel.playTrack(track, list) },
-                                onSongLongClick = { viewModel.openSongMenu(it) },
-                                onChangeArtistsClick = { viewModel.openArtistManager() }
-                            )
-                            1 -> LocalTab(
-                                allTracks = localTracks,
-                                filteredTracks = viewModel.getFilteredLocalTracks(),
-                                isLoading = isLocalLoading,
-                                selectedFilter = localFilter,
-                                playbackState = playbackState,
-                                onFilterSelect = { viewModel.setLocalFormatFilter(it) },
-                                onRefresh = { viewModel.loadLocalTracks() },
-                                onFilesPicked = { viewModel.onFilesPicked(it) },
-                                onTrackSelect = { track, list -> viewModel.playTrack(track, list) },
-                                onTrackLongClick = { viewModel.openSongMenu(it) }
-                            )
-                            2 -> PlaylistsTab(
-                                playlists = playlists,
-                                onCreatePlaylistClick = { viewModel.openNewPlaylistSheet() },
-                                onPlaylistClick = { viewModel.selectPlaylist(it) }
-                            )
+                        // Swipeable windows: Stream (0), Playlist (1), Local (2)
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize(),
+                            beyondViewportPageCount = 1
+                        ) { page ->
+                            when (page) {
+                                0 -> StreamTab(
+                                    artists = artists,
+                                    searchResult = searchResult,
+                                    isLoading = isSearchLoading,
+                                    searchQuery = searchQuery,
+                                    playbackState = playbackState,
+                                    onSearchQueryChange = { viewModel.onSearchQueryChanged(it) },
+                                    onArtistClick = { viewModel.selectArtist(it) },
+                                    onAlbumClick = { viewModel.selectAlbum(it) },
+                                    onSongClick = { track, list -> viewModel.playTrack(track, list) },
+                                    onSongLongClick = { viewModel.openSongMenu(it) },
+                                    onChangeArtistsClick = { viewModel.openArtistManager() }
+                                )
+                                1 -> PlaylistsTab(
+                                    playlists = playlists,
+                                    onCreatePlaylistClick = { viewModel.openNewPlaylistSheet() },
+                                    onPlaylistClick = { viewModel.selectPlaylist(it) }
+                                )
+                                2 -> LocalTab(
+                                    allTracks = localTracks,
+                                    filteredTracks = viewModel.getFilteredLocalTracks(),
+                                    isLoading = isLocalLoading,
+                                    selectedFilter = localFilter,
+                                    playbackState = playbackState,
+                                    onFilterSelect = { viewModel.setLocalFormatFilter(it) },
+                                    onRefresh = { viewModel.loadLocalTracks() },
+                                    onFilesPicked = { viewModel.onFilesPicked(it) },
+                                    onTrackSelect = { track, list -> viewModel.playTrack(track, list) },
+                                    onTrackLongClick = { viewModel.openSongMenu(it) }
+                                )
+                            }
                         }
                     }
                     ScreenState.ARTIST_DETAIL -> {
@@ -251,9 +293,7 @@ fun MainScreen(
                                 playbackState = playbackState,
                                 onBack = { viewModel.navigateBack() },
                                 onTrackClick = { track, list -> viewModel.playTrack(track, list) },
-                                onTrackLongClick = { viewModel.openSongMenu(it) },
-                                onPlayAll = { tracks -> viewModel.playAll(tracks) },
-                                onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) }
+                                onTrackLongClick = { viewModel.openSongMenu(it) }
                             )
                         }
                     }
@@ -281,9 +321,9 @@ fun MainScreen(
     if (isArtistManagerOpen) {
         ArtistManagerSheet(
             artists = artists,
-            onToggleArtist = { viewModel.toggleArtistVisibility(it) },
-            onAddArtist = { viewModel.addCustomArtist(it) },
-            onRemoveArtist = { viewModel.removeCustomArtist(it) },
+            onToggleArtist = { artist -> viewModel.toggleArtistVisibility(artist) },
+            onAddArtist = { name -> viewModel.addCustomArtist(name) },
+            onRemoveArtist = { artist -> viewModel.removeCustomArtist(artist) },
             onDismiss = { viewModel.closeArtistManager() }
         )
     }
@@ -292,22 +332,43 @@ fun MainScreen(
     contextMenuTrack?.let { track ->
         SongActionMenuSheet(
             track = track,
-            onPlayNow = { viewModel.playTrack(track) },
-            onPlayNext = { viewModel.playNext(track) },
-            onAddToQueue = { viewModel.addToQueue(track) },
-            onAddToExistingPlaylist = { viewModel.openExistingPlaylistSheet() },
-            onAddToNewPlaylist = { viewModel.openNewPlaylistSheet() },
+            onPlayNow = {
+                viewModel.playTrack(track)
+                viewModel.closeSongMenu()
+            },
+            onPlayNext = {
+                viewModel.playNext(track)
+                viewModel.closeSongMenu()
+                Toast.makeText(context, "Playing next: ${track.title}", Toast.LENGTH_SHORT).show()
+            },
+            onAddToQueue = {
+                viewModel.addToQueue(track)
+                viewModel.closeSongMenu()
+                Toast.makeText(context, "Added to queue: ${track.title}", Toast.LENGTH_SHORT).show()
+            },
+            onAddToExistingPlaylist = {
+                viewModel.openExistingPlaylistSheet(track)
+            },
+            onAddToNewPlaylist = {
+                viewModel.openNewPlaylistSheet(track)
+            },
             onDismiss = { viewModel.closeSongMenu() }
         )
     }
 
     // Existing Playlist Picker Sheet
-    if (isExistingPlaylistSheetOpen && contextMenuTrack != null) {
+    if (isExistingPlaylistSheetOpen && targetTrackForPlaylist != null) {
         ExistingPlaylistSheet(
             playlists = playlists,
-            track = contextMenuTrack!!,
-            onSelectPlaylist = { playlist -> viewModel.addTrackToPlaylist(playlist.id, contextMenuTrack!!) },
-            onCreateNewClick = { viewModel.openNewPlaylistSheet() },
+            track = targetTrackForPlaylist!!,
+            onSelectPlaylist = { playlist ->
+                val track = targetTrackForPlaylist!!
+                viewModel.addTrackToPlaylist(playlist.id, track)
+                Toast.makeText(context, "Added to ${playlist.title}", Toast.LENGTH_SHORT).show()
+            },
+            onCreateNewClick = {
+                viewModel.openNewPlaylistSheet(targetTrackForPlaylist)
+            },
             onDismiss = { viewModel.closeExistingPlaylistSheet() }
         )
     }
@@ -315,8 +376,12 @@ fun MainScreen(
     // New Playlist Creation Sheet
     if (isNewPlaylistSheetOpen) {
         NewPlaylistSheet(
-            initialTrack = contextMenuTrack,
-            onCreatePlaylist = { title, uri -> viewModel.createPlaylist(title, uri, contextMenuTrack) },
+            initialTrack = targetTrackForPlaylist,
+            onCreatePlaylist = { title, uri ->
+                val track = targetTrackForPlaylist
+                viewModel.createPlaylist(title, uri, track)
+                Toast.makeText(context, "Created playlist \"$title\"", Toast.LENGTH_SHORT).show()
+            },
             onDismiss = { viewModel.closeNewPlaylistSheet() }
         )
     }
