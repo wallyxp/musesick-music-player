@@ -11,11 +11,13 @@ import com.nothing.music.model.PlaybackState
 import com.nothing.music.model.SearchResult
 import com.nothing.music.model.Track
 import com.nothing.music.player.PlayerManager
+import com.nothing.music.repository.ArtistRepository
 import com.nothing.music.repository.LocalAudioRepository
 import com.nothing.music.repository.YouTubeRepository
 import com.nothing.music.model.Playlist
 import com.nothing.music.repository.PlaylistRepository
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,7 +27,8 @@ enum class ScreenState {
     HOME,
     ARTIST_DETAIL,
     ALBUM_DETAIL,
-    PLAYLIST_DETAIL
+    PLAYLIST_DETAIL,
+    ARTIST_MANAGER
 }
 
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
@@ -33,6 +36,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val ytRepository = YouTubeRepository()
     private val localRepository = LocalAudioRepository(application)
     private val playlistRepository = PlaylistRepository(application)
+    private val artistRepository = ArtistRepository(application)
     val playerManager = PlayerManager.getInstance(application)
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
@@ -69,8 +73,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _artists = MutableStateFlow(YouTubeRepository.DEFAULT_INITIAL_ARTISTS)
     val artists: StateFlow<List<Artist>> = _artists.asStateFlow()
 
-    private val _isArtistManagerOpen = MutableStateFlow(false)
-    val isArtistManagerOpen: StateFlow<Boolean> = _isArtistManagerOpen.asStateFlow()
+    private val _artistSearchQuery = MutableStateFlow("")
+    val artistSearchQuery: StateFlow<String> = _artistSearchQuery.asStateFlow()
+
+    private val _artistSearchResults = MutableStateFlow<List<Artist>>(emptyList())
+    val artistSearchResults: StateFlow<List<Artist>> = _artistSearchResults.asStateFlow()
+
+    private val _isArtistSearching = MutableStateFlow(false)
+    val isArtistSearching: StateFlow<Boolean> = _isArtistSearching.asStateFlow()
+
+    private var artistSearchJob: Job? = null
 
     // Artist Detail State
     private val _selectedArtist = MutableStateFlow<Artist?>(null)
@@ -121,9 +133,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private var searchJob: Job? = null
 
     init {
+        loadArtists()
         loadLocalTracks()
-        fetchMissingArtistThumbnails()
         loadPlaylists()
+    }
+
+    fun loadArtists() {
+        viewModelScope.launch {
+            _artists.value = artistRepository.getArtists()
+            fetchMissingArtistThumbnails()
+        }
     }
 
     private fun fetchMissingArtistThumbnails() {
@@ -217,56 +236,68 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _selectedPlaylist.value = null
                 true
             }
+            ScreenState.ARTIST_MANAGER -> {
+                closeArtistManager()
+                true
+            }
             ScreenState.HOME -> false
         }
     }
 
-    // --- Artist Customization ---
-    fun toggleArtistVisibility(artist: Artist) {
-        _artists.value = _artists.value.map {
-            if (it.id == artist.id) it.copy(isVisible = !it.isVisible) else it
+    // --- Artist Customization & Search ---
+    fun onArtistSearchQueryChanged(query: String) {
+        _artistSearchQuery.value = query
+        artistSearchJob?.cancel()
+        if (query.isBlank()) {
+            _artistSearchResults.value = emptyList()
+            _isArtistSearching.value = false
+            return
+        }
+        artistSearchJob = viewModelScope.launch {
+            delay(250)
+            _isArtistSearching.value = true
+            val results = ytRepository.searchArtists(query)
+            _artistSearchResults.value = results
+            _isArtistSearching.value = false
         }
     }
 
-    fun addCustomArtist(name: String) {
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return
-        val artistId = "custom_${System.currentTimeMillis()}"
-        val newArtist = Artist(
-            id = artistId,
-            name = trimmed,
-            subtitle = "Custom Artist",
-            isCustom = true,
-            isVisible = true
-        )
-        _artists.value = listOf(newArtist) + _artists.value
-
-        // Asynchronously fetch thumbnail and browse ID for newly added artist
+    fun addArtist(artist: Artist) {
         viewModelScope.launch {
-            val (thumb, browseId) = ytRepository.fetchArtistInfo(trimmed)
-            if (!thumb.isNullOrEmpty() || !browseId.isNullOrEmpty()) {
-                _artists.value = _artists.value.map {
-                    if (it.id == artistId) {
-                        it.copy(
-                            thumbnailUrl = thumb ?: it.thumbnailUrl,
-                            browseId = browseId ?: it.browseId
-                        )
-                    } else it
-                }
-            }
+            val updated = artistRepository.addArtist(artist)
+            _artists.value = updated
         }
     }
 
-    fun removeCustomArtist(artist: Artist) {
-        _artists.value = _artists.value.filter { it.id != artist.id }
+    fun removeArtist(artist: Artist) {
+        viewModelScope.launch {
+            val updated = artistRepository.removeArtist(artist.id)
+            _artists.value = updated
+        }
+    }
+
+    fun toggleArtistVisibility(artist: Artist) {
+        viewModelScope.launch {
+            val updated = artistRepository.toggleArtistVisibility(artist.id)
+            _artists.value = updated
+        }
+    }
+
+    fun resetArtistsToDefault() {
+        viewModelScope.launch {
+            val updated = artistRepository.resetToDefault()
+            _artists.value = updated
+        }
     }
 
     fun openArtistManager() {
-        _isArtistManagerOpen.value = true
+        _currentScreen.value = ScreenState.ARTIST_MANAGER
     }
 
     fun closeArtistManager() {
-        _isArtistManagerOpen.value = false
+        _currentScreen.value = ScreenState.HOME
+        _artistSearchQuery.value = ""
+        _artistSearchResults.value = emptyList()
     }
 
     // --- Local Tracks ---

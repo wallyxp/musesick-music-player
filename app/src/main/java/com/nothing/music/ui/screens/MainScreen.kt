@@ -72,10 +72,11 @@ fun MainScreen(
     val playbackState by viewModel.playbackState.collectAsState()
     val queue by viewModel.queue.collectAsState()
     val isFullPlayerOpen by viewModel.isFullPlayerOpen.collectAsState()
-    val isArtistManagerOpen by viewModel.isArtistManagerOpen.collectAsState()
-
-    // Artists & Search State
     val artists by viewModel.artists.collectAsState()
+    val artistSearchQuery by viewModel.artistSearchQuery.collectAsState()
+    val artistSearchResults by viewModel.artistSearchResults.collectAsState()
+    val isArtistSearching by viewModel.isArtistSearching.collectAsState()
+
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResult by viewModel.searchResult.collectAsState()
     val isSearchLoading by viewModel.isSearchLoading.collectAsState()
@@ -122,13 +123,12 @@ fun MainScreen(
         }
     }
 
-    BackHandler(enabled = isFullPlayerOpen || isArtistManagerOpen || contextMenuTrack != null || isExistingPlaylistSheetOpen || isNewPlaylistSheetOpen || currentScreen != ScreenState.HOME || (currentScreen == ScreenState.HOME && pagerState.currentPage != 0)) {
+    BackHandler(enabled = isFullPlayerOpen || contextMenuTrack != null || isExistingPlaylistSheetOpen || isNewPlaylistSheetOpen || currentScreen != ScreenState.HOME || (currentScreen == ScreenState.HOME && pagerState.currentPage != 0)) {
         when {
             contextMenuTrack != null -> viewModel.closeSongMenu()
             isExistingPlaylistSheetOpen -> viewModel.closeExistingPlaylistSheet()
             isNewPlaylistSheetOpen -> viewModel.closeNewPlaylistSheet()
             isFullPlayerOpen -> viewModel.closeFullPlayer()
-            isArtistManagerOpen -> viewModel.closeArtistManager()
             currentScreen != ScreenState.HOME -> viewModel.navigateBack()
             currentScreen == ScreenState.HOME && pagerState.currentPage != 0 -> {
                 coroutineScope.launch {
@@ -312,20 +312,32 @@ fun MainScreen(
                             )
                         }
                     }
+                    ScreenState.ARTIST_MANAGER -> {
+                        ArtistSearchScreen(
+                            artists = artists,
+                            searchQuery = artistSearchQuery,
+                            searchResults = artistSearchResults,
+                            isSearching = isArtistSearching,
+                            onSearchQueryChange = { viewModel.onArtistSearchQueryChanged(it) },
+                            onAddArtist = { artist ->
+                                viewModel.addArtist(artist)
+                                Toast.makeText(context, "Added ${artist.name} to Home", Toast.LENGTH_SHORT).show()
+                            },
+                            onRemoveArtist = { artist ->
+                                viewModel.removeArtist(artist)
+                                Toast.makeText(context, "Removed ${artist.name}", Toast.LENGTH_SHORT).show()
+                            },
+                            onToggleVisibility = { artist -> viewModel.toggleArtistVisibility(artist) },
+                            onResetDefaults = {
+                                viewModel.resetArtistsToDefault()
+                                Toast.makeText(context, "Restored default artists", Toast.LENGTH_SHORT).show()
+                            },
+                            onBack = { viewModel.closeArtistManager() }
+                        )
+                    }
                 }
             }
         }
-    }
-
-    // Artist Manager Bottom Sheet
-    if (isArtistManagerOpen) {
-        ArtistManagerSheet(
-            artists = artists,
-            onToggleArtist = { artist -> viewModel.toggleArtistVisibility(artist) },
-            onAddArtist = { name -> viewModel.addCustomArtist(name) },
-            onRemoveArtist = { artist -> viewModel.removeCustomArtist(artist) },
-            onDismiss = { viewModel.closeArtistManager() }
-        )
     }
 
     // Song Action Context Menu Sheet (Long press)
@@ -404,7 +416,7 @@ fun MainScreen(
             onTrackSelect = { viewModel.playTrack(it) },
             onReorderQueue = { from, to -> viewModel.reorderQueue(from, to) },
             onRemoveFromQueue = { viewModel.removeFromQueue(it) },
-            onTrackLongClick = { viewModel.openSongMenu(it) },
+            onTrackMenuClick = { viewModel.openSongMenu(it) },
             onClose = { viewModel.closeFullPlayer() }
         )
     }

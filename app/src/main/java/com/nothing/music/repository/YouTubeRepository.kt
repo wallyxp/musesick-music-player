@@ -38,6 +38,52 @@ class YouTubeRepository {
         searchAll(query).songs
     }
 
+    suspend fun searchArtists(query: String): List<Artist> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+        val results = mutableListOf<Artist>()
+        val seenNames = mutableSetOf<String>()
+
+        // 1. Query YouTube Music direct search
+        val directSearch = searchAll(query)
+        for (artist in directSearch.artists) {
+            val clean = artist.name.trim()
+            if (clean.isNotEmpty() && seenNames.add(clean.lowercase())) {
+                results.add(artist.copy(thumbnailUrl = upgradeThumbnailUrl(artist.thumbnailUrl)))
+            }
+        }
+
+        // 2. If fewer than 6, search specifically for "$query artist"
+        if (results.size < 6) {
+            val targetedSearch = searchAll("$query artist")
+            for (artist in targetedSearch.artists) {
+                val clean = artist.name.trim()
+                if (clean.isNotEmpty() && seenNames.add(clean.lowercase())) {
+                    results.add(artist.copy(thumbnailUrl = upgradeThumbnailUrl(artist.thumbnailUrl)))
+                }
+            }
+        }
+
+        // 3. Match from songs/albums if we still need more candidates
+        if (results.size < 6) {
+            for (song in directSearch.songs) {
+                val name = song.artist.trim()
+                if (name.isNotEmpty() && name.contains(query, ignoreCase = true) && seenNames.add(name.lowercase())) {
+                    results.add(
+                        Artist(
+                            id = "artist_$name",
+                            name = name,
+                            thumbnailUrl = upgradeThumbnailUrl(song.thumbnailUrl),
+                            subtitle = "Artist",
+                            browseId = null
+                        )
+                    )
+                }
+            }
+        }
+
+        results
+    }
+
     suspend fun getArtistDetails(artist: Artist): Pair<List<Album>, List<Track>> = withContext(Dispatchers.IO) {
         val albums = mutableListOf<Album>()
         val songs = mutableListOf<Track>()
@@ -256,7 +302,7 @@ class YouTubeRepository {
                 ?.optJSONObject("thumbnail")
                 ?.optJSONArray("thumbnails")
             if (thumbs != null && thumbs.length() > 0) {
-                thumbUrl = thumbs.getJSONObject(thumbs.length() - 1).optString("url")
+                thumbUrl = upgradeThumbnailUrl(thumbs.getJSONObject(thumbs.length() - 1).optString("url"))
             }
 
             if (title.isEmpty()) return
@@ -520,7 +566,7 @@ class YouTubeRepository {
                 ?.optJSONObject("thumbnail")
                 ?.optJSONArray("thumbnails")
             if (thumbs != null && thumbs.length() > 0) {
-                thumbUrl = thumbs.getJSONObject(thumbs.length() - 1).optString("url")
+                thumbUrl = upgradeThumbnailUrl(thumbs.getJSONObject(thumbs.length() - 1).optString("url"))
             }
 
             var browseId: String? = null
@@ -598,7 +644,7 @@ class YouTubeRepository {
                 ?.optJSONObject("thumbnail")
                 ?.optJSONArray("thumbnails")
             if (thumbs != null && thumbs.length() > 0) {
-                thumbUrl = thumbs.getJSONObject(thumbs.length() - 1).optString("url")
+                thumbUrl = upgradeThumbnailUrl(thumbs.getJSONObject(thumbs.length() - 1).optString("url"))
             }
 
             var browseId: String? = null
@@ -664,10 +710,10 @@ class YouTubeRepository {
             val match = res.artists.firstOrNull { it.name.equals(artistName, ignoreCase = true) }
                 ?: res.artists.firstOrNull()
             if (match != null) {
-                Pair(match.thumbnailUrl, match.browseId)
+                Pair(upgradeThumbnailUrl(match.thumbnailUrl), match.browseId)
             } else {
                 val thumb = res.albums.firstOrNull()?.thumbnailUrl ?: res.songs.firstOrNull()?.thumbnailUrl
-                Pair(thumb, null)
+                Pair(upgradeThumbnailUrl(thumb), null)
             }
         } catch (e: Exception) {
             Pair(null, null)
@@ -677,6 +723,23 @@ class YouTubeRepository {
     suspend fun fetchArtistThumbnail(artistName: String): String? = fetchArtistInfo(artistName).first
 
     companion object {
+        fun upgradeThumbnailUrl(url: String?): String? {
+            if (url.isNullOrBlank()) return null
+            var upgraded = url
+            if (upgraded.contains("googleusercontent.com") || upgraded.contains("ggpht.com")) {
+                // Upgrade any =w...-h... or =s... to high resolution 800x800
+                upgraded = upgraded.replace(Regex("=w\\d+-h\\d+[^\"\\s]*"), "=w800-h800-p-l90-rj")
+                upgraded = upgraded.replace(Regex("=s\\d+[^\"\\s]*"), "=s800-c")
+                if (!upgraded.contains("=w") && !upgraded.contains("=s")) {
+                    upgraded = "$upgraded=w800-h800-p-l90-rj"
+                }
+            } else if (upgraded.contains("i.ytimg.com") || upgraded.contains("img.youtube.com")) {
+                if (upgraded.contains("default.jpg") && !upgraded.contains("maxresdefault.jpg") && !upgraded.contains("hq720.jpg")) {
+                    upgraded = upgraded.replace("default.jpg", "hqdefault.jpg")
+                }
+            }
+            return upgraded
+        }
         val DEFAULT_INITIAL_ARTISTS = listOf(
             Artist(
                 id = "polyphia",

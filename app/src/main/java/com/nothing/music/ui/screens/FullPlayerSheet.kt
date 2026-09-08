@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
@@ -86,7 +87,8 @@ fun FullPlayerSheet(
     onTrackSelect: (Track) -> Unit,
     onReorderQueue: (Int, Int) -> Unit,
     onRemoveFromQueue: (Int) -> Unit,
-    onTrackLongClick: (Track) -> Unit,
+    onTrackLongClick: (Track) -> Unit = {},
+    onTrackMenuClick: (Track) -> Unit = onTrackLongClick,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -385,16 +387,13 @@ fun FullPlayerSheet(
                                         scaleX = if (isDragging) 1.03f else 1.0f
                                         scaleY = if (isDragging) 1.03f else 1.0f
                                     }
-                                    .combinedClickable(
-                                        onClick = { onTrackSelect(item) },
-                                        onLongClick = { onTrackLongClick(item) }
-                                    ),
+                                    .clickable { onTrackSelect(item) },
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        .padding(start = 8.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     // Hold and Drag Handle
@@ -461,13 +460,26 @@ fun FullPlayerSheet(
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
 
                                     Text(
                                         text = item.formattedDuration,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+
+                                    // Three dots menu button
+                                    IconButton(
+                                        onClick = { onTrackMenuClick(item) },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = "Song options",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
