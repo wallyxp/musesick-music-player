@@ -29,3 +29,27 @@ data class Track(
         }
 }
 
+data class Artist(
+    val id: String,
+    val name: String,
+    val thumbnailUrl: String? = null,
+    val subtitle: String? = null,
+    val browseId: String? = null,
+    val isCustom: Boolean = false,
+    val isVisible: Boolean = true
+)
+
+data class Album(
+    val id: String,
+    val title: String,
+    val artist: String,
+    val thumbnailUrl: String? = null,
+    val year: String? = null,
+    val browseId: String? = null
+)
+
+data class SearchResult(
+    val songs: List<Track> = emptyList(),
+    val artists: List<Artist> = emptyList(),
+    val albums: List<Album> = emptyList()
+)

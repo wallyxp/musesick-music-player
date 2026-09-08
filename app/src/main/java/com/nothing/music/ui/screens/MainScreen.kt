@@ -1,13 +1,14 @@
 package com.nothing.music.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,123 +16,129 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.nothing.music.ui.MusicViewModel
+import com.nothing.music.ui.ScreenState
 import com.nothing.music.ui.components.MiniPlayerBar
-import com.nothing.music.ui.theme.NothingBorder
-import com.nothing.music.ui.theme.NothingCard
-import com.nothing.music.ui.theme.NothingRed
-import com.nothing.music.ui.theme.NothingTextMuted
-import com.nothing.music.ui.theme.NothingTextPrimary
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     viewModel: MusicViewModel,
     modifier: Modifier = Modifier
 ) {
+    val currentScreen by viewModel.currentScreen.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
     val queue by viewModel.queue.collectAsState()
     val isFullPlayerOpen by viewModel.isFullPlayerOpen.collectAsState()
+    val isArtistManagerOpen by viewModel.isArtistManagerOpen.collectAsState()
 
-    val ytTracks by viewModel.ytTracks.collectAsState()
-    val isYtLoading by viewModel.isYtLoading.collectAsState()
+    // Artists & Search State
+    val artists by viewModel.artists.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val selectedCategory by viewModel.selectedCategory.collectAsState()
+    val searchResult by viewModel.searchResult.collectAsState()
+    val isSearchLoading by viewModel.isSearchLoading.collectAsState()
 
+    // Artist Detail State
+    val selectedArtist by viewModel.selectedArtist.collectAsState()
+    val artistAlbums by viewModel.artistAlbums.collectAsState()
+    val artistSongs by viewModel.artistSongs.collectAsState()
+    val isArtistLoading by viewModel.isArtistLoading.collectAsState()
+
+    // Album Detail State
+    val selectedAlbum by viewModel.selectedAlbum.collectAsState()
+    val albumTracks by viewModel.albumTracks.collectAsState()
+    val isAlbumLoading by viewModel.isAlbumLoading.collectAsState()
+
+    // Local Tracks State
     val localTracks by viewModel.localTracks.collectAsState()
     val isLocalLoading by viewModel.isLocalLoading.collectAsState()
     val localFilter by viewModel.localFormatFilter.collectAsState()
 
-    BackHandler(enabled = isFullPlayerOpen) {
-        viewModel.closeFullPlayer()
+    BackHandler(enabled = isFullPlayerOpen || isArtistManagerOpen || currentScreen != ScreenState.HOME) {
+        when {
+            isFullPlayerOpen -> viewModel.closeFullPlayer()
+            isArtistManagerOpen -> viewModel.closeArtistManager()
+            else -> viewModel.navigateBack()
+        }
     }
 
     Scaffold(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black),
-        containerColor = Color.Black,
+            .background(MaterialTheme.colorScheme.background),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            // Nothing OS Top Header Bar
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            if (currentScreen == ScreenState.HOME) {
+                // Material You App Header
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
                 ) {
-                    // Logo with Red Indicator Dot
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(if (playbackState.isPlaying) NothingRed else NothingTextMuted)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "MUSIC",
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            letterSpacing = 2.sp,
-                            color = NothingTextPrimary
-                        )
-                    }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(26.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Music",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
 
-                    // Mode Switcher: [ STREAM ] | [ LOCAL ]
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(NothingCard)
-                            .border(1.dp, NothingBorder, RoundedCornerShape(20.dp))
-                            .padding(3.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TabPill(
-                            label = "STREAM",
-                            isSelected = selectedTab == 0,
-                            onClick = { viewModel.setTab(0) }
-                        )
-                        TabPill(
-                            label = "LOCAL",
-                            isSelected = selectedTab == 1,
-                            onClick = { viewModel.setTab(1) }
-                        )
+                        // Mode Selector Chips
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = selectedTab == 0,
+                                onClick = { viewModel.setTab(0) },
+                                label = { Text("Stream") },
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            FilterChip(
+                                selected = selectedTab == 1,
+                                onClick = { viewModel.setTab(1) },
+                                label = { Text("Device") },
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                        }
                     }
                 }
             }
         },
         bottomBar = {
-            // Floating MiniPlayerBar
-            if (playbackState.currentTrack != null) {
+            if (playbackState.currentTrack != null && !isFullPlayerOpen) {
                 MiniPlayerBar(
                     state = playbackState,
                     onTogglePlayPause = { viewModel.togglePlayPause() },
@@ -146,30 +153,87 @@ fun MainScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            when (selectedTab) {
-                0 -> StreamTab(
-                    tracks = ytTracks,
-                    isLoading = isYtLoading,
-                    searchQuery = searchQuery,
-                    selectedCategory = selectedCategory,
-                    playbackState = playbackState,
-                    onSearchQueryChange = { viewModel.onSearchQueryChanged(it) },
-                    onCategorySelect = { viewModel.loadCategory(it) },
-                    onTrackSelect = { track, list -> viewModel.playTrack(track, list) }
-                )
-                1 -> LocalTab(
-                    allTracks = localTracks,
-                    filteredTracks = viewModel.getFilteredLocalTracks(),
-                    isLoading = isLocalLoading,
-                    selectedFilter = localFilter,
-                    playbackState = playbackState,
-                    onFilterSelect = { viewModel.setLocalFormatFilter(it) },
-                    onRefresh = { viewModel.loadLocalTracks() },
-                    onFilesPicked = { viewModel.onFilesPicked(it) },
-                    onTrackSelect = { track, list -> viewModel.playTrack(track, list) }
-                )
+            AnimatedContent(
+                targetState = currentScreen,
+                transitionSpec = {
+                    if (targetState.ordinal > initialState.ordinal) {
+                        slideInHorizontally { it } togetherWith slideOutHorizontally { -it }
+                    } else {
+                        slideInHorizontally { -it } togetherWith slideOutHorizontally { it }
+                    }
+                },
+                label = "screen_transition"
+            ) { screen ->
+                when (screen) {
+                    ScreenState.HOME -> {
+                        when (selectedTab) {
+                            0 -> StreamTab(
+                                artists = artists,
+                                searchResult = searchResult,
+                                isLoading = isSearchLoading,
+                                searchQuery = searchQuery,
+                                playbackState = playbackState,
+                                onSearchQueryChange = { viewModel.onSearchQueryChanged(it) },
+                                onArtistClick = { viewModel.selectArtist(it) },
+                                onAlbumClick = { viewModel.selectAlbum(it) },
+                                onSongClick = { track, list -> viewModel.playTrack(track, list) },
+                                onChangeArtistsClick = { viewModel.openArtistManager() }
+                            )
+                            1 -> LocalTab(
+                                allTracks = localTracks,
+                                filteredTracks = viewModel.getFilteredLocalTracks(),
+                                isLoading = isLocalLoading,
+                                selectedFilter = localFilter,
+                                playbackState = playbackState,
+                                onFilterSelect = { viewModel.setLocalFormatFilter(it) },
+                                onRefresh = { viewModel.loadLocalTracks() },
+                                onFilesPicked = { viewModel.onFilesPicked(it) },
+                                onTrackSelect = { track, list -> viewModel.playTrack(track, list) }
+                            )
+                        }
+                    }
+                    ScreenState.ARTIST_DETAIL -> {
+                        selectedArtist?.let { artist ->
+                            ArtistDetailScreen(
+                                artist = artist,
+                                albums = artistAlbums,
+                                songs = artistSongs,
+                                isLoading = isArtistLoading,
+                                playbackState = playbackState,
+                                onBack = { viewModel.navigateBack() },
+                                onAlbumClick = { viewModel.selectAlbum(it) },
+                                onSongClick = { track, list -> viewModel.playTrack(track, list) }
+                            )
+                        }
+                    }
+                    ScreenState.ALBUM_DETAIL -> {
+                        selectedAlbum?.let { album ->
+                            AlbumDetailScreen(
+                                album = album,
+                                tracks = albumTracks,
+                                isLoading = isAlbumLoading,
+                                playbackState = playbackState,
+                                onBack = { viewModel.navigateBack() },
+                                onTrackClick = { track, list -> viewModel.playTrack(track, list) },
+                                onPlayAll = { tracks -> viewModel.playAll(tracks) },
+                                onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) }
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+
+    // Artist Manager Bottom Sheet
+    if (isArtistManagerOpen) {
+        ArtistManagerSheet(
+            artists = artists,
+            onToggleArtist = { viewModel.toggleArtistVisibility(it) },
+            onAddArtist = { viewModel.addCustomArtist(it) },
+            onRemoveArtist = { viewModel.removeCustomArtist(it) },
+            onDismiss = { viewModel.closeArtistManager() }
+        )
     }
 
     // Full Player Modal Sheet
@@ -192,33 +256,3 @@ fun MainScreen(
         )
     }
 }
-
-@Composable
-private fun TabPill(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (isSelected) Color.White else Color.Transparent)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-            fontSize = 10.sp,
-            letterSpacing = 0.8.sp,
-            color = if (isSelected) Color.Black else NothingTextMuted
-        )
-    }
-}
-

@@ -4,9 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,35 +23,35 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.nothing.music.model.AudioFormat
 import com.nothing.music.model.PlaybackState
 import com.nothing.music.model.Track
 import com.nothing.music.ui.components.NothingFormatBadge
-import com.nothing.music.ui.components.NothingPillButton
-import com.nothing.music.ui.theme.NothingBorder
-import com.nothing.music.ui.theme.NothingCard
-import com.nothing.music.ui.theme.NothingCardElevated
-import com.nothing.music.ui.theme.NothingRed
-import com.nothing.music.ui.theme.NothingTextMuted
-import com.nothing.music.ui.theme.NothingTextPrimary
-import com.nothing.music.ui.theme.NothingTextSecondary
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocalTab(
     allTracks: List<Track>,
@@ -67,7 +65,6 @@ fun LocalTab(
     onTrackSelect: (Track, List<Track>) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Launcher for picking local audio files (.mp3, .m4a, .flac)
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
@@ -79,62 +76,42 @@ fun LocalTab(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Action Bar: Pick Files & Rescan
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Pick audio files button
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(NothingCardElevated)
-                    .border(1.dp, NothingBorder, RoundedCornerShape(12.dp))
-                    .clickable {
-                        filePicker.launch(arrayOf("audio/*", "audio/mpeg", "audio/mp4", "audio/flac"))
-                    }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                contentAlignment = Alignment.Center
+            FilledTonalButton(
+                onClick = {
+                    filePicker.launch(arrayOf("audio/*", "audio/mpeg", "audio/mp4", "audio/flac"))
+                },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(20.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.FileOpen,
-                        contentDescription = "Pick Files",
-                        tint = NothingRed,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "OPEN AUDIO FILES",
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 11.sp,
-                        letterSpacing = 0.8.sp,
-                        color = NothingTextPrimary
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.FileOpen,
+                    contentDescription = "Pick Files",
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Open Audio Files")
             }
 
-            // Rescan button
-            Box(
+            IconButton(
+                onClick = onRefresh,
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(NothingCard)
-                    .border(1.dp, NothingBorder, RoundedCornerShape(12.dp))
-                    .clickable(onClick = onRefresh),
-                contentAlignment = Alignment.Center
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = "Rescan",
-                    tint = NothingTextSecondary,
-                    modifier = Modifier.size(18.dp)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -156,37 +133,32 @@ fun LocalTab(
                     else -> allTracks.size
                 }
                 val isSelected = selectedFilter == filter
-                NothingPillButton(
-                    text = "$filter ($count)",
-                    isSelected = isSelected,
-                    hasRedDot = isSelected,
-                    onClick = { onFilterSelect(filter) }
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onFilterSelect(filter) },
+                    label = { Text("$filter ($count)") },
+                    shape = RoundedCornerShape(16.dp)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Supported formats status line
+        // Status Line
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 6.dp),
+                .padding(horizontal = 20.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${filteredTracks.size} AUDIO TRACKS",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp,
-                letterSpacing = 1.sp,
-                color = NothingTextMuted
+                text = "${filteredTracks.size} audio tracks found",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = ".MP3 • .M4A • .FLAC",
-                fontFamily = FontFamily.Monospace,
-                fontSize = 9.sp,
-                color = NothingRed
+                text = ".mp3 • .m4a • .flac",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
             )
         }
 
@@ -199,18 +171,12 @@ fun LocalTab(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(
-                        color = NothingRed,
-                        strokeWidth = 2.dp,
-                        modifier = Modifier.size(28.dp)
-                    )
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "SCANNING STORAGE...",
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        letterSpacing = 1.sp,
-                        color = NothingTextSecondary
+                        text = "Scanning device storage...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -228,34 +194,30 @@ fun LocalTab(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(54.dp)
+                            .size(60.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF161616))
-                            .border(1.dp, NothingBorder, CircleShape),
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.FileOpen,
                             contentDescription = null,
-                            tint = NothingTextMuted,
-                            modifier = Modifier.size(24.dp)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(28.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "NO $selectedFilter FILES FOUND",
-                        fontFamily = FontFamily.Monospace,
+                        text = "No $selectedFilter files found",
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        letterSpacing = 1.sp,
-                        color = NothingTextPrimary
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Tap 'OPEN AUDIO FILES' to pick .mp3, .m4a or .flac audios from your device storage",
-                        fontFamily = FontFamily.SansSerif,
-                        fontSize = 12.sp,
-                        color = NothingTextMuted,
+                        text = "Tap 'Open Audio Files' to select .mp3, .m4a or .flac audios from your device storage",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 24.dp)
                     )
@@ -266,12 +228,12 @@ fun LocalTab(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 90.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(filteredTracks) { track ->
                     val isCurrent = playbackState.currentTrack?.id == track.id
-                    LocalTrackItem(
+                    LocalTrackCard(
                         track = track,
                         isCurrent = isCurrent,
                         isPlaying = isCurrent && playbackState.isPlaying,
@@ -284,26 +246,22 @@ fun LocalTab(
 }
 
 @Composable
-fun LocalTrackItem(
+fun LocalTrackCard(
     track: Track,
     isCurrent: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit
 ) {
-    Box(
+    ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isCurrent) Color(0xFF161616) else NothingCard)
-            .border(
-                width = 1.dp,
-                color = if (isCurrent) NothingRed else NothingBorder,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(12.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp)
     ) {
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Audio Format Badge
@@ -319,10 +277,9 @@ fun LocalTrackItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = track.title,
-                    fontFamily = FontFamily.SansSerif,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                    fontSize = 14.sp,
-                    color = if (isCurrent) NothingTextPrimary else Color(0xFFE0E0E0),
+                    color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -330,9 +287,8 @@ fun LocalTrackItem(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = track.artist,
-                        fontFamily = FontFamily.SansSerif,
-                        fontSize = 12.sp,
-                        color = NothingTextSecondary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -341,9 +297,8 @@ fun LocalTrackItem(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "• ${track.sizeFormatted}",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            color = NothingTextMuted
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -351,14 +306,20 @@ fun LocalTrackItem(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Duration
-            Text(
-                text = track.formattedDuration,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                color = if (isCurrent) NothingRed else NothingTextMuted
-            )
+            if (isCurrent) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Playing",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                Text(
+                    text = track.formattedDuration,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
-

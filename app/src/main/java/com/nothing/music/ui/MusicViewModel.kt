@@ -4,8 +4,11 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nothing.music.model.Album
+import com.nothing.music.model.Artist
 import com.nothing.music.model.AudioFormat
 import com.nothing.music.model.PlaybackState
+import com.nothing.music.model.SearchResult
 import com.nothing.music.model.Track
 import com.nothing.music.player.PlayerManager
 import com.nothing.music.repository.LocalAudioRepository
@@ -16,6 +19,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+enum class ScreenState {
+    HOME,
+    ARTIST_DETAIL,
+    ALBUM_DETAIL
+}
+
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val ytRepository = YouTubeRepository()
@@ -25,21 +34,52 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
     val queue: StateFlow<List<Track>> = playerManager.queue
 
+    // Navigation Stack
+    private val _currentScreen = MutableStateFlow(ScreenState.HOME)
+    val currentScreen: StateFlow<ScreenState> = _currentScreen.asStateFlow()
+
     private val _selectedTab = MutableStateFlow(0) // 0 = STREAM, 1 = LOCAL
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
 
-    // YouTube Stream State
+    // Artists on Home Page
+    private val _artists = MutableStateFlow(YouTubeRepository.DEFAULT_INITIAL_ARTISTS)
+    val artists: StateFlow<List<Artist>> = _artists.asStateFlow()
+
+    private val _isArtistManagerOpen = MutableStateFlow(false)
+    val isArtistManagerOpen: StateFlow<Boolean> = _isArtistManagerOpen.asStateFlow()
+
+    // Artist Detail State
+    private val _selectedArtist = MutableStateFlow<Artist?>(null)
+    val selectedArtist: StateFlow<Artist?> = _selectedArtist.asStateFlow()
+
+    private val _artistAlbums = MutableStateFlow<List<Album>>(emptyList())
+    val artistAlbums: StateFlow<List<Album>> = _artistAlbums.asStateFlow()
+
+    private val _artistSongs = MutableStateFlow<List<Track>>(emptyList())
+    val artistSongs: StateFlow<List<Track>> = _artistSongs.asStateFlow()
+
+    private val _isArtistLoading = MutableStateFlow(false)
+    val isArtistLoading: StateFlow<Boolean> = _isArtistLoading.asStateFlow()
+
+    // Album Detail State
+    private val _selectedAlbum = MutableStateFlow<Album?>(null)
+    val selectedAlbum: StateFlow<Album?> = _selectedAlbum.asStateFlow()
+
+    private val _albumTracks = MutableStateFlow<List<Track>>(emptyList())
+    val albumTracks: StateFlow<List<Track>> = _albumTracks.asStateFlow()
+
+    private val _isAlbumLoading = MutableStateFlow(false)
+    val isAlbumLoading: StateFlow<Boolean> = _isAlbumLoading.asStateFlow()
+
+    // Search State
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _ytTracks = MutableStateFlow<List<Track>>(emptyList())
-    val ytTracks: StateFlow<List<Track>> = _ytTracks.asStateFlow()
+    private val _searchResult = MutableStateFlow(SearchResult())
+    val searchResult: StateFlow<SearchResult> = _searchResult.asStateFlow()
 
-    private val _isYtLoading = MutableStateFlow(false)
-    val isYtLoading: StateFlow<Boolean> = _isYtLoading.asStateFlow()
-
-    private val _selectedCategory = MutableStateFlow("TOP HITS")
-    val selectedCategory: StateFlow<String> = _selectedCategory.asStateFlow()
+    private val _isSearchLoading = MutableStateFlow(false)
+    val isSearchLoading: StateFlow<Boolean> = _isSearchLoading.asStateFlow()
 
     // Local Tracks State
     private val _localTracks = MutableStateFlow<List<Track>>(emptyList())
@@ -57,13 +97,34 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private var searchJob: Job? = null
 
     init {
-        // Automatically fetch initial curated category so user can straight away play music!
-        loadCategory("TOP HITS")
         loadLocalTracks()
+        fetchMissingArtistThumbnails()
+    }
+
+    private fun fetchMissingArtistThumbnails() {
+        viewModelScope.launch {
+            val currentList = _artists.value
+            for (artist in currentList) {
+                if (artist.thumbnailUrl.isNullOrEmpty()) {
+                    val (thumb, browseId) = ytRepository.fetchArtistInfo(artist.name)
+                    if (!thumb.isNullOrEmpty() || !browseId.isNullOrEmpty()) {
+                        _artists.value = _artists.value.map {
+                            if (it.id == artist.id) {
+                                it.copy(
+                                    thumbnailUrl = thumb ?: it.thumbnailUrl,
+                                    browseId = browseId ?: it.browseId
+                                )
+                            } else it
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun setTab(index: Int) {
         _selectedTab.value = index
+        _currentScreen.value = ScreenState.HOME
         if (index == 1 && _localTracks.value.isEmpty()) {
             loadLocalTracks()
         }
@@ -73,28 +134,110 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _searchQuery.value = query
         searchJob?.cancel()
         if (query.isBlank()) {
-            loadCategory(_selectedCategory.value)
+            _searchResult.value = SearchResult()
+            _isSearchLoading.value = false
             return
         }
         searchJob = viewModelScope.launch {
-            _isYtLoading.value = true
-            val results = ytRepository.searchTracks(query)
-            _ytTracks.value = results
-            _isYtLoading.value = false
+            _isSearchLoading.value = true
+            val results = ytRepository.searchAll(query)
+            _searchResult.value = results
+            _isSearchLoading.value = false
         }
     }
 
-    fun loadCategory(category: String) {
-        _selectedCategory.value = category
-        _searchQuery.value = ""
+    fun selectArtist(artist: Artist) {
+        _selectedArtist.value = artist
+        _artistAlbums.value = emptyList()
+        _artistSongs.value = emptyList()
+        _currentScreen.value = ScreenState.ARTIST_DETAIL
+
         viewModelScope.launch {
-            _isYtLoading.value = true
-            val results = ytRepository.searchTracks("$category music")
-            _ytTracks.value = results
-            _isYtLoading.value = false
+            _isArtistLoading.value = true
+            val (albums, songs) = ytRepository.getArtistDetails(artist)
+            _artistAlbums.value = albums
+            _artistSongs.value = songs
+            _isArtistLoading.value = false
         }
     }
 
+    fun selectAlbum(album: Album) {
+        _selectedAlbum.value = album
+        _albumTracks.value = emptyList()
+        _currentScreen.value = ScreenState.ALBUM_DETAIL
+
+        viewModelScope.launch {
+            _isAlbumLoading.value = true
+            val tracks = ytRepository.getAlbumTracks(album)
+            _albumTracks.value = tracks
+            _isAlbumLoading.value = false
+        }
+    }
+
+    fun navigateBack(): Boolean {
+        return when (_currentScreen.value) {
+            ScreenState.ALBUM_DETAIL -> {
+                _currentScreen.value = if (_selectedArtist.value != null) ScreenState.ARTIST_DETAIL else ScreenState.HOME
+                true
+            }
+            ScreenState.ARTIST_DETAIL -> {
+                _currentScreen.value = ScreenState.HOME
+                _selectedArtist.value = null
+                true
+            }
+            ScreenState.HOME -> false
+        }
+    }
+
+    // --- Artist Customization ---
+    fun toggleArtistVisibility(artist: Artist) {
+        _artists.value = _artists.value.map {
+            if (it.id == artist.id) it.copy(isVisible = !it.isVisible) else it
+        }
+    }
+
+    fun addCustomArtist(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val artistId = "custom_${System.currentTimeMillis()}"
+        val newArtist = Artist(
+            id = artistId,
+            name = trimmed,
+            subtitle = "Custom Artist",
+            isCustom = true,
+            isVisible = true
+        )
+        _artists.value = listOf(newArtist) + _artists.value
+
+        // Asynchronously fetch thumbnail and browse ID for newly added artist
+        viewModelScope.launch {
+            val (thumb, browseId) = ytRepository.fetchArtistInfo(trimmed)
+            if (!thumb.isNullOrEmpty() || !browseId.isNullOrEmpty()) {
+                _artists.value = _artists.value.map {
+                    if (it.id == artistId) {
+                        it.copy(
+                            thumbnailUrl = thumb ?: it.thumbnailUrl,
+                            browseId = browseId ?: it.browseId
+                        )
+                    } else it
+                }
+            }
+        }
+    }
+
+    fun removeCustomArtist(artist: Artist) {
+        _artists.value = _artists.value.filter { it.id != artist.id }
+    }
+
+    fun openArtistManager() {
+        _isArtistManagerOpen.value = true
+    }
+
+    fun closeArtistManager() {
+        _isArtistManagerOpen.value = false
+    }
+
+    // --- Local Tracks ---
     fun loadLocalTracks() {
         viewModelScope.launch {
             _isLocalLoading.value = true
@@ -117,7 +260,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             if (newTracks.isNotEmpty()) {
                 val combined = (_localTracks.value + newTracks).distinctBy { it.id }
                 _localTracks.value = combined
-                // Start playing first picked track immediately!
                 playTrack(newTracks.first(), combined)
             }
             _isLocalLoading.value = false
@@ -138,8 +280,22 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- Playback Controls ---
     fun playTrack(track: Track, queue: List<Track>? = null) {
         playerManager.playTrack(track, queue)
+    }
+
+    fun playAll(tracks: List<Track>) {
+        if (tracks.isNotEmpty()) {
+            playerManager.playTrack(tracks.first(), tracks)
+        }
+    }
+
+    fun shuffleAll(tracks: List<Track>) {
+        if (tracks.isNotEmpty()) {
+            val shuffled = tracks.shuffled()
+            playerManager.playTrack(shuffled.first(), shuffled)
+        }
     }
 
     fun togglePlayPause() {
@@ -178,4 +334,3 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _isFullPlayerOpen.value = false
     }
 }
-

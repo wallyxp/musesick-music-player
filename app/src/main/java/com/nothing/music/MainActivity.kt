@@ -12,7 +12,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.nothing.music.ui.MusicViewModel
 import com.nothing.music.ui.screens.MainScreen
-import com.nothing.music.ui.theme.NothingMusicTheme
+import com.nothing.music.ui.theme.MaterialYouMusicTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -31,13 +31,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Enable edge-to-edge layout with black status and navigation bars
+        // Enable edge-to-edge layout
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         requestNeededPermissions()
 
         setContent {
-            NothingMusicTheme {
+            MaterialYouMusicTheme {
                 MainScreen(viewModel = viewModel)
             }
         }

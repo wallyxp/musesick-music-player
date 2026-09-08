@@ -2,9 +2,7 @@ package com.nothing.music.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,45 +20,46 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.nothing.music.model.PlaybackState
 import com.nothing.music.model.Track
-import com.nothing.music.ui.components.NothingCircleButton
-import com.nothing.music.ui.components.NothingDiscGlyph
-import com.nothing.music.ui.components.NothingDotVisualizer
 import com.nothing.music.ui.components.NothingFormatBadge
-import com.nothing.music.ui.components.NothingSlider
-import com.nothing.music.ui.theme.NothingBorder
-import com.nothing.music.ui.theme.NothingCard
-import com.nothing.music.ui.theme.NothingRed
-import com.nothing.music.ui.theme.NothingTextMuted
-import com.nothing.music.ui.theme.NothingTextPrimary
-import com.nothing.music.ui.theme.NothingTextSecondary
 
 @Composable
 fun FullPlayerSheet(
@@ -82,7 +81,7 @@ fun FullPlayerSheet(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.background)
             .padding(top = 36.dp, bottom = 24.dp)
     ) {
         Column(
@@ -91,7 +90,7 @@ fun FullPlayerSheet(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top Navigation Bar
+            // Top Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -99,44 +98,23 @@ fun FullPlayerSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Collapse button
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(NothingCard)
-                        .border(1.dp, NothingBorder, CircleShape)
-                        .clickable(onClick = onClose),
-                    contentAlignment = Alignment.Center
-                ) {
+                IconButton(onClick = onClose) {
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Close",
-                        tint = NothingTextPrimary,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(28.dp),
+                        tint = MaterialTheme.colorScheme.onBackground
                     )
                 }
 
-                // Header Tag with Red Dot
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(NothingRed)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "NOW PLAYING",
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        letterSpacing = 1.2.sp,
-                        color = NothingTextPrimary
-                    )
-                }
+                Text(
+                    text = "NOW PLAYING",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
 
-                // Format tag
                 NothingFormatBadge(
                     label = track.audioFormat.label,
                     isHighlighted = true
@@ -146,31 +124,44 @@ fun FullPlayerSheet(
             Spacer(modifier = Modifier.height(16.dp))
 
             if (!showQueue) {
-                // Center Nothing Disc Glyph & Equalizer
+                // Large Album Art / Visualizer Centerpiece
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                    ElevatedCard(
+                        modifier = Modifier
+                            .size(260.dp),
+                        shape = RoundedCornerShape(28.dp)
                     ) {
-                        NothingDiscGlyph(
-                            isPlaying = state.isPlaying,
-                            sizeDp = 170.dp
-                        )
-
-                        Spacer(modifier = Modifier.height(28.dp))
-
-                        // Animated Dot Matrix Audio Equalizer Visualizer
-                        NothingDotVisualizer(
-                            isPlaying = state.isPlaying,
-                            modifier = Modifier.padding(horizontal = 20.dp)
-                        )
+                        if (!track.thumbnailUrl.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = track.thumbnailUrl,
+                                contentDescription = track.title,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Album,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(90.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Track Title & Artist
                 Column(
@@ -179,191 +170,158 @@ fun FullPlayerSheet(
                 ) {
                     Text(
                         text = track.title,
-                        fontFamily = FontFamily.SansSerif,
+                        style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = NothingTextPrimary,
+                        color = MaterialTheme.colorScheme.onBackground,
                         maxLines = 2,
                         textAlign = TextAlign.Center,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = track.artist,
-                        fontFamily = FontFamily.SansSerif,
-                        fontSize = 14.sp,
-                        color = NothingTextSecondary,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         textAlign = TextAlign.Center,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // Nothing Red Scrubber Bar
-                NothingSlider(
-                    value = state.progressFraction,
-                    onValueChange = onSeek,
-                    enabled = state.durationMs > 0
+                // Material You Scrubber Slider
+                var sliderPosition by remember { mutableFloatStateOf(-1f) }
+                val currentProgress = if (sliderPosition >= 0f) sliderPosition else state.progressFraction
+
+                Slider(
+                    value = currentProgress,
+                    onValueChange = { sliderPosition = it },
+                    onValueChangeFinished = {
+                        if (sliderPosition >= 0f) {
+                            onSeek(sliderPosition)
+                            sliderPosition = -1f
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 )
 
-                // Timestamp Row (Monospace / Dot matrix aesthetic)
+                // Timestamp Row
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 2.dp),
+                        .padding(horizontal = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = state.formattedPosition,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = NothingTextSecondary
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = state.formattedDuration,
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = NothingTextMuted
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // Main Playback Controls
+                // Playback Controls Row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Shuffle
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onToggleShuffle),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.Shuffle,
-                                contentDescription = "Shuffle",
-                                tint = if (state.isShuffle) NothingRed else NothingTextMuted,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            if (state.isShuffle) {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(top = 2.dp)
-                                        .size(3.dp)
-                                        .clip(CircleShape)
-                                        .background(NothingRed)
-                                )
-                            }
-                        }
+                    IconButton(onClick = onToggleShuffle) {
+                        Icon(
+                            imageVector = Icons.Default.Shuffle,
+                            contentDescription = "Shuffle",
+                            tint = if (state.isShuffle) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
                     // Previous
-                    NothingCircleButton(
-                        icon = Icons.Default.SkipPrevious,
+                    FilledTonalIconButton(
                         onClick = onPrevious,
-                        size = 50.dp,
-                        iconSize = 26.dp,
-                        contentDescription = "Previous"
-                    )
+                        modifier = Modifier.size(54.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SkipPrevious,
+                            contentDescription = "Previous",
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
 
                     // Big Circular Play/Pause
-                    Box(
-                        modifier = Modifier
-                            .size(68.dp)
-                            .clip(CircleShape)
-                            .background(NothingTextPrimary)
-                            .clickable(onClick = onTogglePlayPause),
-                        contentAlignment = Alignment.Center
+                    FilledIconButton(
+                        onClick = onTogglePlayPause,
+                        modifier = Modifier.size(72.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                     ) {
                         if (state.isBuffering) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(28.dp),
-                                color = NothingRed,
+                                modifier = Modifier.size(32.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 strokeWidth = 3.dp
                             )
                         } else {
                             Icon(
                                 imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                 contentDescription = if (state.isPlaying) "Pause" else "Play",
-                                tint = Color.Black,
-                                modifier = Modifier.size(34.dp)
+                                modifier = Modifier.size(38.dp)
                             )
                         }
                     }
 
                     // Next
-                    NothingCircleButton(
-                        icon = Icons.Default.SkipNext,
+                    FilledTonalIconButton(
                         onClick = onNext,
-                        size = 50.dp,
-                        iconSize = 26.dp,
-                        contentDescription = "Next"
-                    )
+                        modifier = Modifier.size(54.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SkipNext,
+                            contentDescription = "Next",
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
 
                     // Repeat
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onToggleRepeat),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.Repeat,
-                                contentDescription = "Repeat",
-                                tint = if (state.isRepeat) NothingRed else NothingTextMuted,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            if (state.isRepeat) {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(top = 2.dp)
-                                        .size(3.dp)
-                                        .clip(CircleShape)
-                                        .background(NothingRed)
-                                )
-                            }
-                        }
+                    IconButton(onClick = onToggleRepeat) {
+                        Icon(
+                            imageVector = Icons.Default.Repeat,
+                            contentDescription = "Repeat",
+                            tint = if (state.isRepeat) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Queue Sheet Button
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(NothingCard)
-                        .border(1.dp, NothingBorder, RoundedCornerShape(20.dp))
-                        .clickable { showQueue = true }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                // Queue toggle button
+                FilledTonalButton(
+                    onClick = { showQueue = true },
+                    shape = RoundedCornerShape(20.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                            contentDescription = "Queue",
-                            tint = NothingTextSecondary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "QUEUE (${queue.size})",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            color = NothingTextSecondary
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                        contentDescription = "Queue",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = "Queue (${queue.size})")
                 }
             } else {
-                // Queue Screen
+                // Queue View
                 Column(modifier = Modifier.weight(1f)) {
                     Row(
                         modifier = Modifier
@@ -373,19 +331,16 @@ fun FullPlayerSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "CURRENT QUEUE (${queue.size})",
-                            fontFamily = FontFamily.Monospace,
+                            text = "Up Next (${queue.size})",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            letterSpacing = 1.sp,
-                            color = NothingTextPrimary
+                            color = MaterialTheme.colorScheme.onBackground
                         )
 
                         Text(
-                            text = "BACK TO PLAYER",
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
-                            color = NothingRed,
+                            text = "Back to Player",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.clickable { showQueue = false }
                         )
                     }
@@ -397,38 +352,38 @@ fun FullPlayerSheet(
                     ) {
                         itemsIndexed(queue) { index, item ->
                             val isCurrent = item.id == track.id
-                            Box(
+                            ElevatedCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(if (isCurrent) Color(0xFF181818) else NothingCard)
-                                    .border(1.dp, if (isCurrent) NothingRed else NothingBorder, RoundedCornerShape(10.dp))
-                                    .clickable { onTrackSelect(item) }
-                                    .padding(10.dp)
+                                    .clickable { onTrackSelect(item) },
+                                shape = RoundedCornerShape(12.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
-                                        text = String.format("%02d", index + 1),
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp,
-                                        color = if (isCurrent) NothingRed else NothingTextMuted,
+                                        text = "${index + 1}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.width(28.dp)
                                     )
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = item.title,
-                                            fontFamily = FontFamily.SansSerif,
+                                            style = MaterialTheme.typography.bodyLarge,
                                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                            fontSize = 13.sp,
-                                            color = if (isCurrent) NothingTextPrimary else Color(0xFFCCCCCC),
+                                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
                                             text = "${item.artist} • ${item.audioFormat.label}",
-                                            fontFamily = FontFamily.SansSerif,
-                                            fontSize = 11.sp,
-                                            color = NothingTextSecondary,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -436,9 +391,8 @@ fun FullPlayerSheet(
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = item.formattedDuration,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 10.sp,
-                                        color = NothingTextMuted
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -449,4 +403,3 @@ fun FullPlayerSheet(
         }
     }
 }
-
