@@ -36,9 +36,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsPadding
 import com.nothing.music.ui.MusicViewModel
 import com.nothing.music.ui.ScreenState
+import com.nothing.music.ui.components.ExistingPlaylistSheet
 import com.nothing.music.ui.components.MiniPlayerBar
+import com.nothing.music.ui.components.NewPlaylistSheet
+import com.nothing.music.ui.components.SongActionMenuSheet
+import com.nothing.music.ui.screens.PlaylistDetailScreen
+import com.nothing.music.ui.screens.PlaylistsTab
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,8 +82,20 @@ fun MainScreen(
     val isLocalLoading by viewModel.isLocalLoading.collectAsState()
     val localFilter by viewModel.localFormatFilter.collectAsState()
 
-    BackHandler(enabled = isFullPlayerOpen || isArtistManagerOpen || currentScreen != ScreenState.HOME) {
+    // Playlist State
+    val playlists by viewModel.playlists.collectAsState()
+    val selectedPlaylist by viewModel.selectedPlaylist.collectAsState()
+
+    // Song Context Menu State
+    val contextMenuTrack by viewModel.contextMenuTrack.collectAsState()
+    val isExistingPlaylistSheetOpen by viewModel.isExistingPlaylistSheetOpen.collectAsState()
+    val isNewPlaylistSheetOpen by viewModel.isNewPlaylistSheetOpen.collectAsState()
+
+    BackHandler(enabled = isFullPlayerOpen || isArtistManagerOpen || contextMenuTrack != null || isExistingPlaylistSheetOpen || isNewPlaylistSheetOpen || currentScreen != ScreenState.HOME) {
         when {
+            contextMenuTrack != null -> viewModel.closeSongMenu()
+            isExistingPlaylistSheetOpen -> viewModel.closeExistingPlaylistSheet()
+            isNewPlaylistSheetOpen -> viewModel.closeNewPlaylistSheet()
             isFullPlayerOpen -> viewModel.closeFullPlayer()
             isArtistManagerOpen -> viewModel.closeArtistManager()
             else -> viewModel.navigateBack()
@@ -88,6 +107,7 @@ fun MainScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             if (currentScreen == ScreenState.HOME) {
                 // Material You App Header
@@ -132,6 +152,12 @@ fun MainScreen(
                                 label = { Text("Device") },
                                 shape = RoundedCornerShape(20.dp)
                             )
+                            FilterChip(
+                                selected = selectedTab == 2,
+                                onClick = { viewModel.setTab(2) },
+                                label = { Text("Playlists") },
+                                shape = RoundedCornerShape(20.dp)
+                            )
                         }
                     }
                 }
@@ -139,12 +165,14 @@ fun MainScreen(
         },
         bottomBar = {
             if (playbackState.currentTrack != null && !isFullPlayerOpen) {
-                MiniPlayerBar(
-                    state = playbackState,
-                    onTogglePlayPause = { viewModel.togglePlayPause() },
-                    onNext = { viewModel.nextTrack() },
-                    onClick = { viewModel.openFullPlayer() }
-                )
+                Box(modifier = Modifier.navigationBarsPadding()) {
+                    MiniPlayerBar(
+                        state = playbackState,
+                        onTogglePlayPause = { viewModel.togglePlayPause() },
+                        onNext = { viewModel.nextTrack() },
+                        onClick = { viewModel.openFullPlayer() }
+                    )
+                }
             }
         }
     ) { paddingValues ->
@@ -177,6 +205,7 @@ fun MainScreen(
                                 onArtistClick = { viewModel.selectArtist(it) },
                                 onAlbumClick = { viewModel.selectAlbum(it) },
                                 onSongClick = { track, list -> viewModel.playTrack(track, list) },
+                                onSongLongClick = { viewModel.openSongMenu(it) },
                                 onChangeArtistsClick = { viewModel.openArtistManager() }
                             )
                             1 -> LocalTab(
@@ -188,7 +217,13 @@ fun MainScreen(
                                 onFilterSelect = { viewModel.setLocalFormatFilter(it) },
                                 onRefresh = { viewModel.loadLocalTracks() },
                                 onFilesPicked = { viewModel.onFilesPicked(it) },
-                                onTrackSelect = { track, list -> viewModel.playTrack(track, list) }
+                                onTrackSelect = { track, list -> viewModel.playTrack(track, list) },
+                                onTrackLongClick = { viewModel.openSongMenu(it) }
+                            )
+                            2 -> PlaylistsTab(
+                                playlists = playlists,
+                                onCreatePlaylistClick = { viewModel.openNewPlaylistSheet() },
+                                onPlaylistClick = { viewModel.selectPlaylist(it) }
                             )
                         }
                     }
@@ -202,7 +237,8 @@ fun MainScreen(
                                 playbackState = playbackState,
                                 onBack = { viewModel.navigateBack() },
                                 onAlbumClick = { viewModel.selectAlbum(it) },
-                                onSongClick = { track, list -> viewModel.playTrack(track, list) }
+                                onSongClick = { track, list -> viewModel.playTrack(track, list) },
+                                onSongLongClick = { viewModel.openSongMenu(it) }
                             )
                         }
                     }
@@ -215,8 +251,24 @@ fun MainScreen(
                                 playbackState = playbackState,
                                 onBack = { viewModel.navigateBack() },
                                 onTrackClick = { track, list -> viewModel.playTrack(track, list) },
+                                onTrackLongClick = { viewModel.openSongMenu(it) },
                                 onPlayAll = { tracks -> viewModel.playAll(tracks) },
                                 onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) }
+                            )
+                        }
+                    }
+                    ScreenState.PLAYLIST_DETAIL -> {
+                        selectedPlaylist?.let { playlist ->
+                            PlaylistDetailScreen(
+                                playlist = playlist,
+                                playbackState = playbackState,
+                                onBack = { viewModel.navigateBack() },
+                                onTrackClick = { track, list -> viewModel.playTrack(track, list) },
+                                onTrackLongClick = { viewModel.openSongMenu(it) },
+                                onPlayAll = { tracks -> viewModel.playAll(tracks) },
+                                onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) },
+                                onRemoveTrack = { track -> viewModel.removeTrackFromPlaylist(playlist.id, track.id) },
+                                onDeletePlaylist = { viewModel.deletePlaylist(playlist.id) }
                             )
                         }
                     }
@@ -236,6 +288,39 @@ fun MainScreen(
         )
     }
 
+    // Song Action Context Menu Sheet (Long press)
+    contextMenuTrack?.let { track ->
+        SongActionMenuSheet(
+            track = track,
+            onPlayNow = { viewModel.playTrack(track) },
+            onPlayNext = { viewModel.playNext(track) },
+            onAddToQueue = { viewModel.addToQueue(track) },
+            onAddToExistingPlaylist = { viewModel.openExistingPlaylistSheet() },
+            onAddToNewPlaylist = { viewModel.openNewPlaylistSheet() },
+            onDismiss = { viewModel.closeSongMenu() }
+        )
+    }
+
+    // Existing Playlist Picker Sheet
+    if (isExistingPlaylistSheetOpen && contextMenuTrack != null) {
+        ExistingPlaylistSheet(
+            playlists = playlists,
+            track = contextMenuTrack!!,
+            onSelectPlaylist = { playlist -> viewModel.addTrackToPlaylist(playlist.id, contextMenuTrack!!) },
+            onCreateNewClick = { viewModel.openNewPlaylistSheet() },
+            onDismiss = { viewModel.closeExistingPlaylistSheet() }
+        )
+    }
+
+    // New Playlist Creation Sheet
+    if (isNewPlaylistSheetOpen) {
+        NewPlaylistSheet(
+            initialTrack = contextMenuTrack,
+            onCreatePlaylist = { title, uri -> viewModel.createPlaylist(title, uri, contextMenuTrack) },
+            onDismiss = { viewModel.closeNewPlaylistSheet() }
+        )
+    }
+
     // Full Player Modal Sheet
     AnimatedVisibility(
         visible = isFullPlayerOpen,
@@ -252,6 +337,9 @@ fun MainScreen(
             onToggleShuffle = { viewModel.toggleShuffle() },
             onToggleRepeat = { viewModel.toggleRepeat() },
             onTrackSelect = { viewModel.playTrack(it) },
+            onReorderQueue = { from, to -> viewModel.reorderQueue(from, to) },
+            onRemoveFromQueue = { viewModel.removeFromQueue(it) },
+            onTrackLongClick = { viewModel.openSongMenu(it) },
             onClose = { viewModel.closeFullPlayer() }
         )
     }

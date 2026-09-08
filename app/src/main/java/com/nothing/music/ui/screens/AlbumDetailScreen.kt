@@ -55,6 +55,7 @@ fun AlbumDetailScreen(
     playbackState: PlaybackState,
     onBack: () -> Unit,
     onTrackClick: (Track, List<Track>) -> Unit,
+    onTrackLongClick: ((Track) -> Unit)? = null,
     onPlayAll: (List<Track>) -> Unit,
     onShuffleAll: (List<Track>) -> Unit,
     modifier: Modifier = Modifier
@@ -68,8 +69,7 @@ fun AlbumDetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
@@ -232,7 +232,8 @@ fun AlbumDetailScreen(
                             index = index + 1,
                             isCurrent = isCurrent,
                             isPlaying = isCurrent && playbackState.isPlaying,
-                            onClick = { onTrackClick(track, tracks) }
+                            onClick = { onTrackClick(track, tracks) },
+                            onLongClick = { onTrackLongClick?.invoke(track) }
                         )
                     }
                 }

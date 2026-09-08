@@ -51,7 +51,10 @@ import com.nothing.music.model.PlaybackState
 import com.nothing.music.model.Track
 import com.nothing.music.ui.components.NothingFormatBadge
 
-@OptIn(ExperimentalMaterial3Api::class)
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun LocalTab(
     allTracks: List<Track>,
@@ -63,6 +66,7 @@ fun LocalTab(
     onRefresh: () -> Unit,
     onFilesPicked: (List<Uri>) -> Unit,
     onTrackSelect: (Track, List<Track>) -> Unit,
+    onTrackLongClick: ((Track) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val filePicker = rememberLauncherForActivityResult(
@@ -237,7 +241,8 @@ fun LocalTab(
                         track = track,
                         isCurrent = isCurrent,
                         isPlaying = isCurrent && playbackState.isPlaying,
-                        onClick = { onTrackSelect(track, filteredTracks) }
+                        onClick = { onTrackSelect(track, filteredTracks) },
+                        onLongClick = { onTrackLongClick?.invoke(track) }
                     )
                 }
             }
@@ -245,17 +250,22 @@ fun LocalTab(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LocalTrackCard(
     track: Track,
     isCurrent: Boolean,
     isPlaying: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(14.dp)
     ) {
         Row(

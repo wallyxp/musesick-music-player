@@ -58,6 +58,10 @@ import com.nothing.music.model.Artist
 import com.nothing.music.model.PlaybackState
 import com.nothing.music.model.Track
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ArtistDetailScreen(
     artist: Artist,
@@ -68,6 +72,7 @@ fun ArtistDetailScreen(
     onBack: () -> Unit,
     onAlbumClick: (Album) -> Unit,
     onSongClick: (Track, List<Track>) -> Unit,
+    onSongLongClick: ((Track) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showAllAlbums by remember { mutableStateOf(false) }
@@ -85,8 +90,7 @@ fun ArtistDetailScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
@@ -320,7 +324,8 @@ fun ArtistDetailScreen(
                             index = index + 1,
                             isCurrent = isCurrent,
                             isPlaying = isCurrent && playbackState.isPlaying,
-                            onClick = { onSongClick(song, songs) }
+                            onClick = { onSongClick(song, songs) },
+                            onLongClick = { onSongLongClick?.invoke(song) }
                         )
                     }
 
@@ -418,6 +423,7 @@ fun AlbumCard(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SongListItem(
     track: Track,
@@ -425,12 +431,16 @@ fun SongListItem(
     isCurrent: Boolean,
     isPlaying: Boolean,
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

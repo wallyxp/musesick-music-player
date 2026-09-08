@@ -13,6 +13,8 @@ import com.nothing.music.model.Track
 import com.nothing.music.player.PlayerManager
 import com.nothing.music.repository.LocalAudioRepository
 import com.nothing.music.repository.YouTubeRepository
+import com.nothing.music.model.Playlist
+import com.nothing.music.repository.PlaylistRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,13 +24,15 @@ import kotlinx.coroutines.launch
 enum class ScreenState {
     HOME,
     ARTIST_DETAIL,
-    ALBUM_DETAIL
+    ALBUM_DETAIL,
+    PLAYLIST_DETAIL
 }
 
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val ytRepository = YouTubeRepository()
     private val localRepository = LocalAudioRepository(application)
+    private val playlistRepository = PlaylistRepository(application)
     val playerManager = PlayerManager.getInstance(application)
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
@@ -38,8 +42,25 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentScreen = MutableStateFlow(ScreenState.HOME)
     val currentScreen: StateFlow<ScreenState> = _currentScreen.asStateFlow()
 
-    private val _selectedTab = MutableStateFlow(0) // 0 = STREAM, 1 = LOCAL
+    private val _selectedTab = MutableStateFlow(0) // 0 = STREAM, 1 = LOCAL, 2 = PLAYLISTS
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
+
+    // Playlists State
+    private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
+    val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
+
+    private val _selectedPlaylist = MutableStateFlow<Playlist?>(null)
+    val selectedPlaylist: StateFlow<Playlist?> = _selectedPlaylist.asStateFlow()
+
+    // Song Context Menu State
+    private val _contextMenuTrack = MutableStateFlow<Track?>(null)
+    val contextMenuTrack: StateFlow<Track?> = _contextMenuTrack.asStateFlow()
+
+    private val _isExistingPlaylistSheetOpen = MutableStateFlow(false)
+    val isExistingPlaylistSheetOpen: StateFlow<Boolean> = _isExistingPlaylistSheetOpen.asStateFlow()
+
+    private val _isNewPlaylistSheetOpen = MutableStateFlow(false)
+    val isNewPlaylistSheetOpen: StateFlow<Boolean> = _isNewPlaylistSheetOpen.asStateFlow()
 
     // Artists on Home Page
     private val _artists = MutableStateFlow(YouTubeRepository.DEFAULT_INITIAL_ARTISTS)
@@ -99,6 +120,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     init {
         loadLocalTracks()
         fetchMissingArtistThumbnails()
+        loadPlaylists()
     }
 
     private fun fetchMissingArtistThumbnails() {
@@ -127,6 +149,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _currentScreen.value = ScreenState.HOME
         if (index == 1 && _localTracks.value.isEmpty()) {
             loadLocalTracks()
+        } else if (index == 2) {
+            loadPlaylists()
         }
     }
 
@@ -183,6 +207,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             ScreenState.ARTIST_DETAIL -> {
                 _currentScreen.value = ScreenState.HOME
                 _selectedArtist.value = null
+                true
+            }
+            ScreenState.PLAYLIST_DETAIL -> {
+                _currentScreen.value = ScreenState.HOME
+                _selectedPlaylist.value = null
                 true
             }
             ScreenState.HOME -> false
@@ -332,5 +361,102 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeFullPlayer() {
         _isFullPlayerOpen.value = false
+    }
+
+    // --- Queue Management ---
+    fun playNext(track: Track) {
+        playerManager.playNext(track)
+    }
+
+    fun addToQueue(track: Track) {
+        playerManager.addToQueue(track)
+    }
+
+    fun reorderQueue(fromIndex: Int, toIndex: Int) {
+        playerManager.reorderQueue(fromIndex, toIndex)
+    }
+
+    fun removeFromQueue(index: Int) {
+        playerManager.removeFromQueue(index)
+    }
+
+    // --- Playlist Management ---
+    fun loadPlaylists() {
+        viewModelScope.launch {
+            _playlists.value = playlistRepository.getPlaylists()
+        }
+    }
+
+    fun createPlaylist(title: String, imageUri: Uri?, initialTrack: Track? = null) {
+        viewModelScope.launch {
+            val savedImagePath = imageUri?.let { playlistRepository.copyImageToInternalStorage(it) }
+            val created = playlistRepository.createPlaylist(title, savedImagePath, initialTrack)
+            val all = playlistRepository.getPlaylists()
+            _playlists.value = all
+            if (_selectedPlaylist.value?.id == created.id) {
+                _selectedPlaylist.value = created
+            }
+        }
+    }
+
+    fun addTrackToPlaylist(playlistId: String, track: Track) {
+        viewModelScope.launch {
+            val updated = playlistRepository.addTrackToPlaylist(playlistId, track)
+            _playlists.value = updated
+            if (_selectedPlaylist.value?.id == playlistId) {
+                _selectedPlaylist.value = updated.find { it.id == playlistId }
+            }
+        }
+    }
+
+    fun removeTrackFromPlaylist(playlistId: String, trackId: String) {
+        viewModelScope.launch {
+            val updated = playlistRepository.removeTrackFromPlaylist(playlistId, trackId)
+            _playlists.value = updated
+            if (_selectedPlaylist.value?.id == playlistId) {
+                _selectedPlaylist.value = updated.find { it.id == playlistId }
+            }
+        }
+    }
+
+    fun deletePlaylist(playlistId: String) {
+        viewModelScope.launch {
+            val updated = playlistRepository.deletePlaylist(playlistId)
+            _playlists.value = updated
+            if (_selectedPlaylist.value?.id == playlistId) {
+                _selectedPlaylist.value = null
+                _currentScreen.value = ScreenState.HOME
+            }
+        }
+    }
+
+    fun selectPlaylist(playlist: Playlist) {
+        _selectedPlaylist.value = playlist
+        _currentScreen.value = ScreenState.PLAYLIST_DETAIL
+    }
+
+    // --- Song Context Menu & Modal States ---
+    fun openSongMenu(track: Track) {
+        _contextMenuTrack.value = track
+    }
+
+    fun closeSongMenu() {
+        _contextMenuTrack.value = null
+    }
+
+    fun openExistingPlaylistSheet() {
+        _isExistingPlaylistSheetOpen.value = true
+    }
+
+    fun closeExistingPlaylistSheet() {
+        _isExistingPlaylistSheetOpen.value = false
+    }
+
+    fun openNewPlaylistSheet() {
+        _isNewPlaylistSheetOpen.value = true
+    }
+
+    fun closeNewPlaylistSheet() {
+        _isNewPlaylistSheetOpen.value = false
     }
 }

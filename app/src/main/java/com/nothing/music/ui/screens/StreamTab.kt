@@ -69,6 +69,7 @@ fun StreamTab(
     onArtistClick: (Artist) -> Unit,
     onAlbumClick: (Album) -> Unit,
     onSongClick: (Track, List<Track>) -> Unit,
+    onSongLongClick: ((Track) -> Unit)? = null,
     onChangeArtistsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -214,7 +215,8 @@ fun StreamTab(
                                 index = index + 1,
                                 isCurrent = isCurrent,
                                 isPlaying = isCurrent && playbackState.isPlaying,
-                                onClick = { onSongClick(song, searchResult.songs) }
+                                onClick = { onSongClick(song, searchResult.songs) },
+                                onLongClick = { onSongLongClick?.invoke(song) }
                             )
                         }
                     }

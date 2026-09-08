@@ -61,6 +61,18 @@ import com.nothing.music.model.PlaybackState
 import com.nothing.music.model.Track
 import com.nothing.music.ui.components.NothingFormatBadge
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FullPlayerSheet(
     state: PlaybackState,
@@ -72,6 +84,9 @@ fun FullPlayerSheet(
     onToggleShuffle: () -> Unit,
     onToggleRepeat: () -> Unit,
     onTrackSelect: (Track) -> Unit,
+    onReorderQueue: (Int, Int) -> Unit,
+    onRemoveFromQueue: (Int) -> Unit,
+    onTrackLongClick: (Track) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -82,7 +97,9 @@ fun FullPlayerSheet(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(top = 36.dp, bottom = 24.dp)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(top = 8.dp, bottom = 12.dp)
     ) {
         Column(
             modifier = Modifier
@@ -345,32 +362,87 @@ fun FullPlayerSheet(
                         )
                     }
 
+                    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+                    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+                    val density = LocalDensity.current
+                    val itemHeightPx = with(density) { 72.dp.toPx() }
+
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        itemsIndexed(queue) { index, item ->
+                        itemsIndexed(queue, key = { index, item -> "${item.id}_$index" }) { index, item ->
                             val isCurrent = item.id == track.id
+                            val isDragging = draggingIndex == index
+
                             ElevatedCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onTrackSelect(item) },
+                                    .zIndex(if (isDragging) 10f else 1f)
+                                    .graphicsLayer {
+                                        translationY = if (isDragging) dragOffsetY else 0f
+                                        scaleX = if (isDragging) 1.03f else 1.0f
+                                        scaleY = if (isDragging) 1.03f else 1.0f
+                                    }
+                                    .combinedClickable(
+                                        onClick = { onTrackSelect(item) },
+                                        onLongClick = { onTrackLongClick(item) }
+                                    ),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(12.dp),
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "${index + 1}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.width(28.dp)
-                                    )
+                                    // Hold and Drag Handle
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .pointerInput(queue.size) {
+                                                detectDragGesturesAfterLongPress(
+                                                    onDragStart = {
+                                                        draggingIndex = index
+                                                        dragOffsetY = 0f
+                                                    },
+                                                    onDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        dragOffsetY += dragAmount.y
+                                                        val currentDragIdx = draggingIndex ?: return@detectDragGesturesAfterLongPress
+                                                        if (dragOffsetY > itemHeightPx && currentDragIdx < queue.lastIndex) {
+                                                            onReorderQueue(currentDragIdx, currentDragIdx + 1)
+                                                            draggingIndex = currentDragIdx + 1
+                                                            dragOffsetY -= itemHeightPx
+                                                        } else if (dragOffsetY < -itemHeightPx && currentDragIdx > 0) {
+                                                            onReorderQueue(currentDragIdx, currentDragIdx - 1)
+                                                            draggingIndex = currentDragIdx - 1
+                                                            dragOffsetY += itemHeightPx
+                                                        }
+                                                    },
+                                                    onDragEnd = {
+                                                        draggingIndex = null
+                                                        dragOffsetY = 0f
+                                                    },
+                                                    onDragCancel = {
+                                                        draggingIndex = null
+                                                        dragOffsetY = 0f
+                                                    }
+                                                )
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.DragHandle,
+                                            contentDescription = "Hold and drag to reorder",
+                                            tint = if (isDragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(6.dp))
+
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = item.title,
@@ -388,7 +460,9 @@ fun FullPlayerSheet(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                     }
+
                                     Spacer(modifier = Modifier.width(8.dp))
+
                                     Text(
                                         text = item.formattedDuration,
                                         style = MaterialTheme.typography.labelSmall,

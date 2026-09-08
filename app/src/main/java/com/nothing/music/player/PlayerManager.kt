@@ -416,6 +416,60 @@ class PlayerManager private constructor(private val context: Context) {
         )
     }
 
+    fun playNext(track: Track) {
+        val currentQueue = _queue.value.toMutableList()
+        if (currentQueue.isEmpty()) {
+            playTrack(track)
+            return
+        }
+        val insertIndex = (currentIndex + 1).coerceAtMost(currentQueue.size)
+        // If track already exists in queue, remove it first if desired or insert copy
+        currentQueue.add(insertIndex, track)
+        _queue.value = currentQueue
+    }
+
+    fun addToQueue(track: Track) {
+        val currentQueue = _queue.value.toMutableList()
+        if (currentQueue.isEmpty()) {
+            playTrack(track)
+            return
+        }
+        currentQueue.add(track)
+        _queue.value = currentQueue
+    }
+
+    fun reorderQueue(fromIndex: Int, toIndex: Int) {
+        val list = _queue.value.toMutableList()
+        if (fromIndex !in list.indices || toIndex !in list.indices || fromIndex == toIndex) return
+
+        val moved = list.removeAt(fromIndex)
+        list.add(toIndex, moved)
+
+        // Update currentIndex to keep track of currently playing song
+        if (currentIndex == fromIndex) {
+            currentIndex = toIndex
+        } else if (fromIndex < currentIndex && toIndex >= currentIndex) {
+            currentIndex--
+        } else if (fromIndex > currentIndex && toIndex <= currentIndex) {
+            currentIndex++
+        }
+
+        _queue.value = list
+    }
+
+    fun removeFromQueue(index: Int) {
+        val list = _queue.value.toMutableList()
+        if (index !in list.indices) return
+        list.removeAt(index)
+        if (index < currentIndex) {
+            currentIndex--
+        } else if (index == currentIndex && list.isNotEmpty()) {
+            currentIndex = currentIndex.coerceAtMost(list.lastIndex)
+            playTrack(list[currentIndex])
+        }
+        _queue.value = list
+    }
+
     private fun handleTrackCompletion() {
         if (_playbackState.value.isRepeat) {
             seekTo(0)
