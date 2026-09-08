@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.nothing.music"
+    namespace = "com.wally.musesick"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.nothing.music"
+        applicationId = "com.wally.musesick"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
