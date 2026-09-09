@@ -37,8 +37,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -63,6 +66,7 @@ import com.wally.musesick.ui.components.ExistingPlaylistSheet
 import com.wally.musesick.ui.components.MiniPlayerBar
 import com.wally.musesick.ui.components.NewPlaylistSheet
 import com.wally.musesick.ui.components.SongActionMenuSheet
+import com.wally.musesick.ui.components.UpdateDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,6 +141,19 @@ fun MainScreen(
     val isExistingPlaylistSheetOpen by viewModel.isExistingPlaylistSheetOpen.collectAsState()
     val isNewPlaylistSheetOpen by viewModel.isNewPlaylistSheetOpen.collectAsState()
 
+    // In-App Update State
+    val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
+    val updateInfo by viewModel.updateInfo.collectAsState()
+    val downloadProgress by viewModel.downloadProgress.collectAsState()
+    val updateToastMessage by viewModel.updateToastMessage.collectAsState()
+
+    LaunchedEffect(updateToastMessage) {
+        updateToastMessage?.let { msg ->
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+            viewModel.clearUpdateToast()
+        }
+    }
+
     // Swipeable pages: Stream (0), Playlist (1), Local (2)
     val pageTitles = remember { listOf("Stream", "Playlist", "Local") }
     val pagerState = rememberPagerState(initialPage = selectedTab.coerceIn(0, 2), pageCount = { 3 })
@@ -201,9 +218,9 @@ fun MainScreen(
                         )
                     }
 
-                    // Minimalist Nothing-style page indicator dots
+                    // Minimalist Nothing-style page indicator dots & Update Button
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         pageTitles.indices.forEach { index ->
@@ -223,6 +240,28 @@ fun MainScreen(
                                         }
                                     }
                             )
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        IconButton(
+                            onClick = { viewModel.checkForUpdates(manual = true) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            if (isCheckingUpdate) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = "Check for updates",
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -490,6 +529,18 @@ fun MainScreen(
             onRemoveFromQueue = { viewModel.removeFromQueue(it) },
             onTrackMenuClick = { viewModel.openSongMenu(it) },
             onClose = { viewModel.closeFullPlayer() }
+        )
+    }
+
+    // In-App Update Dialog
+    updateInfo?.let { info ->
+        UpdateDialog(
+            updateInfo = info,
+            currentVersion = viewModel.currentAppVersion,
+            downloadProgress = downloadProgress,
+            isDownloading = downloadProgress != null,
+            onUpdateClick = { viewModel.startUpdateDownload(context) },
+            onDismiss = { viewModel.dismissUpdateDialog() }
         )
     }
 }
