@@ -20,6 +20,9 @@ import com.wally.musesick.repository.LocalAudioRepository
 import com.wally.musesick.repository.YouTubeRepository
 import com.wally.musesick.model.Playlist
 import com.wally.musesick.repository.PlaylistRepository
+import com.wally.musesick.repository.FavoriteArtistsRepository
+import com.wally.musesick.repository.RecentlyPlayedRepository
+import com.wally.musesick.repository.SearchHistoryRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +36,9 @@ enum class ScreenState {
     ALBUM_DETAIL,
     PLAYLIST_DETAIL,
     ARTIST_MANAGER,
-    ARTIST_TRACK_LIST
+    ARTIST_TRACK_LIST,
+    SEARCH,
+    RECENTLY_PLAYED
 }
 
 enum class ArtistTrackListType {
@@ -47,8 +52,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val localRepository = LocalAudioRepository(application)
     private val playlistRepository = PlaylistRepository(application)
     private val artistRepository = ArtistRepository(application)
+    private val recentlyPlayedRepository = RecentlyPlayedRepository(application)
+    private val favoriteArtistsRepository = FavoriteArtistsRepository(application)
+    private val searchHistoryRepository = SearchHistoryRepository(application)
     private val updateManager = UpdateManager()
     val playerManager = PlayerManager.getInstance(application)
+
+    // Recently Played State
+    private val _recentlyPlayed = MutableStateFlow<List<Track>>(emptyList())
+    val recentlyPlayed: StateFlow<List<Track>> = _recentlyPlayed.asStateFlow()
+
+    // Favorite Artists State (Initially empty)
+    private val _favoriteArtists = MutableStateFlow<List<Artist>>(emptyList())
+    val favoriteArtists: StateFlow<List<Artist>> = _favoriteArtists.asStateFlow()
+
+    // Recent Searches State (Last 20)
+    private val _recentSearches = MutableStateFlow<List<String>>(emptyList())
+    val recentSearches: StateFlow<List<String>> = _recentSearches.asStateFlow()
 
     // In-App Update State
     private val _isCheckingUpdate = MutableStateFlow(false)
@@ -182,6 +202,22 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         loadArtists()
         loadLocalTracks()
         loadPlaylists()
+        loadRecentlyPlayed()
+        loadFavoriteArtists()
+        loadRecentSearches()
+        observePlaybackForRecentHistory()
+    }
+
+    private fun observePlaybackForRecentHistory() {
+        viewModelScope.launch {
+            playerManager.playbackState.collect { state ->
+                val track = state.currentTrack
+                if (track != null && _recentlyPlayed.value.firstOrNull()?.id != track.id) {
+                    val updated = recentlyPlayedRepository.addTrack(track)
+                    _recentlyPlayed.value = updated
+                }
+            }
+        }
     }
 
     fun loadArtists() {
@@ -321,6 +357,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun navigateBack(): Boolean {
         return when (_currentScreen.value) {
+            ScreenState.SEARCH -> {
+                closeSearch()
+                true
+            }
+            ScreenState.RECENTLY_PLAYED -> {
+                _currentScreen.value = ScreenState.HOME
+                true
+            }
             ScreenState.ARTIST_TRACK_LIST -> {
                 _currentScreen.value = ScreenState.ARTIST_DETAIL
                 true
@@ -344,6 +388,102 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 true
             }
             ScreenState.HOME -> false
+        }
+    }
+
+    // --- Recently Played Management ---
+    fun loadRecentlyPlayed() {
+        viewModelScope.launch {
+            _recentlyPlayed.value = recentlyPlayedRepository.getRecentlyPlayed()
+        }
+    }
+
+    fun clearRecentlyPlayed() {
+        viewModelScope.launch {
+            _recentlyPlayed.value = recentlyPlayedRepository.clearAll()
+        }
+    }
+
+    fun openRecentlyPlayed() {
+        _currentScreen.value = ScreenState.RECENTLY_PLAYED
+    }
+
+    // --- Favorite Artists Management ---
+    fun loadFavoriteArtists() {
+        viewModelScope.launch {
+            _favoriteArtists.value = favoriteArtistsRepository.getFavorites()
+        }
+    }
+
+    fun addFavoriteArtist(artist: Artist) {
+        viewModelScope.launch {
+            val updated = favoriteArtistsRepository.addFavorite(artist)
+            _favoriteArtists.value = updated
+        }
+    }
+
+    fun removeFavoriteArtist(artistId: String) {
+        viewModelScope.launch {
+            val updated = favoriteArtistsRepository.removeFavorite(artistId)
+            _favoriteArtists.value = updated
+        }
+    }
+
+    fun toggleFavoriteArtist(artist: Artist) {
+        viewModelScope.launch {
+            val isFav = _favoriteArtists.value.any { it.id == artist.id }
+            val updated = if (isFav) {
+                favoriteArtistsRepository.removeFavorite(artist.id)
+            } else {
+                favoriteArtistsRepository.addFavorite(artist)
+            }
+            _favoriteArtists.value = updated
+        }
+    }
+
+    fun isFavoriteArtist(artistId: String): Boolean {
+        return _favoriteArtists.value.any { it.id == artistId }
+    }
+
+    // --- Dedicated Search & Search History ---
+    fun openSearch() {
+        _searchQuery.value = ""
+        _searchResult.value = SearchResult()
+        loadRecentSearches()
+        _currentScreen.value = ScreenState.SEARCH
+    }
+
+    fun closeSearch() {
+        _currentScreen.value = ScreenState.HOME
+        _searchQuery.value = ""
+        _searchResult.value = SearchResult()
+    }
+
+    fun loadRecentSearches() {
+        viewModelScope.launch {
+            _recentSearches.value = searchHistoryRepository.getRecentSearches()
+        }
+    }
+
+    fun addRecentSearch(query: String) {
+        if (query.isBlank()) return
+        viewModelScope.launch {
+            val updated = searchHistoryRepository.addSearch(query)
+            _recentSearches.value = updated
+        }
+    }
+
+    fun removeRecentSearch(query: String) {
+        viewModelScope.launch {
+            val updated = searchHistoryRepository.removeSearch(query)
+            _recentSearches.value = updated
+        }
+    }
+
+    fun clearRecentSearches() {
+        viewModelScope.launch {
+            val updated = searchHistoryRepository.clearAll()
+            _recentSearches.value = updated
         }
     }
 
@@ -448,7 +588,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Playback Controls ---
     fun playTrack(track: Track, queue: List<Track>? = null) {
+        recordTrackPlayed(track)
         playerManager.playTrack(track, queue)
+    }
+
+    private fun recordTrackPlayed(track: Track) {
+        viewModelScope.launch {
+            val updated = recentlyPlayedRepository.addTrack(track)
+            _recentlyPlayed.value = updated
+        }
     }
 
     fun playAll(tracks: List<Track>) {
