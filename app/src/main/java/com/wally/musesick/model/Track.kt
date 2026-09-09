@@ -17,7 +17,8 @@ data class Track(
     val isLocal: Boolean = false,
     val audioFormat: AudioFormat = if (isLocal) AudioFormat.MP3 else AudioFormat.YOUTUBE,
     val bitrate: String? = null,
-    val sizeFormatted: String? = null
+    val sizeFormatted: String? = null,
+    val isVideo: Boolean = false
 ) {
     val formattedDuration: String
         get() {
@@ -52,4 +53,14 @@ data class SearchResult(
     val songs: List<Track> = emptyList(),
     val artists: List<Artist> = emptyList(),
     val albums: List<Album> = emptyList()
+)
+
+data class ArtistDetailData(
+    val albums: List<Album> = emptyList(),
+    val songs: List<Track> = emptyList(),
+    val videos: List<Track> = emptyList(),
+    val allSongsBrowseId: String? = null,
+    val allSongsParams: String? = null,
+    val allVideosBrowseId: String? = null,
+    val allVideosParams: String? = null
 )
