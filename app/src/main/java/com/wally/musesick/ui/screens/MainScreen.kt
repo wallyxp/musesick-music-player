@@ -111,6 +111,10 @@ fun MainScreen(
     val selectedArtist by viewModel.selectedArtist.collectAsState()
     val artistAlbums by viewModel.artistAlbums.collectAsState()
     val artistSongs by viewModel.artistSongs.collectAsState()
+    val artistVideos by viewModel.artistVideos.collectAsState()
+    val artistTrackListType by viewModel.artistTrackListType.collectAsState()
+    val allArtistTracks by viewModel.allArtistTracks.collectAsState()
+    val isAllTracksLoading by viewModel.isAllTracksLoading.collectAsState()
     val isArtistLoading by viewModel.isArtistLoading.collectAsState()
 
     // Album Detail State
@@ -301,12 +305,15 @@ fun MainScreen(
                                 artist = artist,
                                 albums = artistAlbums,
                                 songs = artistSongs,
+                                videos = artistVideos,
                                 isLoading = isArtistLoading,
                                 playbackState = playbackState,
                                 onBack = { viewModel.navigateBack() },
                                 onAlbumClick = { viewModel.selectAlbum(it) },
                                 onSongClick = { track, list -> viewModel.playTrack(track, list) },
-                                onSongLongClick = { viewModel.openSongMenu(it) }
+                                onSongLongClick = { viewModel.openSongMenu(it) },
+                                onSeeMoreSongs = { viewModel.openArtistSongsList() },
+                                onSeeMoreVideos = { viewModel.openArtistVideosList() }
                             )
                         }
                     }
@@ -378,6 +385,22 @@ fun MainScreen(
                             },
                             onBack = { viewModel.closeArtistManager() }
                         )
+                    }
+                    ScreenState.ARTIST_TRACK_LIST -> {
+                        selectedArtist?.let { artist ->
+                            ArtistTrackListScreen(
+                                artist = artist,
+                                trackListType = artistTrackListType,
+                                tracks = allArtistTracks,
+                                isLoading = isAllTracksLoading,
+                                playbackState = playbackState,
+                                onBack = { viewModel.navigateBack() },
+                                onTrackClick = { track, list -> viewModel.playTrack(track, list) },
+                                onTrackLongClick = { viewModel.openSongMenu(it) },
+                                onPlayAll = { tracks -> viewModel.playAll(tracks) },
+                                onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) }
+                            )
+                        }
                     }
                 }
             }

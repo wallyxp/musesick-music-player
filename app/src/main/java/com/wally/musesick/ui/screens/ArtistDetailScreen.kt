@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -37,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,19 +73,22 @@ fun ArtistDetailScreen(
     artist: Artist,
     albums: List<Album>,
     songs: List<Track>,
+    videos: List<Track>,
     isLoading: Boolean,
     playbackState: PlaybackState,
     onBack: () -> Unit,
     onAlbumClick: (Album) -> Unit,
     onSongClick: (Track, List<Track>) -> Unit,
     onSongLongClick: ((Track) -> Unit)? = null,
+    onSeeMoreSongs: () -> Unit,
+    onSeeMoreVideos: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showAllAlbums by remember { mutableStateOf(false) }
-    var showAllSongs by remember { mutableStateOf(false) }
 
     val displayedAlbums = if (showAllAlbums) albums else albums.take(4)
-    val displayedSongs = if (showAllSongs) songs else songs.take(15)
+    val displayedSongs = songs.take(5)
+    val displayedVideos = videos.take(5)
 
     Scaffold(
         modifier = modifier
@@ -131,7 +136,7 @@ fun ArtistDetailScreen(
             }
         }
     ) { paddingValues ->
-        if (isLoading && albums.isEmpty() && songs.isEmpty()) {
+        if (isLoading && albums.isEmpty() && songs.isEmpty() && videos.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -243,7 +248,6 @@ fun ArtistDetailScreen(
                         )
                     }
                 } else {
-                    // Albums Grid Items (shown in pairs / rows)
                     items(displayedAlbums.chunked(2)) { pair ->
                         Row(
                             modifier = Modifier
@@ -262,7 +266,6 @@ fun ArtistDetailScreen(
                         }
                     }
 
-                    // "See more albums" toggle button
                     if (albums.size > 4) {
                         item {
                             Box(
@@ -293,21 +296,34 @@ fun ArtistDetailScreen(
                 // --- POPULAR SONGS SECTION ---
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                        Text(
+                            text = "Popular Songs",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        TextButton(
+                            onClick = onSeeMoreSongs,
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             Text(
-                                text = "Popular Songs (${songs.size})",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
+                                text = "See More",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "See More Songs",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -334,32 +350,64 @@ fun ArtistDetailScreen(
                             onLongClick = { onSongLongClick?.invoke(song) }
                         )
                     }
+                }
 
-                    // "See more songs" toggle button
-                    if (songs.size > 15) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                FilledTonalButton(
-                                    onClick = { showAllSongs = !showAllSongs },
-                                    shape = RoundedCornerShape(20.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (showAllSongs) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = if (showAllSongs) "Show Fewer Songs" else "See More Songs (${songs.size})"
-                                    )
-                                }
-                            }
+                // --- POPULAR VIDEOS SECTION ---
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Popular Videos",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        TextButton(
+                            onClick = onSeeMoreVideos,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text(
+                                text = "See More",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "See More Videos",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
+                    }
+                }
+
+                if (videos.isEmpty() && !isLoading) {
+                    item {
+                        Text(
+                            text = "No videos found",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                } else {
+                    itemsIndexed(displayedVideos) { index, video ->
+                        val isCurrent = playbackState.currentTrack?.id == video.id
+                        SongListItem(
+                            track = video,
+                            index = index + 1,
+                            isCurrent = isCurrent,
+                            isPlaying = isCurrent && playbackState.isPlaying,
+                            onClick = { onSongClick(video, videos) },
+                            onLongClick = { onSongLongClick?.invoke(video) }
+                        )
                     }
                 }
             }

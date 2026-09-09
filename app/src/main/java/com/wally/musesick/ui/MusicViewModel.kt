@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wally.musesick.model.Album
 import com.wally.musesick.model.Artist
+import com.wally.musesick.model.ArtistDetailData
 import com.wally.musesick.model.AudioFormat
 import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.SearchResult
@@ -28,7 +29,13 @@ enum class ScreenState {
     ARTIST_DETAIL,
     ALBUM_DETAIL,
     PLAYLIST_DETAIL,
-    ARTIST_MANAGER
+    ARTIST_MANAGER,
+    ARTIST_TRACK_LIST
+}
+
+enum class ArtistTrackListType {
+    SONGS,
+    VIDEOS
 }
 
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
@@ -93,6 +100,20 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _artistSongs = MutableStateFlow<List<Track>>(emptyList())
     val artistSongs: StateFlow<List<Track>> = _artistSongs.asStateFlow()
+
+    private val _artistVideos = MutableStateFlow<List<Track>>(emptyList())
+    val artistVideos: StateFlow<List<Track>> = _artistVideos.asStateFlow()
+
+    private var currentArtistDetailData: ArtistDetailData? = null
+
+    private val _artistTrackListType = MutableStateFlow(ArtistTrackListType.SONGS)
+    val artistTrackListType: StateFlow<ArtistTrackListType> = _artistTrackListType.asStateFlow()
+
+    private val _allArtistTracks = MutableStateFlow<List<Track>>(emptyList())
+    val allArtistTracks: StateFlow<List<Track>> = _allArtistTracks.asStateFlow()
+
+    private val _isAllTracksLoading = MutableStateFlow(false)
+    val isAllTracksLoading: StateFlow<Boolean> = _isAllTracksLoading.asStateFlow()
 
     private val _isArtistLoading = MutableStateFlow(false)
     val isArtistLoading: StateFlow<Boolean> = _isArtistLoading.asStateFlow()
@@ -196,14 +217,67 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _selectedArtist.value = artist
         _artistAlbums.value = emptyList()
         _artistSongs.value = emptyList()
+        _artistVideos.value = emptyList()
+        _allArtistTracks.value = emptyList()
+        currentArtistDetailData = null
         _currentScreen.value = ScreenState.ARTIST_DETAIL
 
         viewModelScope.launch {
             _isArtistLoading.value = true
-            val (albums, songs) = ytRepository.getArtistDetails(artist)
-            _artistAlbums.value = albums
-            _artistSongs.value = songs
+            val data = ytRepository.getArtistDetails(artist)
+            currentArtistDetailData = data
+            _artistAlbums.value = data.albums
+            _artistSongs.value = data.songs
+            _artistVideos.value = data.videos
             _isArtistLoading.value = false
+        }
+    }
+
+    fun openArtistSongsList() {
+        val artist = _selectedArtist.value ?: return
+        _artistTrackListType.value = ArtistTrackListType.SONGS
+        _currentScreen.value = ScreenState.ARTIST_TRACK_LIST
+        _allArtistTracks.value = _artistSongs.value
+
+        viewModelScope.launch {
+            _isAllTracksLoading.value = true
+            val browseId = currentArtistDetailData?.allSongsBrowseId
+            val params = currentArtistDetailData?.allSongsParams
+            val all = ytRepository.fetchArtistAllTracks(
+                browseId = browseId,
+                params = params,
+                fallbackQuery = "${artist.name} songs",
+                artistName = artist.name,
+                isVideo = false
+            )
+            if (all.isNotEmpty()) {
+                _allArtistTracks.value = all
+            }
+            _isAllTracksLoading.value = false
+        }
+    }
+
+    fun openArtistVideosList() {
+        val artist = _selectedArtist.value ?: return
+        _artistTrackListType.value = ArtistTrackListType.VIDEOS
+        _currentScreen.value = ScreenState.ARTIST_TRACK_LIST
+        _allArtistTracks.value = _artistVideos.value
+
+        viewModelScope.launch {
+            _isAllTracksLoading.value = true
+            val browseId = currentArtistDetailData?.allVideosBrowseId
+            val params = currentArtistDetailData?.allVideosParams
+            val all = ytRepository.fetchArtistAllTracks(
+                browseId = browseId,
+                params = params,
+                fallbackQuery = "${artist.name} videos",
+                artistName = artist.name,
+                isVideo = true
+            )
+            if (all.isNotEmpty()) {
+                _allArtistTracks.value = all
+            }
+            _isAllTracksLoading.value = false
         }
     }
 
@@ -222,6 +296,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun navigateBack(): Boolean {
         return when (_currentScreen.value) {
+            ScreenState.ARTIST_TRACK_LIST -> {
+                _currentScreen.value = ScreenState.ARTIST_DETAIL
+                true
+            }
             ScreenState.ALBUM_DETAIL -> {
                 _currentScreen.value = if (_selectedArtist.value != null) ScreenState.ARTIST_DETAIL else ScreenState.HOME
                 true
