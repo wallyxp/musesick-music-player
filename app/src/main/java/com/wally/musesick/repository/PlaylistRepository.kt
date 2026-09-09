@@ -187,5 +187,95 @@ class PlaylistRepository(private val context: Context) {
             null
         }
     }
+
+    suspend fun reorderTracksInPlaylist(playlistId: String, from: Int, to: Int): List<Playlist> {
+        val current = getPlaylists()
+        val updated = current.map { playlist ->
+            if (playlist.id == playlistId) {
+                val tracks = playlist.tracks.toMutableList()
+                if (from in tracks.indices && to in tracks.indices) {
+                    val item = tracks.removeAt(from)
+                    tracks.add(to, item)
+                }
+                playlist.copy(tracks = tracks)
+            } else {
+                playlist
+            }
+        }
+        savePlaylists(updated)
+        return updated
+    }
+
+    fun exportPlaylistToJson(playlist: Playlist): String {
+        val pObj = JSONObject().apply {
+            put("id", playlist.id)
+            put("title", playlist.title)
+            put("imageUri", playlist.imageUri ?: "")
+            put("createdAt", playlist.createdAt)
+            val tArray = JSONArray()
+            for (t in playlist.tracks) {
+                tArray.put(
+                    JSONObject().apply {
+                        put("id", t.id)
+                        put("title", t.title)
+                        put("artist", t.artist)
+                        put("durationMs", t.durationMs)
+                        put("thumbnailUrl", t.thumbnailUrl ?: "")
+                        put("contentUri", t.contentUri ?: "")
+                        put("isLocal", t.isLocal)
+                        put("audioFormat", t.audioFormat.name)
+                        put("bitrate", t.bitrate ?: "")
+                        put("sizeFormatted", t.sizeFormatted ?: "")
+                    }
+                )
+            }
+            put("tracks", tArray)
+        }
+        return pObj.toString(2)
+    }
+
+    fun importPlaylistFromJson(jsonString: String): Playlist? {
+        return try {
+            val pObj = JSONObject(jsonString)
+            val tracksArray = pObj.optJSONArray("tracks") ?: JSONArray()
+            val tracks = mutableListOf<Track>()
+            for (j in 0 until tracksArray.length()) {
+                val tObj = tracksArray.getJSONObject(j)
+                val formatStr = tObj.optString("audioFormat", "YOUTUBE")
+                val format = try { AudioFormat.valueOf(formatStr) } catch (e: Exception) { AudioFormat.YOUTUBE }
+                tracks.add(
+                    Track(
+                        id = tObj.optString("id").ifEmpty { UUID.randomUUID().toString() },
+                        title = tObj.getString("title"),
+                        artist = tObj.getString("artist"),
+                        durationMs = tObj.optLong("durationMs", 0L),
+                        thumbnailUrl = tObj.optString("thumbnailUrl").ifEmpty { null },
+                        contentUri = tObj.optString("contentUri").ifEmpty { null },
+                        isLocal = tObj.optBoolean("isLocal", false),
+                        audioFormat = format,
+                        bitrate = tObj.optString("bitrate").ifEmpty { null },
+                        sizeFormatted = tObj.optString("sizeFormatted").ifEmpty { null }
+                    )
+                )
+            }
+            Playlist(
+                id = UUID.randomUUID().toString(),
+                title = pObj.optString("title", "Imported Playlist"),
+                imageUri = pObj.optString("imageUri").ifEmpty { null },
+                tracks = tracks,
+                createdAt = System.currentTimeMillis()
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun saveImportedPlaylist(playlist: Playlist): List<Playlist> {
+        val existing = getPlaylists()
+        val all = listOf(playlist) + existing
+        savePlaylists(all)
+        return all
+    }
 }
 
