@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.wally.musesick.ui.MusicViewModel
 import com.wally.musesick.ui.ScreenState
+import com.wally.musesick.ui.components.AddFavoriteArtistSheet
 import com.wally.musesick.ui.components.ExistingPlaylistSheet
 import com.wally.musesick.ui.components.MiniPlayerBar
 import com.wally.musesick.ui.components.NewPlaylistSheet
@@ -135,6 +136,12 @@ fun MainScreen(
     val playlists by viewModel.playlists.collectAsState()
     val selectedPlaylist by viewModel.selectedPlaylist.collectAsState()
 
+    // For You & Search States
+    val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
+    val favoriteArtists by viewModel.favoriteArtists.collectAsState()
+    val recentSearches by viewModel.recentSearches.collectAsState()
+    var isAddFavoriteArtistSheetOpen by remember { mutableStateOf(false) }
+
     // Song Context Menu State
     val contextMenuTrack by viewModel.contextMenuTrack.collectAsState()
     val targetTrackForPlaylist by viewModel.targetTrackForPlaylist.collectAsState()
@@ -154,8 +161,8 @@ fun MainScreen(
         }
     }
 
-    // Swipeable pages: Stream (0), Playlist (1), Local (2)
-    val pageTitles = remember { listOf("Stream", "Playlist", "Local") }
+    // Swipeable pages: For You (0), Playlist (1), Local (2)
+    val pageTitles = remember { listOf("For You", "Playlist", "Local") }
     val pagerState = rememberPagerState(initialPage = selectedTab.coerceIn(0, 2), pageCount = { 3 })
 
     LaunchedEffect(pagerState.currentPage) {
@@ -170,8 +177,9 @@ fun MainScreen(
         }
     }
 
-    BackHandler(enabled = isFullPlayerOpen || contextMenuTrack != null || isExistingPlaylistSheetOpen || isNewPlaylistSheetOpen || currentScreen != ScreenState.HOME || (currentScreen == ScreenState.HOME && pagerState.currentPage != 0)) {
+    BackHandler(enabled = isFullPlayerOpen || contextMenuTrack != null || isExistingPlaylistSheetOpen || isNewPlaylistSheetOpen || isAddFavoriteArtistSheetOpen || currentScreen != ScreenState.HOME || (currentScreen == ScreenState.HOME && pagerState.currentPage != 0)) {
         when {
+            isAddFavoriteArtistSheetOpen -> isAddFavoriteArtistSheetOpen = false
             contextMenuTrack != null -> viewModel.closeSongMenu()
             isExistingPlaylistSheetOpen -> viewModel.closeExistingPlaylistSheet()
             isNewPlaylistSheetOpen -> viewModel.closeNewPlaylistSheet()
@@ -305,18 +313,19 @@ fun MainScreen(
                             beyondViewportPageCount = 1
                         ) { page ->
                             when (page) {
-                                0 -> StreamTab(
-                                    artists = artists,
-                                    searchResult = searchResult,
-                                    isLoading = isSearchLoading,
-                                    searchQuery = searchQuery,
+                                0 -> ForYouTab(
+                                    recentlyPlayed = recentlyPlayed,
+                                    favoriteArtists = favoriteArtists,
+                                    playlists = playlists,
                                     playbackState = playbackState,
-                                    onSearchQueryChange = { viewModel.onSearchQueryChanged(it) },
+                                    onSearchClick = { viewModel.openSearch() },
+                                    onSeeAllRecentlyPlayed = { viewModel.openRecentlyPlayed() },
+                                    onManageFavoriteArtists = { isAddFavoriteArtistSheetOpen = true },
+                                    onCreatePlaylistClick = { viewModel.openNewPlaylistSheet() },
                                     onArtistClick = { viewModel.selectArtist(it) },
-                                    onAlbumClick = { viewModel.selectAlbum(it) },
+                                    onPlaylistClick = { viewModel.selectPlaylist(it) },
                                     onSongClick = { track, list -> viewModel.playTrack(track, list) },
-                                    onSongLongClick = { viewModel.openSongMenu(it) },
-                                    onChangeArtistsClick = { viewModel.openArtistManager() }
+                                    onSongLongClick = { viewModel.openSongMenu(it) }
                                 )
                                 1 -> PlaylistsTab(
                                     playlists = playlists,
@@ -352,7 +361,9 @@ fun MainScreen(
                                 onSongClick = { track, list -> viewModel.playTrack(track, list) },
                                 onSongLongClick = { viewModel.openSongMenu(it) },
                                 onSeeMoreSongs = { viewModel.openArtistSongsList() },
-                                onSeeMoreVideos = { viewModel.openArtistVideosList() }
+                                onSeeMoreVideos = { viewModel.openArtistVideosList() },
+                                isFavorite = favoriteArtists.any { it.id == artist.id },
+                                onToggleFavorite = { viewModel.toggleFavoriteArtist(artist) }
                             )
                         }
                     }
@@ -440,6 +451,39 @@ fun MainScreen(
                                 onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) }
                             )
                         }
+                    }
+                    ScreenState.SEARCH -> {
+                        SearchScreen(
+                            searchQuery = searchQuery,
+                            searchResult = searchResult,
+                            recentSearches = recentSearches,
+                            isLoading = isSearchLoading,
+                            playbackState = playbackState,
+                            onSearchQueryChange = { viewModel.onSearchQueryChanged(it) },
+                            onAddRecentSearch = { viewModel.addRecentSearch(it) },
+                            onRemoveRecentSearch = { viewModel.removeRecentSearch(it) },
+                            onClearRecentSearches = { viewModel.clearRecentSearches() },
+                            onArtistClick = { viewModel.selectArtist(it) },
+                            onAlbumClick = { viewModel.selectAlbum(it) },
+                            onSongClick = { track, list -> viewModel.playTrack(track, list) },
+                            onSongLongClick = { viewModel.openSongMenu(it) },
+                            onBack = { viewModel.navigateBack() }
+                        )
+                    }
+                    ScreenState.RECENTLY_PLAYED -> {
+                        RecentlyPlayedScreen(
+                            tracks = recentlyPlayed,
+                            playbackState = playbackState,
+                            onBack = { viewModel.navigateBack() },
+                            onTrackClick = { track, list -> viewModel.playTrack(track, list) },
+                            onTrackLongClick = { viewModel.openSongMenu(it) },
+                            onPlayAll = { tracks -> viewModel.playAll(tracks) },
+                            onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) },
+                            onClearAll = {
+                                viewModel.clearRecentlyPlayed()
+                                Toast.makeText(context, "Recently played cleared", Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     }
                 }
             }
@@ -541,6 +585,28 @@ fun MainScreen(
             isDownloading = downloadProgress != null,
             onUpdateClick = { viewModel.startUpdateDownload(context) },
             onDismiss = { viewModel.dismissUpdateDialog() }
+        )
+    }
+
+    // Manage Favourite Artists Sheet
+    if (isAddFavoriteArtistSheetOpen) {
+        AddFavoriteArtistSheet(
+            favoriteArtists = favoriteArtists,
+            searchResults = artistSearchResults,
+            isSearching = isArtistSearching,
+            onSearchQueryChange = { viewModel.onArtistSearchQueryChanged(it) },
+            onAddFavorite = { artist ->
+                viewModel.addFavoriteArtist(artist)
+                Toast.makeText(context, "Added ${artist.name} to favourites", Toast.LENGTH_SHORT).show()
+            },
+            onRemoveFavorite = { artistId ->
+                viewModel.removeFavoriteArtist(artistId)
+                Toast.makeText(context, "Removed from favourites", Toast.LENGTH_SHORT).show()
+            },
+            onDismiss = {
+                isAddFavoriteArtistSheetOpen = false
+                viewModel.onArtistSearchQueryChanged("")
+            }
         )
     }
 }
