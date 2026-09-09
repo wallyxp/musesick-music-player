@@ -474,6 +474,28 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _currentScreen.value = ScreenState.PLAYLIST_DETAIL
     }
 
+    fun reorderTracksInPlaylist(playlistId: String, from: Int, to: Int) {
+        viewModelScope.launch {
+            val updated = playlistRepository.reorderTracksInPlaylist(playlistId, from, to)
+            _playlists.value = updated
+            if (_selectedPlaylist.value?.id == playlistId) {
+                _selectedPlaylist.value = updated.find { it.id == playlistId }
+            }
+        }
+    }
+
+    fun exportPlaylistAsJson(playlist: Playlist): String {
+        return playlistRepository.exportPlaylistToJson(playlist)
+    }
+
+    fun importPlaylistFromJson(jsonString: String) {
+        viewModelScope.launch {
+            val playlist = playlistRepository.importPlaylistFromJson(jsonString) ?: return@launch
+            val all = playlistRepository.saveImportedPlaylist(playlist)
+            _playlists.value = all
+        }
+    }
+
     // --- Song Context Menu & Modal States ---
     fun openSongMenu(track: Track) {
         _contextMenuTrack.value = track

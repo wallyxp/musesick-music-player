@@ -1,7 +1,11 @@
 package com.wally.musesick.ui.screens
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -42,8 +46,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,6 +72,26 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    // Playlist export JSON: local file save launcher
+    var pendingExportJson by remember { mutableStateOf<String?>(null) }
+    var pendingExportTitle by remember { mutableStateOf("playlist") }
+
+    val saveFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        if (uri != null && pendingExportJson != null) {
+            try {
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use {
+                    it.write(pendingExportJson!!)
+                }
+                Toast.makeText(context, "Playlist exported!", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+            pendingExportJson = null
+        }
+    }
 
     val currentScreen by viewModel.currentScreen.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
@@ -308,7 +334,25 @@ fun MainScreen(
                                 onPlayAll = { tracks -> viewModel.playAll(tracks) },
                                 onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) },
                                 onRemoveTrack = { track -> viewModel.removeTrackFromPlaylist(playlist.id, track.id) },
-                                onDeletePlaylist = { viewModel.deletePlaylist(playlist.id) }
+                                onDeletePlaylist = { viewModel.deletePlaylist(playlist.id) },
+                                onExportLocally = {
+                                    val json = viewModel.exportPlaylistAsJson(playlist)
+                                    pendingExportJson = json
+                                    pendingExportTitle = playlist.title
+                                    saveFileLauncher.launch("${playlist.title}.json")
+                                },
+                                onExportShare = {
+                                    val json = viewModel.exportPlaylistAsJson(playlist)
+                                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                        type = "application/json"
+                                        putExtra(Intent.EXTRA_TEXT, json)
+                                        putExtra(Intent.EXTRA_SUBJECT, "Musesick Playlist: ${playlist.title}")
+                                    }
+                                    context.startActivity(Intent.createChooser(shareIntent, "Share playlist via..."))
+                                },
+                                onReorderTracks = { from, to ->
+                                    viewModel.reorderTracksInPlaylist(playlist.id, from, to)
+                                }
                             )
                         }
                     }
@@ -393,6 +437,11 @@ fun MainScreen(
                 val track = targetTrackForPlaylist
                 viewModel.createPlaylist(title, uri, track)
                 Toast.makeText(context, "Created playlist \"$title\"", Toast.LENGTH_SHORT).show()
+            },
+            onImportJson = { json ->
+                viewModel.importPlaylistFromJson(json)
+                Toast.makeText(context, "Playlist imported!", Toast.LENGTH_SHORT).show()
+                viewModel.closeNewPlaylistSheet()
             },
             onDismiss = { viewModel.closeNewPlaylistSheet() }
         )

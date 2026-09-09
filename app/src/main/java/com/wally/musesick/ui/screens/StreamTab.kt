@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -42,6 +45,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -54,8 +59,6 @@ import com.wally.musesick.model.Artist
 import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.SearchResult
 import com.wally.musesick.model.Track
-import com.wally.musesick.ui.components.ZuneArtistTile
-import com.wally.musesick.ui.components.ZuneTileSize
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -223,106 +226,132 @@ fun StreamTab(
                 }
             }
         } else {
-            // --- HOME: ZUNE ARTIST TILES MOSAIC ---
-            LazyColumn(
+            // --- HOME: Material You Artist Grid ---
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 90.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 140.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Construct staggered mosaic rows
-                var i = 0
-                val artistList = visibleArtists
-                while (i < artistList.size) {
-                    val remaining = artistList.size - i
-                    val patternIndex = (i / 3) % 2
-
-                    if (patternIndex == 0) {
-                        // Pattern 0: One wide hero tile
-                        val currentArtist = artistList[i]
-                        item(key = currentArtist.id) {
-                            ZuneArtistTile(
-                                artist = currentArtist,
-                                tileSize = ZuneTileSize.WIDE,
-                                onClick = { onArtistClick(currentArtist) }
-                            )
-                        }
-                        i += 1
-                    } else {
-                        // Pattern 1: Two split tiles
-                        if (remaining >= 2) {
-                            val a1 = artistList[i]
-                            val a2 = artistList[i + 1]
-                            item(key = "${a1.id}_${a2.id}") {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        ZuneArtistTile(
-                                            artist = a1,
-                                            tileSize = ZuneTileSize.SQUARE,
-                                            onClick = { onArtistClick(a1) }
-                                        )
-                                    }
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        ZuneArtistTile(
-                                            artist = a2,
-                                            tileSize = ZuneTileSize.SQUARE,
-                                            onClick = { onArtistClick(a2) }
-                                        )
-                                    }
-                                }
-                            }
-                            i += 2
-                        } else {
-                            val a1 = artistList[i]
-                            item(key = a1.id) {
-                                ZuneArtistTile(
-                                    artist = a1,
-                                    tileSize = ZuneTileSize.WIDE,
-                                    onClick = { onArtistClick(a1) }
-                                )
-                            }
-                            i += 1
-                        }
-                    }
+                items(visibleArtists, key = { it.id }) { artist ->
+                    MaterialArtistCard(
+                        artist = artist,
+                        onClick = { onArtistClick(artist) }
+                    )
                 }
 
-                // Change Artist Button at the Bottom
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
+                // "Manage Artists" button spanning full width
+                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(2) }) {
+                    FilledTonalButton(
+                        onClick = onChangeArtistsClick,
+                        shape = RoundedCornerShape(24.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(top = 4.dp)
+                            .height(50.dp)
                     ) {
-                        FilledTonalButton(
-                            onClick = onChangeArtistsClick,
-                            shape = RoundedCornerShape(24.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ManageAccounts,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Change Artists (${visibleArtists.size} active)",
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.ManageAccounts,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Manage Artists (${visibleArtists.size} active)",
+                            style = MaterialTheme.typography.labelLarge
+                        )
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun MaterialArtistCard(
+    artist: Artist,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ElevatedCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(200.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Artist photo background
+            if (!artist.thumbnailUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = artist.thumbnailUrl,
+                    contentDescription = artist.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+
+            // Gradient scrim for text readability
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color(0x55000000),
+                                Color(0xDD000000)
+                            ),
+                            startY = 60f
+                        )
+                    )
+            )
+
+            // Artist name and subtitle at bottom
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = artist.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!artist.subtitle.isNullOrEmpty()) {
+                    Text(
+                        text = artist.subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xCCFFFFFF),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
 
 @Composable
 fun SearchArtistListItem(

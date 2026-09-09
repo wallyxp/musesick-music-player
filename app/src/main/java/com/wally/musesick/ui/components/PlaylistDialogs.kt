@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,6 +63,7 @@ import com.wally.musesick.model.Track
 fun NewPlaylistSheet(
     initialTrack: Track? = null,
     onCreatePlaylist: (title: String, imageUri: Uri?) -> Unit,
+    onImportJson: (String) -> Unit,
     onDismiss: () -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
@@ -72,6 +74,30 @@ fun NewPlaylistSheet(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         selectedImageUri = uri
+    }
+
+    val jsonPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            // Read the JSON and pass it up — context is available via LocalContext
+        }
+    }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    val jsonImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val json = context.contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: return@rememberLauncherForActivityResult
+                onImportJson(json)
+                onDismiss()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     ModalBottomSheet(
@@ -182,7 +208,24 @@ fun NewPlaylistSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Import from JSON
+            OutlinedButton(
+                onClick = { jsonImportLauncher.launch("application/json") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FileUpload,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Import from JSON File")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Actions
             Row(

@@ -2,7 +2,8 @@ package com.wally.musesick.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,23 +25,40 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SaveAlt
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.Playlist
@@ -59,8 +77,17 @@ fun PlaylistDetailScreen(
     onShuffleAll: (List<Track>) -> Unit,
     onRemoveTrack: (Track) -> Unit,
     onDeletePlaylist: () -> Unit,
+    onExportLocally: () -> Unit,
+    onExportShare: () -> Unit,
+    onReorderTracks: (from: Int, to: Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffsetY by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val itemHeightPx = with(density) { 72.dp.toPx() }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -104,12 +131,64 @@ fun PlaylistDetailScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(onClick = onDeletePlaylist) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete Playlist",
-                    tint = MaterialTheme.colorScheme.error
-                )
+
+            // Three-dot overflow menu
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Playlist options",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Export Playlist Locally") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.SaveAlt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = {
+                            showMenu = false
+                            onExportLocally()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Share / Export to Cloud") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        },
+                        onClick = {
+                            showMenu = false
+                            onExportShare()
+                        }
+                    )
+                    HorizontalDivider()
+                    DropdownMenuItem(
+                        text = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        },
+                        onClick = {
+                            showMenu = false
+                            onDeletePlaylist()
+                        }
+                    )
+                }
             }
         }
 
@@ -162,7 +241,7 @@ fun PlaylistDetailScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "${playlist.tracks.size} tracks (Hybrid YT + Local)",
+                            text = "${playlist.tracks.size} tracks • Hold handle to reorder",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -214,35 +293,86 @@ fun PlaylistDetailScreen(
                             text = "This playlist is empty.\nLong press any song to add it here!",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
             } else {
-                itemsIndexed(playlist.tracks) { index, track ->
+                itemsIndexed(playlist.tracks, key = { index, item -> "${item.id}_$index" }) { index, track ->
                     val isCurrent = playbackState.currentTrack?.id == track.id
+                    val isDragging = draggingIndex == index
+
                     ElevatedCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .combinedClickable(
-                                onClick = { onTrackClick(track, playlist.tracks) },
-                                onLongClick = { onTrackLongClick(track) }
-                            ),
+                            .zIndex(if (isDragging) 10f else 1f)
+                            .graphicsLayer {
+                                translationY = if (isDragging) dragOffsetY else 0f
+                                scaleX = if (isDragging) 1.02f else 1.0f
+                                scaleY = if (isDragging) 1.02f else 1.0f
+                            }
+                            .clickable { onTrackClick(track, playlist.tracks) },
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(10.dp),
+                                .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Drag handle
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .pointerInput(playlist.tracks.size) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = {
+                                                draggingIndex = index
+                                                dragOffsetY = 0f
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                dragOffsetY += dragAmount.y
+                                                val currentDragIdx = draggingIndex ?: return@detectDragGesturesAfterLongPress
+                                                if (dragOffsetY > itemHeightPx && currentDragIdx < playlist.tracks.lastIndex) {
+                                                    onReorderTracks(currentDragIdx, currentDragIdx + 1)
+                                                    draggingIndex = currentDragIdx + 1
+                                                    dragOffsetY -= itemHeightPx
+                                                } else if (dragOffsetY < -itemHeightPx && currentDragIdx > 0) {
+                                                    onReorderTracks(currentDragIdx, currentDragIdx - 1)
+                                                    draggingIndex = currentDragIdx - 1
+                                                    dragOffsetY += itemHeightPx
+                                                }
+                                            },
+                                            onDragEnd = {
+                                                draggingIndex = null
+                                                dragOffsetY = 0f
+                                            },
+                                            onDragCancel = {
+                                                draggingIndex = null
+                                                dragOffsetY = 0f
+                                            }
+                                        )
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DragHandle,
+                                    contentDescription = "Hold to reorder",
+                                    tint = if (isDragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
                             Text(
                                 text = "${index + 1}",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.width(28.dp)
+                                modifier = Modifier.width(24.dp)
                             )
 
                             Box(
@@ -267,7 +397,7 @@ fun PlaylistDetailScreen(
                                 }
                             }
 
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -287,16 +417,54 @@ fun PlaylistDetailScreen(
                                 )
                             }
 
-                            IconButton(
-                                onClick = { onRemoveTrack(track) },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Remove",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            // Three-dot menu per track
+                            var showTrackMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { showTrackMenu = true },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = "Track options",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showTrackMenu,
+                                    onDismissRequest = { showTrackMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Play Now") },
+                                        onClick = {
+                                            showTrackMenu = false
+                                            onTrackClick(track, playlist.tracks)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("More Options") },
+                                        onClick = {
+                                            showTrackMenu = false
+                                            onTrackLongClick(track)
+                                        }
+                                    )
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Remove from Playlist", color = MaterialTheme.colorScheme.error) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        },
+                                        onClick = {
+                                            showTrackMenu = false
+                                            onRemoveTrack(track)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
