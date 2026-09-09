@@ -6,6 +6,7 @@ import com.wally.musesick.model.ArtistDetailData
 import com.wally.musesick.model.AudioFormat
 import com.wally.musesick.model.SearchResult
 import com.wally.musesick.model.Track
+import com.wally.musesick.model.YouTubePlaylistData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -272,6 +273,159 @@ class YouTubeRepository {
         }
 
         tracks
+    }
+
+    suspend fun fetchPlaylistFromYouTube(playlistInput: String): YouTubePlaylistData? = withContext(Dispatchers.IO) {
+        val playlistId = extractPlaylistId(playlistInput) ?: playlistInput.trim()
+        if (playlistId.isEmpty()) return@withContext null
+
+        val browseId = if (playlistId.startsWith("VL")) playlistId else "VL$playlistId"
+
+        var jsonString = executeInnerTubeRequest(
+            "https://music.youtube.com/youtubei/v1/browse",
+            JSONObject().apply {
+                put("context", createClientContext())
+                put("browseId", browseId)
+            }
+        )
+
+        // Fallback without "VL" prefix if initial browse returned null
+        if (jsonString == null && !playlistId.startsWith("VL")) {
+            jsonString = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse",
+                JSONObject().apply {
+                    put("context", createClientContext())
+                    put("browseId", playlistId)
+                }
+            )
+        }
+
+        if (jsonString == null) return@withContext null
+
+        parseYouTubePlaylistJson(playlistId, jsonString)
+    }
+
+    private fun parseYouTubePlaylistJson(playlistId: String, jsonString: String): YouTubePlaylistData {
+        var title = "YouTube Playlist"
+        var author: String? = null
+        var thumbnailUrl: String? = null
+        val tracks = mutableListOf<Track>()
+        val seenTrackIds = mutableSetOf<String>()
+        var nextContinuation: String? = null
+
+        try {
+            val root = JSONObject(jsonString)
+
+            fun scanHeader(obj: JSONObject) {
+                val headerObj = when {
+                    obj.has("musicResponsiveHeaderRenderer") -> obj.getJSONObject("musicResponsiveHeaderRenderer")
+                    obj.has("musicDetailHeaderRenderer") -> obj.getJSONObject("musicDetailHeaderRenderer")
+                    obj.has("musicEditablePlaylistDetailHeaderRenderer") -> {
+                        val editHeader = obj.getJSONObject("musicEditablePlaylistDetailHeaderRenderer")
+                        editHeader.optJSONObject("header")?.optJSONObject("musicResponsiveHeaderRenderer") ?: editHeader
+                    }
+                    else -> null
+                }
+
+                if (headerObj != null) {
+                    val titleRuns = headerObj.optJSONObject("title")?.optJSONArray("runs")
+                    if (titleRuns != null && titleRuns.length() > 0) {
+                        val t = titleRuns.getJSONObject(0).optString("text", "").trim()
+                        if (t.isNotEmpty()) title = t
+                    }
+
+                    val straplineRuns = headerObj.optJSONObject("straplineTextOne")?.optJSONArray("runs")
+                        ?: headerObj.optJSONObject("subtitle")?.optJSONArray("runs")
+                    if (straplineRuns != null && straplineRuns.length() > 0) {
+                        val a = straplineRuns.getJSONObject(0).optString("text", "").trim()
+                        if (a.isNotEmpty() && !a.startsWith("Playlist") && !a.startsWith("Album")) {
+                            author = a
+                        }
+                    }
+
+                    val thumbs = headerObj.optJSONObject("thumbnail")
+                        ?.optJSONObject("musicThumbnailRenderer")
+                        ?.optJSONObject("thumbnail")
+                        ?.optJSONArray("thumbnails")
+                    if (thumbs != null && thumbs.length() > 0) {
+                        val rawUrl = thumbs.getJSONObject(thumbs.length() - 1).optString("url")
+                        if (rawUrl.isNotEmpty()) {
+                            thumbnailUrl = upgradeThumbnailUrl(rawUrl)
+                        }
+                    }
+                }
+            }
+
+            fun walk(obj: Any?) {
+                when (obj) {
+                    is JSONObject -> {
+                        scanHeader(obj)
+
+                        if (obj.has("musicResponsiveListItemRenderer")) {
+                            val item = obj.getJSONObject("musicResponsiveListItemRenderer")
+                            val track = parseTrackFromResponsiveItem(item, author ?: "YouTube", isVideo = false)
+                            if (track != null && seenTrackIds.add(track.id)) {
+                                tracks.add(track)
+                            }
+                        }
+
+                        if (obj.has("nextContinuationData")) {
+                            val cont = obj.getJSONObject("nextContinuationData").optString("continuation", "")
+                            if (cont.isNotEmpty()) {
+                                nextContinuation = cont
+                            }
+                        }
+
+                        val keys = obj.keys()
+                        while (keys.hasNext()) {
+                            walk(obj.get(keys.next()))
+                        }
+                    }
+                    is JSONArray -> {
+                        for (i in 0 until obj.length()) {
+                            walk(obj.get(i))
+                        }
+                    }
+                }
+            }
+
+            walk(root)
+
+            // Handle continuations (up to 300 tracks max)
+            var iterations = 0
+            while (!nextContinuation.isNullOrEmpty() && tracks.size < 300 && iterations < 5) {
+                iterations++
+                val cToken = nextContinuation!!
+                nextContinuation = null
+                val contJson = executeInnerTubeRequest(
+                    "https://music.youtube.com/youtubei/v1/browse?continuation=$cToken&ctoken=$cToken",
+                    JSONObject().apply {
+                        put("context", createClientContext())
+                    }
+                ) ?: break
+
+                try {
+                    val contRoot = JSONObject(contJson)
+                    walk(contRoot)
+                } catch (e: Exception) {
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        if (thumbnailUrl.isNullOrEmpty() && tracks.isNotEmpty()) {
+            thumbnailUrl = tracks.firstOrNull()?.thumbnailUrl
+        }
+
+        return YouTubePlaylistData(
+            id = playlistId,
+            title = title,
+            author = author,
+            thumbnailUrl = thumbnailUrl,
+            tracks = tracks
+        )
     }
 
     private fun parseCategorizedSearch(jsonString: String): SearchResult {
@@ -983,6 +1137,37 @@ class YouTubeRepository {
     suspend fun fetchArtistThumbnail(artistName: String): String? = fetchArtistInfo(artistName).first
 
     companion object {
+        fun extractPlaylistId(input: String): String? {
+            val trimmed = input.trim()
+            if (trimmed.isEmpty()) return null
+
+            // 1. Matches ?list=..., &list=...
+            val listParamRegex = Regex("[?&]list=([a-zA-Z0-9_-]+)")
+            val listMatch = listParamRegex.find(trimmed)
+            if (listMatch != null) {
+                return listMatch.groupValues[1]
+            }
+
+            // 2. Matches /browse/VL... or /browse/PL...
+            val browseRegex = Regex("/browse/([a-zA-Z0-9_-]+)")
+            val browseMatch = browseRegex.find(trimmed)
+            if (browseMatch != null) {
+                return browseMatch.groupValues[1]
+            }
+
+            // 3. Raw playlist IDs like PL..., VL..., OLAK..., RDCLAK...
+            if (trimmed.matches(Regex("^(PL|VL|OLAK|RDCLAK)[a-zA-Z0-9_-]+$"))) {
+                return trimmed
+            }
+
+            // 4. Any alphanumeric ID with length >= 12
+            if (trimmed.length >= 12 && trimmed.matches(Regex("^[a-zA-Z0-9_-]+$"))) {
+                return trimmed
+            }
+
+            return null
+        }
+
         fun upgradeThumbnailUrl(url: String?): String? {
             if (url.isNullOrBlank()) return null
             var upgraded = url

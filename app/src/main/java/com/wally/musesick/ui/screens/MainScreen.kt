@@ -148,6 +148,11 @@ fun MainScreen(
     val isExistingPlaylistSheetOpen by viewModel.isExistingPlaylistSheetOpen.collectAsState()
     val isNewPlaylistSheetOpen by viewModel.isNewPlaylistSheetOpen.collectAsState()
 
+    // YouTube Playlist Import State
+    val isImportingYtPlaylist by viewModel.isImportingYtPlaylist.collectAsState()
+    val ytPlaylistPreview by viewModel.ytPlaylistPreview.collectAsState()
+    val ytPlaylistImportError by viewModel.ytPlaylistImportError.collectAsState()
+
     // In-App Update State
     val isCheckingUpdate by viewModel.isCheckingUpdate.collectAsState()
     val updateInfo by viewModel.updateInfo.collectAsState()
@@ -549,6 +554,16 @@ fun MainScreen(
                 Toast.makeText(context, "Playlist imported!", Toast.LENGTH_SHORT).show()
                 viewModel.closeNewPlaylistSheet()
             },
+            isImportingYtPlaylist = isImportingYtPlaylist,
+            ytPlaylistPreview = ytPlaylistPreview,
+            ytPlaylistImportError = ytPlaylistImportError,
+            onFetchYtPlaylist = { url -> viewModel.fetchYouTubePlaylistPreview(url) },
+            onConfirmImportYtPlaylist = { customTitle ->
+                viewModel.confirmImportYouTubePlaylist(customTitle) { created ->
+                    Toast.makeText(context, "Imported \"${created.title}\" (${created.tracks.size} songs)", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onClearYtPreview = { viewModel.clearYouTubePlaylistPreview() },
             onDismiss = { viewModel.closeNewPlaylistSheet() }
         )
     }
