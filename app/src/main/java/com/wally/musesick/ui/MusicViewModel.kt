@@ -1,9 +1,12 @@
 package com.wally.musesick.ui
 
 import android.app.Application
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.wally.musesick.update.AppUpdateInfo
+import com.wally.musesick.update.UpdateManager
 import com.wally.musesick.model.Album
 import com.wally.musesick.model.Artist
 import com.wally.musesick.model.ArtistDetailData
@@ -44,7 +47,29 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val localRepository = LocalAudioRepository(application)
     private val playlistRepository = PlaylistRepository(application)
     private val artistRepository = ArtistRepository(application)
+    private val updateManager = UpdateManager()
     val playerManager = PlayerManager.getInstance(application)
+
+    // In-App Update State
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate.asStateFlow()
+
+    private val _updateInfo = MutableStateFlow<AppUpdateInfo?>(null)
+    val updateInfo: StateFlow<AppUpdateInfo?> = _updateInfo.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow<Float?>(null)
+    val downloadProgress: StateFlow<Float?> = _downloadProgress.asStateFlow()
+
+    private val _updateToastMessage = MutableStateFlow<String?>(null)
+    val updateToastMessage: StateFlow<String?> = _updateToastMessage.asStateFlow()
+
+    val currentAppVersion: String
+        get() = try {
+            val pInfo = getApplication<Application>().packageManager.getPackageInfo(getApplication<Application>().packageName, 0)
+            pInfo.versionName ?: "1.0.0"
+        } catch (e: Exception) {
+            "1.0.0"
+        }
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
     val queue: StateFlow<List<Track>> = playerManager.queue
@@ -605,5 +630,54 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun closeNewPlaylistSheet() {
         _isNewPlaylistSheetOpen.value = false
         _targetTrackForPlaylist.value = null
+    }
+
+    // --- In-App Updates ---
+    fun checkForUpdates(manual: Boolean = true) {
+        if (_isCheckingUpdate.value) return
+        viewModelScope.launch {
+            _isCheckingUpdate.value = true
+            val info = updateManager.checkLatestRelease(currentAppVersion)
+            _isCheckingUpdate.value = false
+            if (info != null && info.isUpdateAvailable) {
+                _updateInfo.value = info
+            } else if (manual) {
+                _updateToastMessage.value = if (info != null) {
+                    "You're on the latest version (v${info.latestVersion})"
+                } else {
+                    "Unable to check for updates"
+                }
+            }
+        }
+    }
+
+    fun clearUpdateToast() {
+        _updateToastMessage.value = null
+    }
+
+    fun dismissUpdateDialog() {
+        if (_downloadProgress.value == null) {
+            _updateInfo.value = null
+        }
+    }
+
+    fun startUpdateDownload(context: Context) {
+        val info = _updateInfo.value ?: return
+        viewModelScope.launch {
+            _downloadProgress.value = 0.01f
+            val file = updateManager.downloadApk(context, info.apkDownloadUrl) { progress ->
+                _downloadProgress.value = progress
+            }
+            if (file != null && file.exists()) {
+                _downloadProgress.value = 1.0f
+                delay(400)
+                updateManager.installApk(context, file)
+                _downloadProgress.value = null
+                _updateInfo.value = null
+            } else {
+                _downloadProgress.value = null
+                _updateToastMessage.value = "Failed to download update"
+            }
+        }
     }
 }
