@@ -10,3 +10,11 @@ data class Playlist(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+data class YouTubePlaylistData(
+    val id: String,
+    val title: String,
+    val author: String? = null,
+    val thumbnailUrl: String? = null,
+    val tracks: List<Track> = emptyList()
+)
+

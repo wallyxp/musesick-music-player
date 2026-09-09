@@ -27,9 +27,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -41,7 +46,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.platform.LocalClipboardManager
+import com.wally.musesick.model.YouTubePlaylistData
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,24 +72,23 @@ fun NewPlaylistSheet(
     initialTrack: Track? = null,
     onCreatePlaylist: (title: String, imageUri: Uri?) -> Unit,
     onImportJson: (String) -> Unit,
+    isImportingYtPlaylist: Boolean = false,
+    ytPlaylistPreview: YouTubePlaylistData? = null,
+    ytPlaylistImportError: String? = null,
+    onFetchYtPlaylist: (String) -> Unit = {},
+    onConfirmImportYtPlaylist: (customTitle: String?) -> Unit = {},
+    onClearYtPreview: () -> Unit = {},
     onDismiss: () -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     var title by remember { mutableStateOf("") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var showYtImportDialog by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         selectedImageUri = uri
-    }
-
-    val jsonPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            // Read the JSON and pass it up — context is available via LocalContext
-        }
     }
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -98,6 +105,181 @@ fun NewPlaylistSheet(
                 e.printStackTrace()
             }
         }
+    }
+
+    if (showYtImportDialog) {
+        var ytUrl by remember { mutableStateOf("") }
+        var customTitle by remember(ytPlaylistPreview) { mutableStateOf(ytPlaylistPreview?.title ?: "") }
+        val clipboardManager = LocalClipboardManager.current
+
+        AlertDialog(
+            onDismissRequest = {
+                showYtImportDialog = false
+                onClearYtPreview()
+            },
+            title = {
+                Text(
+                    text = "Import YouTube Playlist",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Paste a YouTube Music or YouTube playlist link to import its tracks into a new playlist.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = ytUrl,
+                        onValueChange = { ytUrl = it },
+                        placeholder = { Text("Paste playlist link or ID...") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                val clip = clipboardManager.getText()?.text
+                                if (!clip.isNullOrBlank()) {
+                                    ytUrl = clip.trim()
+                                }
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentPaste,
+                                    contentDescription = "Paste",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        FilledTonalButton(
+                            onClick = { onFetchYtPlaylist(ytUrl) },
+                            enabled = ytUrl.isNotBlank() && !isImportingYtPlaylist,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            if (isImportingYtPlaylist) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Fetching...")
+                            } else {
+                                Text("Fetch Playlist")
+                            }
+                        }
+                    }
+
+                    if (!ytPlaylistImportError.isNullOrBlank()) {
+                        Text(
+                            text = ytPlaylistImportError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    if (ytPlaylistPreview != null) {
+                        ElevatedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (!ytPlaylistPreview.thumbnailUrl.isNullOrEmpty()) {
+                                        AsyncImage(
+                                            model = ytPlaylistPreview.thumbnailUrl,
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = ytPlaylistPreview.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${ytPlaylistPreview.tracks.size} songs • ${ytPlaylistPreview.author ?: "YouTube"}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = customTitle,
+                            onValueChange = { customTitle = it },
+                            label = { Text("Playlist Title (optional)") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (ytPlaylistPreview != null) {
+                    Button(
+                        onClick = {
+                            onConfirmImportYtPlaylist(customTitle)
+                            showYtImportDialog = false
+                            onDismiss()
+                        },
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("Import (${ytPlaylistPreview.tracks.size} songs)")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showYtImportDialog = false
+                        onClearYtPreview()
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     ModalBottomSheet(
@@ -223,6 +405,23 @@ fun NewPlaylistSheet(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Import from JSON File")
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Import from YouTube Music URL
+            OutlinedButton(
+                onClick = { showYtImportDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Link,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Import from YouTube Music URL")
             }
 
             Spacer(modifier = Modifier.height(16.dp))

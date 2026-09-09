@@ -19,6 +19,7 @@ import com.wally.musesick.repository.ArtistRepository
 import com.wally.musesick.repository.LocalAudioRepository
 import com.wally.musesick.repository.YouTubeRepository
 import com.wally.musesick.model.Playlist
+import com.wally.musesick.model.YouTubePlaylistData
 import com.wally.musesick.repository.PlaylistRepository
 import com.wally.musesick.repository.FavoriteArtistsRepository
 import com.wally.musesick.repository.RecentlyPlayedRepository
@@ -107,6 +108,16 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _selectedPlaylist = MutableStateFlow<Playlist?>(null)
     val selectedPlaylist: StateFlow<Playlist?> = _selectedPlaylist.asStateFlow()
+
+    // YouTube Playlist Import State
+    private val _isImportingYtPlaylist = MutableStateFlow(false)
+    val isImportingYtPlaylist: StateFlow<Boolean> = _isImportingYtPlaylist.asStateFlow()
+
+    private val _ytPlaylistPreview = MutableStateFlow<YouTubePlaylistData?>(null)
+    val ytPlaylistPreview: StateFlow<YouTubePlaylistData?> = _ytPlaylistPreview.asStateFlow()
+
+    private val _ytPlaylistImportError = MutableStateFlow<String?>(null)
+    val ytPlaylistImportError: StateFlow<String?> = _ytPlaylistImportError.asStateFlow()
 
     // Song Context Menu State
     private val _contextMenuTrack = MutableStateFlow<Track?>(null)
@@ -747,6 +758,64 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- YouTube Playlist Import ---
+    fun fetchYouTubePlaylistPreview(urlOrId: String) {
+        val cleanId = YouTubeRepository.extractPlaylistId(urlOrId) ?: urlOrId.trim()
+        if (cleanId.isEmpty()) {
+            _ytPlaylistImportError.value = "Please enter a valid YouTube or YouTube Music playlist link"
+            return
+        }
+
+        viewModelScope.launch {
+            _isImportingYtPlaylist.value = true
+            _ytPlaylistImportError.value = null
+            _ytPlaylistPreview.value = null
+
+            try {
+                val data = ytRepository.fetchPlaylistFromYouTube(cleanId)
+                if (data != null && data.tracks.isNotEmpty()) {
+                    _ytPlaylistPreview.value = data
+                } else if (data != null && data.tracks.isEmpty()) {
+                    _ytPlaylistImportError.value = "Playlist is empty or private"
+                } else {
+                    _ytPlaylistImportError.value = "Could not load playlist. Please check the URL and try again"
+                }
+            } catch (e: Exception) {
+                _ytPlaylistImportError.value = "Failed to fetch playlist: ${e.message}"
+            } finally {
+                _isImportingYtPlaylist.value = false
+            }
+        }
+    }
+
+    fun confirmImportYouTubePlaylist(customTitle: String? = null, onComplete: ((Playlist) -> Unit)? = null) {
+        val preview = _ytPlaylistPreview.value ?: return
+        viewModelScope.launch {
+            _isImportingYtPlaylist.value = true
+            try {
+                val finalTitle = customTitle?.trim()?.ifEmpty { null } ?: preview.title
+                val savedImagePath = preview.thumbnailUrl?.let { playlistRepository.downloadImageToInternalStorage(it) }
+                val created = playlistRepository.createPlaylistWithTracks(finalTitle, savedImagePath, preview.tracks)
+                val all = playlistRepository.getPlaylists()
+                _playlists.value = all
+                _ytPlaylistPreview.value = null
+                _ytPlaylistImportError.value = null
+                _isNewPlaylistSheetOpen.value = false
+                onComplete?.invoke(created)
+            } catch (e: Exception) {
+                _ytPlaylistImportError.value = "Error saving playlist: ${e.message}"
+            } finally {
+                _isImportingYtPlaylist.value = false
+            }
+        }
+    }
+
+    fun clearYouTubePlaylistPreview() {
+        _ytPlaylistPreview.value = null
+        _ytPlaylistImportError.value = null
+        _isImportingYtPlaylist.value = false
+    }
+
     // --- Song Context Menu & Modal States ---
     fun openSongMenu(track: Track) {
         _contextMenuTrack.value = track
@@ -778,6 +847,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun closeNewPlaylistSheet() {
         _isNewPlaylistSheetOpen.value = false
         _targetTrackForPlaylist.value = null
+        clearYouTubePlaylistPreview()
     }
 
     // --- In-App Updates ---

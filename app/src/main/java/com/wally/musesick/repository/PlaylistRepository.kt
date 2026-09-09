@@ -11,6 +11,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.UUID
 
 class PlaylistRepository(private val context: Context) {
@@ -186,6 +188,43 @@ class PlaylistRepository(private val context: Context) {
             e.printStackTrace()
             null
         }
+    }
+
+    suspend fun downloadImageToInternalStorage(imageUrl: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val fileName = "yt_pl_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.jpg"
+            val targetFile = File(imagesDir, fileName)
+            val url = URL(imageUrl)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
+            connection.inputStream.use { input ->
+                FileOutputStream(targetFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            targetFile.absolutePath
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun createPlaylistWithTracks(
+        title: String,
+        imagePath: String?,
+        tracks: List<Track>
+    ): Playlist = withContext(Dispatchers.IO) {
+        val newPlaylist = Playlist(
+            id = UUID.randomUUID().toString(),
+            title = title.trim(),
+            imageUri = imagePath,
+            tracks = tracks,
+            createdAt = System.currentTimeMillis()
+        )
+        val existing = getPlaylists()
+        savePlaylists(listOf(newPlaylist) + existing)
+        newPlaylist
     }
 
     suspend fun reorderTracksInPlaylist(playlistId: String, from: Int, to: Int): List<Playlist> {
