@@ -42,5 +42,3 @@ Update Musesick directly from the app whenever a new release drops.
 </p>
 
 ---
-
-<p align="center">Made with 🎵 and a bit of API magic.</p>
