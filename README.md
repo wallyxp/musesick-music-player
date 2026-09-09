@@ -30,7 +30,7 @@ Never lose a playlist — export it as a JSON file for safekeeping or backup.
 ### In-App Updates
 Update Musesick directly from the app whenever a new release drops.
 
-<img width="280" alt="In-app update" src="https://github.com/user-attachments/assets/a588b31d-bebd-4531-bf48-cbe43e2c8c4d" />
+<img width="280" alt="In-app update" src="https://github.com/user-attachments/assets/c631fd96-94c9-4dea-a012-c180fb234fc1" />
 
 ---
 
