@@ -83,9 +83,10 @@ fun MiniPlayerBar(
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (!track.thumbnailUrl.isNullOrEmpty()) {
+                    val thumbUrl = track.lowResThumbnailUrl ?: track.thumbnailUrl
+                    if (!thumbUrl.isNullOrEmpty()) {
                         AsyncImage(
-                            model = track.thumbnailUrl,
+                            model = thumbUrl,
                             contentDescription = null,
                             modifier = Modifier.size(46.dp),
                             contentScale = ContentScale.Crop

@@ -89,11 +89,8 @@ class YouTubeRepository {
     suspend fun getArtistDetails(artist: Artist): ArtistDetailData = withContext(Dispatchers.IO) {
         val albums = mutableListOf<Album>()
         val songs = mutableListOf<Track>()
-        val videos = mutableListOf<Track>()
         var allSongsBrowseId: String? = null
         var allSongsParams: String? = null
-        var allVideosBrowseId: String? = null
-        var allVideosParams: String? = null
 
         // 1. If browseId is available, attempt browse
         if (!artist.browseId.isNullOrEmpty()) {
@@ -106,19 +103,17 @@ class YouTubeRepository {
                     }
                 )
                 if (browseJson != null) {
-                    val parsed = parseArtistBrowseSections(browseJson, artist.name, albums, songs, videos)
-                    allSongsBrowseId = parsed.first.first
-                    allSongsParams = parsed.first.second
-                    allVideosBrowseId = parsed.second.first
-                    allVideosParams = parsed.second.second
+                    val parsed = parseArtistBrowseSections(browseJson, artist.name, albums, songs)
+                    allSongsBrowseId = parsed.first
+                    allSongsParams = parsed.second
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
 
-        // 2. Fallback / supplementary search to ensure we have enough albums (>= 4), songs (>= 5), and videos (>= 5)
-        if (albums.size < 4 || songs.size < 5 || videos.size < 5) {
+        // 2. Fallback / supplementary search to ensure we have enough albums (>= 4) and songs (>= 5)
+        if (albums.size < 4 || songs.size < 5) {
             try {
                 val searchResult = searchAll(artist.name)
                 for (a in searchResult.albums) {
@@ -127,10 +122,8 @@ class YouTubeRepository {
                     }
                 }
                 for (s in searchResult.songs) {
-                    if (s.isVideo) {
-                        if (videos.none { it.id == s.id }) videos.add(s)
-                    } else {
-                        if (songs.none { it.id == s.id }) songs.add(s)
+                    if (!s.isVideo && songs.none { it.id == s.id }) {
+                        songs.add(s)
                     }
                 }
 
@@ -140,16 +133,6 @@ class YouTubeRepository {
                     for (s in songSearch.songs) {
                         if (!s.isVideo && songs.none { it.id == s.id }) {
                             songs.add(s)
-                        }
-                    }
-                }
-
-                // If still need more videos, query specifically for videos
-                if (videos.size < 5) {
-                    val videoSearch = searchAll("${artist.name} videos")
-                    for (v in videoSearch.songs) {
-                        if (videos.none { it.id == v.id }) {
-                            videos.add(v.copy(isVideo = true))
                         }
                     }
                 }
@@ -171,11 +154,8 @@ class YouTubeRepository {
         ArtistDetailData(
             albums = albums,
             songs = songs,
-            videos = videos,
             allSongsBrowseId = allSongsBrowseId,
-            allSongsParams = allSongsParams,
-            allVideosBrowseId = allVideosBrowseId,
-            allVideosParams = allVideosParams
+            allSongsParams = allSongsParams
         )
     }
 
@@ -184,7 +164,7 @@ class YouTubeRepository {
         params: String?,
         fallbackQuery: String,
         artistName: String,
-        isVideo: Boolean
+        isVideo: Boolean = false
     ): List<Track> = withContext(Dispatchers.IO) {
         val tracks = mutableListOf<Track>()
 
@@ -205,7 +185,7 @@ class YouTubeRepository {
                             is JSONObject -> {
                                 if (obj.has("musicResponsiveListItemRenderer")) {
                                     val item = obj.getJSONObject("musicResponsiveListItemRenderer")
-                                    val track = parseTrackFromResponsiveItem(item, artistName, isVideo = isVideo)
+                                    val track = parseTrackFromResponsiveItem(item, artistName, isVideo = false)
                                     if (track != null && tracks.none { it.id == track.id }) {
                                         tracks.add(track)
                                     }
@@ -233,10 +213,8 @@ class YouTubeRepository {
             try {
                 val searchRes = searchAll(fallbackQuery)
                 for (s in searchRes.songs) {
-                    if (isVideo) {
-                        if (tracks.none { it.id == s.id }) tracks.add(s.copy(isVideo = true))
-                    } else {
-                        if (!s.isVideo && tracks.none { it.id == s.id }) tracks.add(s)
+                    if (!s.isVideo && tracks.none { it.id == s.id }) {
+                        tracks.add(s)
                     }
                 }
             } catch (e: Exception) {
@@ -245,6 +223,96 @@ class YouTubeRepository {
         }
 
         tracks
+    }
+
+    suspend fun fetchTopSongsForArtists(artists: List<Artist>, maxPerArtist: Int = 5): List<Track> = withContext(Dispatchers.IO) {
+        val result = mutableListOf<Track>()
+        val perArtistSongs = mutableListOf<List<Track>>()
+        for (artist in artists) {
+            try {
+                val details = getArtistDetails(artist)
+                val songs = if (details.songs.isNotEmpty()) details.songs.take(maxPerArtist)
+                else searchAll("${artist.name} songs").songs.take(maxPerArtist)
+                if (songs.isNotEmpty()) {
+                    perArtistSongs.add(songs)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        // Interleave songs across artists so the mix alternates
+        var maxIndex = 0
+        for (list in perArtistSongs) {
+            if (list.size > maxIndex) maxIndex = list.size
+        }
+        for (i in 0 until maxIndex) {
+            for (list in perArtistSongs) {
+                if (i < list.size) {
+                    val track = list[i]
+                    if (result.none { it.id == track.id }) {
+                        result.add(track)
+                    }
+                }
+            }
+        }
+        result
+    }
+
+    suspend fun fetchRecentReleasesForArtists(artists: List<Artist>, maxTracks: Int = 25): List<Track> = withContext(Dispatchers.IO) {
+        val result = mutableListOf<Track>()
+        for (artist in artists) {
+            if (result.size >= maxTracks) break
+            try {
+                val search = searchAll("${artist.name} new release")
+                for (s in search.songs) {
+                    if (result.size < maxTracks && result.none { it.id == s.id }) {
+                        result.add(s)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        result
+    }
+
+    suspend fun fetchGenrePopularSongs(artists: List<Artist>, maxTracks: Int = 25): List<Track> = withContext(Dispatchers.IO) {
+        val result = mutableListOf<Track>()
+        val genres = artists.mapNotNull { it.subtitle?.takeIf { sub -> sub != "Artist" && sub.isNotBlank() } }
+            .distinct()
+        val queries = if (genres.isNotEmpty()) genres else listOf("Popular Hits", "Rock", "Pop")
+        for (genre in queries) {
+            if (result.size >= maxTracks) break
+            try {
+                val search = searchAll("$genre hits")
+                for (s in search.songs) {
+                    if (result.size < maxTracks && result.none { it.id == s.id }) {
+                        result.add(s)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        result
+    }
+
+    suspend fun fetchRelatedArtistsSongs(artists: List<Artist>, maxTracks: Int = 25): List<Track> = withContext(Dispatchers.IO) {
+        val result = mutableListOf<Track>()
+        for (artist in artists) {
+            if (result.size >= maxTracks) break
+            try {
+                val search = searchAll("${artist.name} radio")
+                for (s in search.songs) {
+                    if (result.size < maxTracks && result.none { it.id == s.id }) {
+                        result.add(s)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        result
     }
 
     suspend fun getAlbumTracks(album: Album): List<Track> = withContext(Dispatchers.IO) {
@@ -561,6 +629,13 @@ class YouTubeRepository {
 
             val subLower = subtitle.lowercase()
 
+            val isVidOrEpisode = subLower.startsWith("video") || subLower.contains("video •") ||
+                    subLower.contains("• video") || subLower.contains("episode") ||
+                    subLower.contains("podcast") || pageType == "MUSIC_PAGE_TYPE_MUSIC_VIDEO" ||
+                    pageType == "MUSIC_PAGE_TYPE_EPISODE" || pageType == "MUSIC_PAGE_TYPE_PODCAST_EPISODE" ||
+                    pageType == "MUSIC_PAGE_TYPE_PODCAST_SHOW"
+            if (isVidOrEpisode) return
+
             // Classify into Artist, Album, or Song
             if (pageType == "MUSIC_PAGE_TYPE_ARTIST" || subLower.startsWith("artist") || subLower.contains("• artist")) {
                 val cleanName = title.trim()
@@ -594,17 +669,16 @@ class YouTubeRepository {
             } else if (videoId.isNotEmpty()) {
                 if (!seenSongIds.contains(videoId)) {
                     seenSongIds.add(videoId)
-                    val isVid = subLower.startsWith("video") || subLower.contains("video •") || subLower.contains("• video") || pageType == "MUSIC_PAGE_TYPE_MUSIC_VIDEO"
                     songs.add(
                         Track(
                             id = videoId,
                             title = title,
                             artist = subtitle.ifEmpty { "YouTube Music" },
                             durationMs = 0L,
-                            thumbnailUrl = thumbUrl,
+                            thumbnailUrl = toLowResThumbnailUrl(thumbUrl),
                             isLocal = false,
                             audioFormat = AudioFormat.YOUTUBE,
-                            isVideo = isVid
+                            isVideo = false
                         )
                     )
                 }
@@ -618,13 +692,10 @@ class YouTubeRepository {
         jsonString: String,
         artistName: String,
         albums: MutableList<Album>,
-        songs: MutableList<Track>,
-        videos: MutableList<Track>
-    ): Pair<Pair<String?, String?>, Pair<String?, String?>> {
+        songs: MutableList<Track>
+    ): Pair<String?, String?> {
         var songsBrowseId: String? = null
         var songsParams: String? = null
-        var videosBrowseId: String? = null
-        var videosParams: String? = null
 
         try {
             val root = JSONObject(jsonString)
@@ -658,44 +729,8 @@ class YouTubeRepository {
                             val c = obj.getJSONObject("musicCarouselShelfRenderer")
                             val header = c.optJSONObject("header")?.optJSONObject("musicCarouselShelfBasicHeaderRenderer")
                             val title = header?.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text", "")?.lowercase() ?: ""
-                            val btn = header?.optJSONObject("moreContentButton")?.optJSONObject("buttonRenderer")?.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")
-                                ?: header?.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")
 
-                            if (title.contains("video")) {
-                                if (btn != null) {
-                                    videosBrowseId = btn.optString("browseId", "").ifEmpty { null }
-                                    videosParams = btn.optString("params", "").ifEmpty { null }
-                                }
-                                val contents = c.optJSONArray("contents") ?: JSONArray()
-                                for (i in 0 until contents.length()) {
-                                    val itemObj = contents.getJSONObject(i)
-                                    val twoRow = itemObj.optJSONObject("musicTwoRowItemRenderer")
-                                    val respItem = itemObj.optJSONObject("musicResponsiveListItemRenderer")
-                                    if (twoRow != null) {
-                                        val track = parseTrackFromTwoRowItem(twoRow, artistName, isVideo = true)
-                                        if (track != null && videos.none { it.id == track.id }) {
-                                            videos.add(track)
-                                        }
-                                    } else if (respItem != null) {
-                                        val track = parseTrackFromResponsiveItem(respItem, artistName, isVideo = true)
-                                        if (track != null && videos.none { it.id == track.id }) {
-                                            videos.add(track)
-                                        }
-                                    }
-                                }
-                            } else if (title.contains("live") || title.contains("performance")) {
-                                val contents = c.optJSONArray("contents") ?: JSONArray()
-                                for (i in 0 until contents.length()) {
-                                    val itemObj = contents.getJSONObject(i)
-                                    val twoRow = itemObj.optJSONObject("musicTwoRowItemRenderer")
-                                    if (twoRow != null) {
-                                        val track = parseTrackFromTwoRowItem(twoRow, artistName, isVideo = true)
-                                        if (track != null && videos.none { it.id == track.id }) {
-                                            videos.add(track)
-                                        }
-                                    }
-                                }
-                            } else if (title.contains("album") || title.contains("single") || title.contains("ep")) {
+                            if (title.contains("album") || title.contains("single") || title.contains("ep")) {
                                 val contents = c.optJSONArray("contents") ?: JSONArray()
                                 for (i in 0 until contents.length()) {
                                     val itemObj = contents.getJSONObject(i)
@@ -742,13 +777,13 @@ class YouTubeRepository {
             e.printStackTrace()
         }
 
-        return Pair(Pair(songsBrowseId, songsParams), Pair(videosBrowseId, videosParams))
+        return Pair(songsBrowseId, songsParams)
     }
 
     private fun parseTrackFromResponsiveItem(
         item: JSONObject,
         defaultArtist: String,
-        isVideo: Boolean
+        isVideo: Boolean = false
     ): Track? {
         try {
             val flexCols = item.optJSONArray("flexColumns") ?: return null
@@ -779,6 +814,11 @@ class YouTubeRepository {
                         }
                     }
                     val sText = sb.toString().trim()
+                    val sLower = sText.lowercase()
+                    // Filter out videos and episodes completely
+                    if (sLower.contains("video") || sLower.contains("episode") || sLower.contains("podcast")) {
+                        return null
+                    }
                     if (sText.isNotEmpty() && !sText.startsWith("Song") && !sText.startsWith("Video")) {
                         artist = sText
                     }
@@ -794,10 +834,10 @@ class YouTubeRepository {
                 title = title,
                 artist = artist,
                 durationMs = durationMs,
-                thumbnailUrl = upgradeThumbnailUrl(thumb),
+                thumbnailUrl = toLowResThumbnailUrl(thumb),
                 isLocal = false,
                 audioFormat = AudioFormat.YOUTUBE,
-                isVideo = isVideo
+                isVideo = false
             )
         } catch (e: Exception) {
             return null
@@ -1168,22 +1208,48 @@ class YouTubeRepository {
             return null
         }
 
-        fun upgradeThumbnailUrl(url: String?): String? {
+        fun toLowResThumbnailUrl(url: String?): String? {
             if (url.isNullOrBlank()) return null
-            var upgraded = url
-            if (upgraded.contains("googleusercontent.com") || upgraded.contains("ggpht.com")) {
-                // Upgrade any =w...-h... or =s... to high resolution 800x800
-                upgraded = upgraded.replace(Regex("=w\\d+-h\\d+[^\"\\s]*"), "=w800-h800-p-l90-rj")
-                upgraded = upgraded.replace(Regex("=s\\d+[^\"\\s]*"), "=s800-c")
-                if (!upgraded.contains("=w") && !upgraded.contains("=s")) {
-                    upgraded = "$upgraded=w800-h800-p-l90-rj"
+            var result = url
+            if (result.contains("googleusercontent.com") || result.contains("ggpht.com")) {
+                result = result.replace(Regex("=w\\d+-h\\d+[^\"\\s]*"), "=w120-h120-p-l90-rj")
+                result = result.replace(Regex("=s\\d+[^\"\\s]*"), "=s120-c")
+                if (!result.contains("=w") && !result.contains("=s")) {
+                    result = "$result=w120-h120-p-l90-rj"
                 }
-            } else if (upgraded.contains("i.ytimg.com") || upgraded.contains("img.youtube.com")) {
-                if (upgraded.contains("default.jpg") && !upgraded.contains("maxresdefault.jpg") && !upgraded.contains("hq720.jpg")) {
-                    upgraded = upgraded.replace("default.jpg", "hqdefault.jpg")
+            } else if (result.contains("i.ytimg.com") || result.contains("img.youtube.com")) {
+                if (result.contains("maxresdefault.jpg")) {
+                    result = result.replace("maxresdefault.jpg", "default.jpg")
+                } else if (result.contains("hqdefault.jpg")) {
+                    result = result.replace("hqdefault.jpg", "default.jpg")
+                } else if (result.contains("mqdefault.jpg")) {
+                    result = result.replace("mqdefault.jpg", "default.jpg")
+                } else if (result.contains("sddefault.jpg")) {
+                    result = result.replace("sddefault.jpg", "default.jpg")
                 }
             }
-            return upgraded
+            return result
+        }
+
+        fun toHighResThumbnailUrl(url: String?): String? {
+            if (url.isNullOrBlank()) return null
+            var result = url
+            if (result.contains("googleusercontent.com") || result.contains("ggpht.com")) {
+                result = result.replace(Regex("=w\\d+-h\\d+[^\"\\s]*"), "=w800-h800-p-l90-rj")
+                result = result.replace(Regex("=s\\d+[^\"\\s]*"), "=s800-c")
+                if (!result.contains("=w") && !result.contains("=s")) {
+                    result = "$result=w800-h800-p-l90-rj"
+                }
+            } else if (result.contains("i.ytimg.com") || result.contains("img.youtube.com")) {
+                if (result.contains("default.jpg") && !result.contains("maxresdefault.jpg") && !result.contains("hq720.jpg")) {
+                    result = result.replace("default.jpg", "hqdefault.jpg")
+                }
+            }
+            return result
+        }
+
+        fun upgradeThumbnailUrl(url: String?): String? {
+            return toHighResThumbnailUrl(url)
         }
         val DEFAULT_INITIAL_ARTISTS = listOf(
             Artist(

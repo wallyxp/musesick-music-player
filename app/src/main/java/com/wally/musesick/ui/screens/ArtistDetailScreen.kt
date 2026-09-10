@@ -75,7 +75,6 @@ fun ArtistDetailScreen(
     artist: Artist,
     albums: List<Album>,
     songs: List<Track>,
-    videos: List<Track>,
     isLoading: Boolean,
     playbackState: PlaybackState,
     onBack: () -> Unit,
@@ -83,7 +82,6 @@ fun ArtistDetailScreen(
     onSongClick: (Track, List<Track>) -> Unit,
     onSongLongClick: ((Track) -> Unit)? = null,
     onSeeMoreSongs: () -> Unit,
-    onSeeMoreVideos: () -> Unit,
     isFavorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -92,7 +90,6 @@ fun ArtistDetailScreen(
 
     val displayedAlbums = if (showAllAlbums) albums else albums.take(4)
     val displayedSongs = songs.take(5)
-    val displayedVideos = videos.take(5)
 
     Scaffold(
         modifier = modifier
@@ -150,7 +147,7 @@ fun ArtistDetailScreen(
             }
         }
     ) { paddingValues ->
-        if (isLoading && albums.isEmpty() && songs.isEmpty() && videos.isEmpty()) {
+        if (isLoading && albums.isEmpty() && songs.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -365,65 +362,6 @@ fun ArtistDetailScreen(
                         )
                     }
                 }
-
-                // --- POPULAR VIDEOS SECTION ---
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Popular Videos",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        TextButton(
-                            onClick = onSeeMoreVideos,
-                            shape = RoundedCornerShape(16.dp)
-                        ) {
-                            Text(
-                                text = "See More",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "See More Videos",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-                }
-
-                if (videos.isEmpty() && !isLoading) {
-                    item {
-                        Text(
-                            text = "No videos found",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                        )
-                    }
-                } else {
-                    itemsIndexed(displayedVideos) { index, video ->
-                        val isCurrent = playbackState.currentTrack?.id == video.id
-                        SongListItem(
-                            track = video,
-                            index = index + 1,
-                            isCurrent = isCurrent,
-                            isPlaying = isCurrent && playbackState.isPlaying,
-                            onClick = { onSongClick(video, videos) },
-                            onLongClick = { onSongLongClick?.invoke(video) }
-                        )
-                    }
-                }
             }
         }
     }
@@ -454,7 +392,7 @@ fun AlbumCard(
             ) {
                 if (!album.thumbnailUrl.isNullOrEmpty()) {
                     AsyncImage(
-                        model = album.thumbnailUrl,
+                        model = com.wally.musesick.repository.YouTubeRepository.toLowResThumbnailUrl(album.thumbnailUrl) ?: album.thumbnailUrl,
                         contentDescription = album.title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -542,9 +480,10 @@ fun SongListItem(
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            if (!track.thumbnailUrl.isNullOrEmpty()) {
+            val thumbUrl = track.lowResThumbnailUrl ?: track.thumbnailUrl
+            if (!thumbUrl.isNullOrEmpty()) {
                 AsyncImage(
-                    model = track.thumbnailUrl,
+                    model = thumbUrl,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

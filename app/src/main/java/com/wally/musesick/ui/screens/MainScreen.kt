@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,13 +62,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.wally.musesick.ui.MusicViewModel
+import androidx.compose.ui.graphics.Color
+import com.wally.musesick.model.AppTheme
+import com.wally.musesick.model.Playlist
 import com.wally.musesick.ui.ScreenState
 import com.wally.musesick.ui.components.AddFavoriteArtistSheet
+import com.wally.musesick.ui.components.EditPlaylistSheet
 import com.wally.musesick.ui.components.ExistingPlaylistSheet
 import com.wally.musesick.ui.components.MiniPlayerBar
 import com.wally.musesick.ui.components.NewPlaylistSheet
 import com.wally.musesick.ui.components.SongActionMenuSheet
 import com.wally.musesick.ui.components.UpdateDialog
+import com.wally.musesick.ui.screens.ArtistOnboardingScreen
+import com.wally.musesick.ui.screens.SettingsAppThemeScreen
+import com.wally.musesick.ui.screens.SettingsNowPlayingScreen
+import com.wally.musesick.ui.screens.SettingsScreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,10 +107,19 @@ fun MainScreen(
         }
     }
 
+    val hasCompletedArtistOnboarding by viewModel.hasCompletedArtistOnboarding.collectAsState()
+    val playerStyle by viewModel.playerStyle.collectAsState()
+    val appTheme by viewModel.appTheme.collectAsState()
+    val appThemeVariant by viewModel.appThemeVariant.collectAsState()
+    val playerTheme by viewModel.playerTheme.collectAsState()
+    val playerThemeVariant by viewModel.playerThemeVariant.collectAsState()
+    val customAccentColor by viewModel.customAccentColor.collectAsState()
+
     val currentScreen by viewModel.currentScreen.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
     val queue by viewModel.queue.collectAsState()
+    val isQueueReorderable by viewModel.isQueueReorderable.collectAsState()
     val isFullPlayerOpen by viewModel.isFullPlayerOpen.collectAsState()
     val artists by viewModel.artists.collectAsState()
     val artistSearchQuery by viewModel.artistSearchQuery.collectAsState()
@@ -116,7 +134,6 @@ fun MainScreen(
     val selectedArtist by viewModel.selectedArtist.collectAsState()
     val artistAlbums by viewModel.artistAlbums.collectAsState()
     val artistSongs by viewModel.artistSongs.collectAsState()
-    val artistVideos by viewModel.artistVideos.collectAsState()
     val artistTrackListType by viewModel.artistTrackListType.collectAsState()
     val allArtistTracks by viewModel.allArtistTracks.collectAsState()
     val isAllTracksLoading by viewModel.isAllTracksLoading.collectAsState()
@@ -135,10 +152,13 @@ fun MainScreen(
     // Playlist State
     val playlists by viewModel.playlists.collectAsState()
     val selectedPlaylist by viewModel.selectedPlaylist.collectAsState()
+    var editingPlaylist by remember { mutableStateOf<Playlist?>(null) }
 
     // For You & Search States
     val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
     val favoriteArtists by viewModel.favoriteArtists.collectAsState()
+    val suggestedPlaylists by viewModel.suggestedPlaylists.collectAsState()
+    val isSuggestedPlaylistsLoading by viewModel.isSuggestedPlaylistsLoading.collectAsState()
     val recentSearches by viewModel.recentSearches.collectAsState()
     var isAddFavoriteArtistSheetOpen by remember { mutableStateOf(false) }
 
@@ -182,8 +202,22 @@ fun MainScreen(
         }
     }
 
-    BackHandler(enabled = isFullPlayerOpen || contextMenuTrack != null || isExistingPlaylistSheetOpen || isNewPlaylistSheetOpen || isAddFavoriteArtistSheetOpen || currentScreen != ScreenState.HOME || (currentScreen == ScreenState.HOME && pagerState.currentPage != 0)) {
+    if (!hasCompletedArtistOnboarding) {
+        ArtistOnboardingScreen(
+            initialArtists = artists,
+            searchResults = artistSearchResults,
+            isSearching = isArtistSearching,
+            onSearchQueryChange = { viewModel.onArtistSearchQueryChanged(it) },
+            onConfirmSelection = { selected ->
+                viewModel.completeArtistOnboarding(selected)
+            }
+        )
+        return
+    }
+
+    BackHandler(enabled = editingPlaylist != null || isFullPlayerOpen || contextMenuTrack != null || isExistingPlaylistSheetOpen || isNewPlaylistSheetOpen || isAddFavoriteArtistSheetOpen || currentScreen != ScreenState.HOME || (currentScreen == ScreenState.HOME && pagerState.currentPage != 0)) {
         when {
+            editingPlaylist != null -> editingPlaylist = null
             isAddFavoriteArtistSheetOpen -> isAddFavoriteArtistSheetOpen = false
             contextMenuTrack != null -> viewModel.closeSongMenu()
             isExistingPlaylistSheetOpen -> viewModel.closeExistingPlaylistSheet()
@@ -205,72 +239,65 @@ fun MainScreen(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0.dp),
         topBar = {
-            if (currentScreen == ScreenState.HOME) {
-                // Header displaying the name of the active window on the top-left
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    AnimatedContent(
-                        targetState = pageTitles.getOrElse(pagerState.currentPage) { "Stream" },
-                        transitionSpec = {
-                            (fadeIn() + slideInVertically { -it / 2 }) togetherWith
-                                    (fadeOut() + slideOutVertically { it / 2 })
-                        },
-                        label = "active_screen_title"
-                    ) { title ->
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-
-                    // Minimalist Nothing-style page indicator dots & Update Button
+                if (currentScreen == ScreenState.HOME) {
+                    // Header displaying the name of the active window on the top-left
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        pageTitles.indices.forEach { index ->
-                            val isSelected = pagerState.currentPage == index
-                            Box(
-                                modifier = Modifier
-                                    .height(5.dp)
-                                    .width(if (isSelected) 18.dp else 6.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                    )
-                                    .clickable {
-                                        coroutineScope.launch {
-                                            pagerState.animateScrollToPage(index)
-                                        }
-                                    }
+                        AnimatedContent(
+                            targetState = pageTitles.getOrElse(pagerState.currentPage) { "Stream" },
+                            transitionSpec = {
+                                (fadeIn() + slideInVertically { -it / 2 }) togetherWith
+                                        (fadeOut() + slideOutVertically { it / 2 })
+                            },
+                            label = "active_screen_title"
+                        ) { title ->
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        IconButton(
-                            onClick = { viewModel.checkForUpdates(manual = true) },
-                            modifier = Modifier.size(36.dp)
+                        // Minimalist Nothing-style page indicator dots & Settings Icon
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (isCheckingUpdate) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary
+                            pageTitles.indices.forEach { index ->
+                                val isSelected = pagerState.currentPage == index
+                                Box(
+                                    modifier = Modifier
+                                        .height(5.dp)
+                                        .width(if (isSelected) 18.dp else 6.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                        )
+                                        .clickable {
+                                            coroutineScope.launch {
+                                                pagerState.animateScrollToPage(index)
+                                            }
+                                        }
                                 )
-                            } else {
+                            }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            IconButton(
+                                onClick = { viewModel.openSettings() },
+                                modifier = Modifier.size(36.dp)
+                            ) {
                                 Icon(
-                                    imageVector = Icons.Default.SystemUpdate,
-                                    contentDescription = "Check for updates",
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings",
                                     tint = MaterialTheme.colorScheme.onBackground,
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -278,8 +305,7 @@ fun MainScreen(
                         }
                     }
                 }
-            }
-        },
+            },
         bottomBar = {
             if (playbackState.currentTrack != null && !isFullPlayerOpen) {
                 Box(modifier = Modifier.navigationBarsPadding()) {
@@ -322,6 +348,8 @@ fun MainScreen(
                                     recentlyPlayed = recentlyPlayed,
                                     favoriteArtists = favoriteArtists,
                                     playlists = playlists,
+                                    suggestedPlaylists = suggestedPlaylists,
+                                    isSuggestedPlaylistsLoading = isSuggestedPlaylistsLoading,
                                     playbackState = playbackState,
                                     onSearchClick = { viewModel.openSearch() },
                                     onSeeAllRecentlyPlayed = { viewModel.openRecentlyPlayed() },
@@ -335,7 +363,9 @@ fun MainScreen(
                                 1 -> PlaylistsTab(
                                     playlists = playlists,
                                     onCreatePlaylistClick = { viewModel.openNewPlaylistSheet() },
-                                    onPlaylistClick = { viewModel.selectPlaylist(it) }
+                                    onPlaylistClick = { viewModel.selectPlaylist(it) },
+                                    onEditPlaylistClick = { editingPlaylist = it },
+                                    onDeletePlaylistClick = { viewModel.deletePlaylist(it.id) }
                                 )
                                 2 -> LocalTab(
                                     allTracks = localTracks,
@@ -358,7 +388,6 @@ fun MainScreen(
                                 artist = artist,
                                 albums = artistAlbums,
                                 songs = artistSongs,
-                                videos = artistVideos,
                                 isLoading = isArtistLoading,
                                 playbackState = playbackState,
                                 onBack = { viewModel.navigateBack() },
@@ -366,7 +395,6 @@ fun MainScreen(
                                 onSongClick = { track, list -> viewModel.playTrack(track, list) },
                                 onSongLongClick = { viewModel.openSongMenu(it) },
                                 onSeeMoreSongs = { viewModel.openArtistSongsList() },
-                                onSeeMoreVideos = { viewModel.openArtistVideosList() },
                                 isFavorite = favoriteArtists.any { it.id == artist.id },
                                 onToggleFavorite = { viewModel.toggleFavoriteArtist(artist) }
                             )
@@ -391,10 +419,10 @@ fun MainScreen(
                                 playlist = playlist,
                                 playbackState = playbackState,
                                 onBack = { viewModel.navigateBack() },
-                                onTrackClick = { track, list -> viewModel.playTrack(track, list) },
+                                onTrackClick = { track, _ -> viewModel.playPlaylistTrack(playlist, track) },
                                 onTrackLongClick = { viewModel.openSongMenu(it) },
-                                onPlayAll = { tracks -> viewModel.playAll(tracks) },
-                                onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) },
+                                onPlayAll = { _ -> viewModel.playAllFromPlaylist(playlist) },
+                                onShuffleAll = { _ -> viewModel.shuffleAllFromPlaylist(playlist) },
                                 onRemoveTrack = { track -> viewModel.removeTrackFromPlaylist(playlist.id, track.id) },
                                 onDeletePlaylist = { viewModel.deletePlaylist(playlist.id) },
                                 onExportLocally = {
@@ -414,6 +442,9 @@ fun MainScreen(
                                 },
                                 onReorderTracks = { from, to ->
                                     viewModel.reorderTracksInPlaylist(playlist.id, from, to)
+                                },
+                                onEditPlaylist = {
+                                    editingPlaylist = playlist
                                 }
                             )
                         }
@@ -488,6 +519,44 @@ fun MainScreen(
                                 viewModel.clearRecentlyPlayed()
                                 Toast.makeText(context, "Recently played cleared", Toast.LENGTH_SHORT).show()
                             }
+                        )
+                    }
+                    ScreenState.SETTINGS -> {
+                        SettingsScreen(
+                            currentVersion = viewModel.currentAppVersion,
+                            playerStyle = playerStyle,
+                            appTheme = appTheme,
+                            appThemeVariant = appThemeVariant,
+                            customAccentColor = customAccentColor,
+                            isCheckingUpdate = isCheckingUpdate,
+                            onBack = { viewModel.navigateBack() },
+                            onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
+                            onOpenNowPlaying = { viewModel.openNowPlayingSettings() },
+                            onOpenAppTheme = { viewModel.openAppThemeSettings() }
+                        )
+                    }
+                    ScreenState.SETTINGS_NOW_PLAYING -> {
+                        SettingsNowPlayingScreen(
+                            currentStyle = playerStyle,
+                            currentPlayerTheme = playerTheme,
+                            currentPlayerThemeVariant = playerThemeVariant,
+                            customAccentColor = customAccentColor,
+                            onStyleSelected = { viewModel.setPlayerStyle(it) },
+                            onPlayerThemeSelected = { theme, variant -> viewModel.setPlayerTheme(theme, variant) },
+                            onPlayerThemeVariantSelected = { viewModel.setPlayerThemeVariant(it) },
+                            onColorSelected = { viewModel.setCustomAccentColor(it) },
+                            onBack = { viewModel.navigateBack() }
+                        )
+                    }
+                    ScreenState.SETTINGS_APP_THEME -> {
+                        SettingsAppThemeScreen(
+                            currentTheme = appTheme,
+                            currentVariant = appThemeVariant,
+                            customAccentColor = customAccentColor,
+                            onThemeSelected = { theme, variant -> viewModel.setAppTheme(theme, variant) },
+                            onVariantSelected = { viewModel.setAppThemeVariant(it) },
+                            onColorSelected = { viewModel.setCustomAccentColor(it) },
+                            onBack = { viewModel.navigateBack() }
                         )
                     }
                 }
@@ -568,6 +637,20 @@ fun MainScreen(
         )
     }
 
+    // Edit Playlist Sheet
+    val currentEditingPlaylist = editingPlaylist
+    if (currentEditingPlaylist != null) {
+        EditPlaylistSheet(
+            playlist = currentEditingPlaylist,
+            onSave = { newTitle, newImageUri, removeImage ->
+                viewModel.editPlaylist(currentEditingPlaylist.id, newTitle, newImageUri, removeImage)
+                Toast.makeText(context, "Playlist updated", Toast.LENGTH_SHORT).show()
+                editingPlaylist = null
+            },
+            onDismiss = { editingPlaylist = null }
+        )
+    }
+
     // Full Player Modal Sheet
     AnimatedVisibility(
         visible = isFullPlayerOpen,
@@ -587,7 +670,12 @@ fun MainScreen(
             onReorderQueue = { from, to -> viewModel.reorderQueue(from, to) },
             onRemoveFromQueue = { viewModel.removeFromQueue(it) },
             onTrackMenuClick = { viewModel.openSongMenu(it) },
-            onClose = { viewModel.closeFullPlayer() }
+            onClose = { viewModel.closeFullPlayer() },
+            playerStyle = playerStyle,
+            playerTheme = playerTheme,
+            playerThemeVariant = playerThemeVariant,
+            isQueueReorderable = isQueueReorderable,
+            customAccentColor = customAccentColor
         )
     }
 

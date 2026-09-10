@@ -137,7 +137,7 @@ fun AlbumDetailScreen(
                         ) {
                             if (!album.thumbnailUrl.isNullOrEmpty()) {
                                 AsyncImage(
-                                    model = album.thumbnailUrl,
+                                    model = com.wally.musesick.repository.YouTubeRepository.toHighResThumbnailUrl(album.thumbnailUrl) ?: album.thumbnailUrl,
                                     contentDescription = album.title,
                                     modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop

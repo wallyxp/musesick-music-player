@@ -71,7 +71,7 @@ fun ArtistTrackListScreen(
     onShuffleAll: (List<Track>) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val titleText = if (trackListType == ArtistTrackListType.SONGS) "Popular Songs" else "Popular Videos"
+    val titleText = "Popular Songs"
     val listState = rememberLazyListState()
 
     // Pagination: Start with 15, add 15 more on scroll
@@ -318,9 +318,10 @@ private fun TrackListRow(
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            if (!track.thumbnailUrl.isNullOrEmpty()) {
+            val thumbUrl = track.lowResThumbnailUrl ?: track.thumbnailUrl
+            if (!thumbUrl.isNullOrEmpty()) {
                 AsyncImage(
-                    model = track.thumbnailUrl,
+                    model = thumbUrl,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

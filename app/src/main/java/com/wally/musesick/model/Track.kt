@@ -28,6 +28,12 @@ data class Track(
             val seconds = totalSeconds % 60
             return String.format("%02d:%02d", minutes, seconds)
         }
+
+    val lowResThumbnailUrl: String?
+        get() = com.wally.musesick.repository.YouTubeRepository.toLowResThumbnailUrl(thumbnailUrl)
+
+    val highResThumbnailUrl: String?
+        get() = com.wally.musesick.repository.YouTubeRepository.toHighResThumbnailUrl(thumbnailUrl)
 }
 
 data class Artist(
@@ -58,9 +64,6 @@ data class SearchResult(
 data class ArtistDetailData(
     val albums: List<Album> = emptyList(),
     val songs: List<Track> = emptyList(),
-    val videos: List<Track> = emptyList(),
     val allSongsBrowseId: String? = null,
-    val allSongsParams: String? = null,
-    val allVideosBrowseId: String? = null,
-    val allVideosParams: String? = null
+    val allSongsParams: String? = null
 )

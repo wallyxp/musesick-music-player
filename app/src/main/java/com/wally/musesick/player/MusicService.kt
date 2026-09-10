@@ -252,8 +252,31 @@ class MusicService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        try {
+            playerManager.stop()
+            playerManager.release()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(NOTIFICATION_ID)
+            mediaSession.isActive = false
+            mediaSession.release()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        stopSelf()
+        android.os.Process.killProcess(android.os.Process.myPid())
+    }
+
     override fun onDestroy() {
-        mediaSession.release()
+        try {
+            playerManager.stop()
+            mediaSession.isActive = false
+            mediaSession.release()
+        } catch (e: Exception) {
+            // ignore
+        }
         super.onDestroy()
     }
 

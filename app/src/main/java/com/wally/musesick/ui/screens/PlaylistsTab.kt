@@ -21,12 +21,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +54,8 @@ fun PlaylistsTab(
     playlists: List<Playlist>,
     onCreatePlaylistClick: () -> Unit,
     onPlaylistClick: (Playlist) -> Unit,
+    onEditPlaylistClick: ((Playlist) -> Unit)? = null,
+    onDeletePlaylistClick: ((Playlist) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -120,7 +134,9 @@ fun PlaylistsTab(
                 items(playlists, key = { it.id }) { playlist ->
                     PlaylistItemCard(
                         playlist = playlist,
-                        onClick = { onPlaylistClick(playlist) }
+                        onClick = { onPlaylistClick(playlist) },
+                        onEditClick = onEditPlaylistClick?.let { editFn -> { editFn(playlist) } },
+                        onDeleteClick = onDeletePlaylistClick?.let { delFn -> { delFn(playlist) } }
                     )
                 }
             }
@@ -131,8 +147,13 @@ fun PlaylistsTab(
 @Composable
 private fun PlaylistItemCard(
     playlist: Playlist,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onEditClick: (() -> Unit)? = null,
+    onDeleteClick: (() -> Unit)? = null
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+    val isUserCreated = !playlist.id.startsWith("suggested_")
+
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -161,6 +182,65 @@ private fun PlaylistItemCard(
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(48.dp)
                     )
+                }
+
+                if (isUserCreated && onEditClick != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                    ) {
+                        IconButton(
+                            onClick = { showMenu = true },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = "Playlist options",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Edit Playlist") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                },
+                                onClick = {
+                                    showMenu = false
+                                    onEditClick()
+                                }
+                            )
+                            if (onDeleteClick != null) {
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text("Delete Playlist", color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onDeleteClick()
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

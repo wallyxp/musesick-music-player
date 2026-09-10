@@ -82,6 +82,11 @@ class FavoriteArtistsRepository(private val context: Context) {
         current
     }
 
+    suspend fun saveAllFavorites(artists: List<Artist>): List<Artist> = withContext(Dispatchers.IO) {
+        saveFavorites(artists)
+        artists
+    }
+
     suspend fun isFavorite(artistId: String): Boolean = withContext(Dispatchers.IO) {
         getFavorites().any { it.id == artistId }
     }
