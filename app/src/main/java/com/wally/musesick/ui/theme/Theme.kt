@@ -2,13 +2,17 @@ package com.wally.musesick.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.wally.musesick.model.AppTheme
+import com.wally.musesick.model.ThemePalettes
 
 private val DarkColorScheme = darkColorScheme(
     primary = md_theme_dark_primary,
@@ -62,19 +66,56 @@ private val LightColorScheme = lightColorScheme(
     outline = md_theme_light_outline
 )
 
+fun createCustomDarkColorScheme(primaryColor: Color): ColorScheme {
+    return darkColorScheme(
+        primary = primaryColor,
+        onPrimary = Color.White,
+        primaryContainer = primaryColor.copy(alpha = 0.25f),
+        onPrimaryContainer = Color.White,
+        secondary = primaryColor.copy(alpha = 0.8f),
+        onSecondary = Color.White,
+        secondaryContainer = primaryColor.copy(alpha = 0.20f),
+        onSecondaryContainer = Color.White,
+        tertiary = md_theme_dark_tertiary,
+        onTertiary = md_theme_dark_onTertiary,
+        tertiaryContainer = md_theme_dark_tertiaryContainer,
+        onTertiaryContainer = md_theme_dark_onTertiaryContainer,
+        error = md_theme_dark_error,
+        onError = md_theme_dark_onError,
+        errorContainer = md_theme_dark_errorContainer,
+        onErrorContainer = md_theme_dark_onErrorContainer,
+        background = md_theme_dark_background,
+        onBackground = md_theme_dark_onBackground,
+        surface = md_theme_dark_surface,
+        onSurface = md_theme_dark_onSurface,
+        surfaceVariant = md_theme_dark_surfaceVariant,
+        onSurfaceVariant = md_theme_dark_onSurfaceVariant,
+        outline = md_theme_dark_outline
+    )
+}
+ 
 @Composable
-fun MaterialYouMusicTheme(
+fun MusesickAppTheme(
+    appTheme: AppTheme = AppTheme.MATERIAL_YOU,
+    appThemeVariant: String = "",
+    customAccentColor: Color = Color(0xFF6750A4),
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+    val colorScheme = when (appTheme) {
+        AppTheme.MATERIAL_YOU -> {
             val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            } else {
+                if (darkTheme) DarkColorScheme else LightColorScheme
+            }
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+        AppTheme.CUSTOM_COLOR -> createCustomDarkColorScheme(customAccentColor)
+        else -> {
+            val palette = ThemePalettes.getPalette(appTheme, appThemeVariant)
+            palette?.toColorScheme() ?: DarkColorScheme
+        }
     }
 
     MaterialTheme(
@@ -83,3 +124,50 @@ fun MaterialYouMusicTheme(
         content = content
     )
 }
+
+@Composable
+fun MusesickThemed(
+    theme: AppTheme,
+    variant: String? = null,
+    customAccentColor: Color? = null,
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
+    val colorScheme = when (theme) {
+        AppTheme.MATERIAL_YOU -> {
+            val context = LocalContext.current
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            } else {
+                if (darkTheme) DarkColorScheme else LightColorScheme
+            }
+        }
+        AppTheme.CUSTOM_COLOR -> {
+            createCustomDarkColorScheme(customAccentColor ?: Color(0xFF6750A4))
+        }
+        else -> {
+            val palette = ThemePalettes.getPalette(theme, variant)
+            palette?.toColorScheme() ?: DarkColorScheme
+        }
+    }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        content = content
+    )
+}
+
+@Composable
+fun MaterialYouMusicTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    MusesickAppTheme(
+        appTheme = AppTheme.MATERIAL_YOU,
+        darkTheme = darkTheme,
+        content = content
+    )
+}
+

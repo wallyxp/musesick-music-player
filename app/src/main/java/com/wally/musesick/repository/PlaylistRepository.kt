@@ -174,6 +174,31 @@ class PlaylistRepository(private val context: Context) {
         return updated
     }
 
+    suspend fun updatePlaylist(playlistId: String, newTitle: String, newImageUri: String?): List<Playlist> {
+        val current = getPlaylists()
+        val oldPlaylist = current.find { it.id == playlistId }
+        if (oldPlaylist != null && oldPlaylist.imageUri != newImageUri && oldPlaylist.imageUri != null) {
+            try {
+                val f = File(oldPlaylist.imageUri)
+                if (f.exists()) f.delete()
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+        val updated = current.map { playlist ->
+            if (playlist.id == playlistId) {
+                playlist.copy(
+                    title = newTitle.trim(),
+                    imageUri = newImageUri
+                )
+            } else {
+                playlist
+            }
+        }
+        savePlaylists(updated)
+        return updated
+    }
+
     suspend fun copyImageToInternalStorage(sourceUri: Uri): String? = withContext(Dispatchers.IO) {
         try {
             val fileName = "img_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}.jpg"

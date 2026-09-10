@@ -373,9 +373,10 @@ fun SearchArtistListItem(
                 .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
-            if (!artist.thumbnailUrl.isNullOrEmpty()) {
+            val thumbUrl = com.wally.musesick.repository.YouTubeRepository.toLowResThumbnailUrl(artist.thumbnailUrl) ?: artist.thumbnailUrl
+            if (!thumbUrl.isNullOrEmpty()) {
                 AsyncImage(
-                    model = artist.thumbnailUrl,
+                    model = thumbUrl,
                     contentDescription = artist.name,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -435,9 +436,10 @@ fun SearchAlbumListItem(
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
-            if (!album.thumbnailUrl.isNullOrEmpty()) {
+            val thumbUrl = com.wally.musesick.repository.YouTubeRepository.toLowResThumbnailUrl(album.thumbnailUrl) ?: album.thumbnailUrl
+            if (!thumbUrl.isNullOrEmpty()) {
                 AsyncImage(
-                    model = album.thumbnailUrl,
+                    model = thumbUrl,
                     contentDescription = album.title,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

@@ -12,7 +12,9 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import com.wally.musesick.ui.MusicViewModel
 import com.wally.musesick.ui.screens.MainScreen
-import com.wally.musesick.ui.theme.MaterialYouMusicTheme
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.wally.musesick.ui.theme.MusesickAppTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -37,7 +39,15 @@ class MainActivity : ComponentActivity() {
         requestNeededPermissions()
 
         setContent {
-            MaterialYouMusicTheme {
+            val appTheme by viewModel.appTheme.collectAsState()
+            val appThemeVariant by viewModel.appThemeVariant.collectAsState()
+            val customAccentColor by viewModel.customAccentColor.collectAsState()
+
+            MusesickAppTheme(
+                appTheme = appTheme,
+                appThemeVariant = appThemeVariant,
+                customAccentColor = customAccentColor
+            ) {
                 MainScreen(viewModel = viewModel)
             }
         }

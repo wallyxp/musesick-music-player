@@ -66,6 +66,8 @@ fun ForYouTab(
     recentlyPlayed: List<Track>,
     favoriteArtists: List<Artist>,
     playlists: List<Playlist>,
+    suggestedPlaylists: List<Playlist> = emptyList(),
+    isSuggestedPlaylistsLoading: Boolean = false,
     playbackState: PlaybackState,
     onSearchClick: () -> Unit,
     onSeeAllRecentlyPlayed: () -> Unit,
@@ -178,7 +180,7 @@ fun ForYouTab(
                     ) {
                         if (!track.thumbnailUrl.isNullOrEmpty()) {
                             AsyncImage(
-                                model = track.thumbnailUrl,
+                                model = track.lowResThumbnailUrl ?: track.thumbnailUrl,
                                 contentDescription = track.title,
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop
@@ -409,6 +411,116 @@ fun ForYouTab(
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.primary
                             )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+
+        // --- SUGGESTED PLAYLISTS SECTION ---
+        if (suggestedPlaylists.isNotEmpty() || isSuggestedPlaylistsLoading) {
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 16.dp, top = 6.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Suggested For You",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    if (isSuggestedPlaylistsLoading) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            item {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    items(suggestedPlaylists, key = { it.id }) { playlist ->
+                        ElevatedCard(
+                            onClick = { onPlaylistClick(playlist) },
+                            modifier = Modifier
+                                .width(140.dp)
+                                .height(160.dp),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                if (!playlist.imageUri.isNullOrEmpty()) {
+                                    AsyncImage(
+                                        model = playlist.imageUri,
+                                        contentDescription = playlist.title,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(MaterialTheme.colorScheme.primaryContainer),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(48.dp),
+                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
+
+                                // Dark gradient scrim for text readability
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color.Transparent,
+                                                    Color.Black.copy(alpha = 0.4f),
+                                                    Color.Black.copy(alpha = 0.88f)
+                                                ),
+                                                startY = 60f
+                                            )
+                                        )
+                                )
+
+                                // Playlist Info Overlay
+                                Column(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(10.dp)
+                                ) {
+                                    Text(
+                                        text = playlist.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${playlist.tracks.size} songs • Mix",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White.copy(alpha = 0.75f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         }
                     }
                 }

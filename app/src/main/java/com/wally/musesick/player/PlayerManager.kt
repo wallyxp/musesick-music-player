@@ -143,6 +143,12 @@ class PlayerManager private constructor(private val context: Context) {
                                 }
                             }
 
+                            function stopVideo() {
+                                if (player && player.stopVideo) {
+                                    player.stopVideo();
+                                }
+                            }
+
                             function seekTo(sec) {
                                 if (player && player.seekTo) {
                                     player.seekTo(sec, true);
@@ -523,6 +529,37 @@ class PlayerManager private constructor(private val context: Context) {
             // ignore
         } finally {
             localPlayer = null
+        }
+    }
+
+    fun stop() {
+        stopProgressLoop()
+        stopLocalPlayer()
+        mainHandler.post {
+            try {
+                webView?.evaluateJavascript("stopVideo();", null)
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+        _playbackState.value = _playbackState.value.copy(
+            status = PlaybackStatus.IDLE,
+            currentPositionMs = 0L
+        )
+    }
+
+    fun release() {
+        stop()
+        mainHandler.post {
+            try {
+                webView?.stopLoading()
+                webView?.loadUrl("about:blank")
+                webView?.destroy()
+            } catch (e: Exception) {
+                // ignore
+            }
+            webView = null
+            isWebViewReady = false
         }
     }
 

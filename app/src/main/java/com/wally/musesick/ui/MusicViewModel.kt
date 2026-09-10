@@ -7,6 +7,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wally.musesick.update.AppUpdateInfo
 import com.wally.musesick.update.UpdateManager
+import androidx.compose.ui.graphics.Color
+import com.wally.musesick.model.AppTheme
 import com.wally.musesick.model.Album
 import com.wally.musesick.model.Artist
 import com.wally.musesick.model.ArtistDetailData
@@ -19,11 +21,15 @@ import com.wally.musesick.repository.ArtistRepository
 import com.wally.musesick.repository.LocalAudioRepository
 import com.wally.musesick.repository.YouTubeRepository
 import com.wally.musesick.model.Playlist
+import com.wally.musesick.model.PlayerStyle
 import com.wally.musesick.model.YouTubePlaylistData
 import com.wally.musesick.repository.PlaylistRepository
 import com.wally.musesick.repository.FavoriteArtistsRepository
 import com.wally.musesick.repository.RecentlyPlayedRepository
 import com.wally.musesick.repository.SearchHistoryRepository
+import com.wally.musesick.repository.SettingsRepository
+import com.wally.musesick.repository.PlayCountRepository
+import com.wally.musesick.repository.SuggestedPlaylistsRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,12 +45,14 @@ enum class ScreenState {
     ARTIST_MANAGER,
     ARTIST_TRACK_LIST,
     SEARCH,
-    RECENTLY_PLAYED
+    RECENTLY_PLAYED,
+    SETTINGS,
+    SETTINGS_NOW_PLAYING,
+    SETTINGS_APP_THEME
 }
 
 enum class ArtistTrackListType {
-    SONGS,
-    VIDEOS
+    SONGS
 }
 
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
@@ -56,8 +64,47 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val recentlyPlayedRepository = RecentlyPlayedRepository(application)
     private val favoriteArtistsRepository = FavoriteArtistsRepository(application)
     private val searchHistoryRepository = SearchHistoryRepository(application)
+    private val settingsRepository = SettingsRepository(application)
+    private val playCountRepository = PlayCountRepository(application)
+    private val suggestedPlaylistsRepository = SuggestedPlaylistsRepository(application, ytRepository, playCountRepository)
     private val updateManager = UpdateManager()
     val playerManager = PlayerManager.getInstance(application)
+
+    // Onboarding & Preferences
+    private val _hasCompletedArtistOnboarding = MutableStateFlow(settingsRepository.hasCompletedArtistOnboarding())
+    val hasCompletedArtistOnboarding: StateFlow<Boolean> = _hasCompletedArtistOnboarding.asStateFlow()
+
+    private val _playerStyle = MutableStateFlow(settingsRepository.getPlayerStyle())
+    val playerStyle: StateFlow<PlayerStyle> = _playerStyle.asStateFlow()
+
+    private val _appTheme = MutableStateFlow(settingsRepository.getAppTheme())
+    val appTheme: StateFlow<AppTheme> = _appTheme.asStateFlow()
+
+    private val _appThemeVariant = MutableStateFlow(
+        settingsRepository.getAppThemeVariant().ifBlank { _appTheme.value.defaultVariant }
+    )
+    val appThemeVariant: StateFlow<String> = _appThemeVariant.asStateFlow()
+
+    private val _playerTheme = MutableStateFlow(settingsRepository.getPlayerTheme())
+    val playerTheme: StateFlow<AppTheme?> = _playerTheme.asStateFlow()
+
+    private val _playerThemeVariant = MutableStateFlow(
+        settingsRepository.getPlayerThemeVariant() ?: _playerTheme.value?.defaultVariant
+    )
+    val playerThemeVariant: StateFlow<String?> = _playerThemeVariant.asStateFlow()
+
+    private val _customAccentColor = MutableStateFlow(Color(settingsRepository.getCustomAccentColor()))
+    val customAccentColor: StateFlow<Color> = _customAccentColor.asStateFlow()
+
+    private val _isSettingsDialogOpen = MutableStateFlow(false)
+    val isSettingsDialogOpen: StateFlow<Boolean> = _isSettingsDialogOpen.asStateFlow()
+
+    // Suggested Playlists State
+    private val _suggestedPlaylists = MutableStateFlow<List<Playlist>>(emptyList())
+    val suggestedPlaylists: StateFlow<List<Playlist>> = _suggestedPlaylists.asStateFlow()
+
+    private val _isSuggestedPlaylistsLoading = MutableStateFlow(false)
+    val isSuggestedPlaylistsLoading: StateFlow<Boolean> = _isSuggestedPlaylistsLoading.asStateFlow()
 
     // Recently Played State
     private val _recentlyPlayed = MutableStateFlow<List<Track>>(emptyList())
@@ -94,6 +141,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
     val queue: StateFlow<List<Track>> = playerManager.queue
+
+    private val _isQueueReorderable = MutableStateFlow(true)
+    val isQueueReorderable: StateFlow<Boolean> = _isQueueReorderable.asStateFlow()
 
     // Navigation Stack
     private val _currentScreen = MutableStateFlow(ScreenState.HOME)
@@ -156,9 +206,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _artistSongs = MutableStateFlow<List<Track>>(emptyList())
     val artistSongs: StateFlow<List<Track>> = _artistSongs.asStateFlow()
-
-    private val _artistVideos = MutableStateFlow<List<Track>>(emptyList())
-    val artistVideos: StateFlow<List<Track>> = _artistVideos.asStateFlow()
 
     private var currentArtistDetailData: ArtistDetailData? = null
 
@@ -224,8 +271,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             playerManager.playbackState.collect { state ->
                 val track = state.currentTrack
                 if (track != null && _recentlyPlayed.value.firstOrNull()?.id != track.id) {
-                    val updated = recentlyPlayedRepository.addTrack(track)
-                    _recentlyPlayed.value = updated
+                    recordTrackPlayed(track)
                 }
             }
         }
@@ -289,7 +335,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _selectedArtist.value = artist
         _artistAlbums.value = emptyList()
         _artistSongs.value = emptyList()
-        _artistVideos.value = emptyList()
         _allArtistTracks.value = emptyList()
         currentArtistDetailData = null
         _currentScreen.value = ScreenState.ARTIST_DETAIL
@@ -300,7 +345,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             currentArtistDetailData = data
             _artistAlbums.value = data.albums
             _artistSongs.value = data.songs
-            _artistVideos.value = data.videos
             _isArtistLoading.value = false
         }
     }
@@ -321,30 +365,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 fallbackQuery = "${artist.name} songs",
                 artistName = artist.name,
                 isVideo = false
-            )
-            if (all.isNotEmpty()) {
-                _allArtistTracks.value = all
-            }
-            _isAllTracksLoading.value = false
-        }
-    }
-
-    fun openArtistVideosList() {
-        val artist = _selectedArtist.value ?: return
-        _artistTrackListType.value = ArtistTrackListType.VIDEOS
-        _currentScreen.value = ScreenState.ARTIST_TRACK_LIST
-        _allArtistTracks.value = _artistVideos.value
-
-        viewModelScope.launch {
-            _isAllTracksLoading.value = true
-            val browseId = currentArtistDetailData?.allVideosBrowseId
-            val params = currentArtistDetailData?.allVideosParams
-            val all = ytRepository.fetchArtistAllTracks(
-                browseId = browseId,
-                params = params,
-                fallbackQuery = "${artist.name} videos",
-                artistName = artist.name,
-                isVideo = true
             )
             if (all.isNotEmpty()) {
                 _allArtistTracks.value = all
@@ -398,6 +418,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 closeArtistManager()
                 true
             }
+            ScreenState.SETTINGS_NOW_PLAYING -> {
+                _currentScreen.value = ScreenState.SETTINGS
+                true
+            }
+            ScreenState.SETTINGS_APP_THEME -> {
+                _currentScreen.value = ScreenState.SETTINGS
+                true
+            }
+            ScreenState.SETTINGS -> {
+                _currentScreen.value = ScreenState.HOME
+                true
+            }
             ScreenState.HOME -> false
         }
     }
@@ -419,10 +451,114 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _currentScreen.value = ScreenState.RECENTLY_PLAYED
     }
 
-    // --- Favorite Artists Management ---
+    // --- Favorite Artists Management & Suggested Playlists ---
     fun loadFavoriteArtists() {
         viewModelScope.launch {
-            _favoriteArtists.value = favoriteArtistsRepository.getFavorites()
+            val favs = favoriteArtistsRepository.getFavorites()
+            _favoriteArtists.value = favs
+            if (favs.size >= 5) {
+                settingsRepository.setArtistOnboardingCompleted(true)
+                _hasCompletedArtistOnboarding.value = true
+            }
+            refreshSuggestedPlaylists()
+        }
+    }
+
+    fun completeArtistOnboarding(artists: List<Artist>) {
+        viewModelScope.launch {
+            val updated = favoriteArtistsRepository.saveAllFavorites(artists)
+            _favoriteArtists.value = updated
+            settingsRepository.setArtistOnboardingCompleted(true)
+            _hasCompletedArtistOnboarding.value = true
+            refreshSuggestedPlaylists(force = true)
+        }
+    }
+
+    fun openSettings() {
+        _currentScreen.value = ScreenState.SETTINGS
+        _isSettingsDialogOpen.value = false
+    }
+
+    fun closeSettings() {
+        if (_currentScreen.value == ScreenState.SETTINGS ||
+            _currentScreen.value == ScreenState.SETTINGS_NOW_PLAYING ||
+            _currentScreen.value == ScreenState.SETTINGS_APP_THEME
+        ) {
+            _currentScreen.value = ScreenState.HOME
+        }
+        _isSettingsDialogOpen.value = false
+    }
+
+    fun openNowPlayingSettings() {
+        _currentScreen.value = ScreenState.SETTINGS_NOW_PLAYING
+    }
+
+    fun openAppThemeSettings() {
+        _currentScreen.value = ScreenState.SETTINGS_APP_THEME
+    }
+
+    fun setPlayerStyle(style: PlayerStyle) {
+        settingsRepository.setPlayerStyle(style)
+        _playerStyle.value = style
+    }
+
+    fun setAppTheme(theme: AppTheme, variant: String = theme.defaultVariant) {
+        val finalVariant = if (variant.isBlank()) theme.defaultVariant else variant
+        settingsRepository.setAppTheme(theme)
+        settingsRepository.setAppThemeVariant(finalVariant)
+        _appTheme.value = theme
+        _appThemeVariant.value = finalVariant
+    }
+
+    fun setAppThemeVariant(variant: String) {
+        settingsRepository.setAppThemeVariant(variant)
+        _appThemeVariant.value = variant
+    }
+
+    fun setPlayerTheme(theme: AppTheme?, variant: String? = theme?.defaultVariant) {
+        val finalVariant = variant ?: theme?.defaultVariant
+        settingsRepository.setPlayerTheme(theme)
+        settingsRepository.setPlayerThemeVariant(finalVariant)
+        _playerTheme.value = theme
+        _playerThemeVariant.value = finalVariant
+    }
+
+    fun setPlayerThemeVariant(variant: String?) {
+        settingsRepository.setPlayerThemeVariant(variant)
+        _playerThemeVariant.value = variant
+    }
+
+    fun setCustomAccentColor(color: Color) {
+        val argb = ((color.alpha * 255).toInt() shl 24) or
+                   ((color.red * 255).toInt() shl 16) or
+                   ((color.green * 255).toInt() shl 8) or
+                   (color.blue * 255).toInt()
+        settingsRepository.setCustomAccentColor(argb)
+        _customAccentColor.value = color
+    }
+
+    fun refreshSuggestedPlaylists(force: Boolean = false) {
+        viewModelScope.launch {
+            val favs = _favoriteArtists.value
+            if (favs.isEmpty()) return@launch
+
+            // Return cached playlists immediately if available
+            val cached = suggestedPlaylistsRepository.getCachedPlaylists()
+            if (cached.isNotEmpty()) {
+                _suggestedPlaylists.value = cached
+            }
+
+            if (force || suggestedPlaylistsRepository.shouldRefresh(favs)) {
+                _isSuggestedPlaylistsLoading.value = true
+                try {
+                    val updated = suggestedPlaylistsRepository.generateOrRefreshPlaylists(favs)
+                    _suggestedPlaylists.value = updated
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    _isSuggestedPlaylistsLoading.value = false
+                }
+            }
         }
     }
 
@@ -430,6 +566,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val updated = favoriteArtistsRepository.addFavorite(artist)
             _favoriteArtists.value = updated
+            refreshSuggestedPlaylists(force = true)
         }
     }
 
@@ -437,6 +574,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val updated = favoriteArtistsRepository.removeFavorite(artistId)
             _favoriteArtists.value = updated
+            refreshSuggestedPlaylists(force = true)
         }
     }
 
@@ -449,6 +587,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 favoriteArtistsRepository.addFavorite(artist)
             }
             _favoriteArtists.value = updated
+            refreshSuggestedPlaylists(force = true)
         }
     }
 
@@ -599,26 +738,59 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- Playback Controls ---
     fun playTrack(track: Track, queue: List<Track>? = null) {
+        if (queue != null) {
+            _isQueueReorderable.value = queue.size > 1
+        } else if (playerManager.queue.value.size <= 1) {
+            _isQueueReorderable.value = false
+        }
         recordTrackPlayed(track)
         playerManager.playTrack(track, queue)
+    }
+
+    fun playPlaylistTrack(playlist: Playlist, track: Track) {
+        _isQueueReorderable.value = playlist.tracks.size > 1
+        recordTrackPlayed(track)
+        playerManager.playTrack(track, playlist.tracks)
+    }
+
+    fun playAllFromPlaylist(playlist: Playlist) {
+        _isQueueReorderable.value = playlist.tracks.size > 1
+        if (playlist.tracks.isNotEmpty()) {
+            recordTrackPlayed(playlist.tracks.first())
+            playerManager.playTrack(playlist.tracks.first(), playlist.tracks)
+        }
+    }
+
+    fun shuffleAllFromPlaylist(playlist: Playlist) {
+        _isQueueReorderable.value = playlist.tracks.size > 1
+        if (playlist.tracks.isNotEmpty()) {
+            val shuffled = playlist.tracks.shuffled()
+            recordTrackPlayed(shuffled.first())
+            playerManager.playTrack(shuffled.first(), shuffled)
+        }
     }
 
     private fun recordTrackPlayed(track: Track) {
         viewModelScope.launch {
             val updated = recentlyPlayedRepository.addTrack(track)
             _recentlyPlayed.value = updated
+            playCountRepository.recordPlay(track)
         }
     }
 
     fun playAll(tracks: List<Track>) {
+        _isQueueReorderable.value = tracks.size > 1
         if (tracks.isNotEmpty()) {
+            recordTrackPlayed(tracks.first())
             playerManager.playTrack(tracks.first(), tracks)
         }
     }
 
     fun shuffleAll(tracks: List<Track>) {
+        _isQueueReorderable.value = tracks.size > 1
         if (tracks.isNotEmpty()) {
             val shuffled = tracks.shuffled()
+            recordTrackPlayed(shuffled.first())
             playerManager.playTrack(shuffled.first(), shuffled)
         }
     }
@@ -727,6 +899,22 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             if (_selectedPlaylist.value?.id == playlistId) {
                 _selectedPlaylist.value = null
                 _currentScreen.value = ScreenState.HOME
+            }
+        }
+    }
+
+    fun editPlaylist(playlistId: String, newTitle: String, newImageUri: Uri?, removeImage: Boolean) {
+        viewModelScope.launch {
+            val current = _playlists.value.find { it.id == playlistId } ?: return@launch
+            val finalImagePath = when {
+                removeImage -> null
+                newImageUri != null -> playlistRepository.copyImageToInternalStorage(newImageUri)
+                else -> current.imageUri
+            }
+            val updated = playlistRepository.updatePlaylist(playlistId, newTitle, finalImagePath)
+            _playlists.value = updated
+            if (_selectedPlaylist.value?.id == playlistId) {
+                _selectedPlaylist.value = updated.find { it.id == playlistId }
             }
         }
     }
