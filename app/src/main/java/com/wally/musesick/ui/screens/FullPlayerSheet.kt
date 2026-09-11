@@ -45,6 +45,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -58,6 +59,8 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilledTonalIconButton
+import com.wally.musesick.model.LyricsUiState
+import com.wally.musesick.ui.components.LyricsView
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -133,6 +136,8 @@ fun FullPlayerSheet(
     appTheme: AppTheme? = null,
     customThemeImagePath: String? = null,
     ambientBrush: Brush? = null,
+    lyricsState: LyricsUiState = LyricsUiState.Idle,
+    onSeekToPosition: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isFullscreen = playerStyle == PlayerStyle.FULLSCREEN_ALBUM_ART
@@ -166,6 +171,8 @@ fun FullPlayerSheet(
                 appTheme = appTheme,
                 customThemeImagePath = customThemeImagePath,
                 ambientBrush = ambientBrush,
+                lyricsState = lyricsState,
+                onSeekToPosition = onSeekToPosition,
                 modifier = modifier
             )
         }
@@ -192,6 +199,8 @@ fun FullPlayerSheet(
             appTheme = appTheme,
             customThemeImagePath = customThemeImagePath,
             ambientBrush = ambientBrush,
+            lyricsState = lyricsState,
+            onSeekToPosition = onSeekToPosition,
             modifier = modifier
         )
     }
@@ -221,10 +230,13 @@ private fun FullPlayerSheetInternal(
     appTheme: AppTheme? = null,
     customThemeImagePath: String? = null,
     ambientBrush: Brush? = null,
+    lyricsState: LyricsUiState = LyricsUiState.Idle,
+    onSeekToPosition: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val track = state.currentTrack ?: return
     var showQueue by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(false) }
     val canReorder = isQueueReorderable && queue.size > 1
     var draggingIndex by remember { mutableStateOf<Int?>(null) }
     var heldIndex by remember { mutableStateOf<Int?>(null) }
@@ -250,8 +262,12 @@ private fun FullPlayerSheetInternal(
         label = "full_next_scale"
     )
 
-    BackHandler(enabled = showQueue) {
-        showQueue = false
+    BackHandler(enabled = showQueue || showLyrics) {
+        if (showLyrics) {
+            showLyrics = false
+        } else {
+            showQueue = false
+        }
     }
 
     val isFullscreen = playerStyle == PlayerStyle.FULLSCREEN_ALBUM_ART
@@ -281,7 +297,7 @@ private fun FullPlayerSheetInternal(
             .fillMaxSize()
             .background(rootBackground)
             .then(
-                if (!showQueue) {
+                if (!showQueue && !showLyrics) {
                     Modifier.draggable(
                         orientation = Orientation.Vertical,
                         state = rememberDraggableState { delta ->
@@ -715,30 +731,61 @@ private fun FullPlayerSheetInternal(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Queue toggle button
-                FilledTonalButton(
-                    onClick = { showQueue = true },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = if (isFullscreen || isCustomOrAmbient) {
-                        ButtonDefaults.filledTonalButtonColors(
-                            containerColor = Color.White.copy(alpha = 0.2f),
-                            contentColor = Color.White
-                        )
-                    } else {
-                        ButtonDefaults.filledTonalButtonColors()
-                    }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                        contentDescription = "Queue",
-                        tint = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Queue (${queue.size})",
-                        color = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface
-                    )
+                    // Lyrics toggle button
+                    FilledTonalButton(
+                        onClick = { showLyrics = true },
+                        shape = RoundedCornerShape(20.dp),
+                        colors = if (isFullscreen || isCustomOrAmbient) {
+                            ButtonDefaults.filledTonalButtonColors(
+                                containerColor = Color.White.copy(alpha = 0.2f),
+                                contentColor = Color.White
+                            )
+                        } else {
+                            ButtonDefaults.filledTonalButtonColors()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lyrics,
+                            contentDescription = "Lyrics",
+                            tint = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Lyrics",
+                            color = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // Queue toggle button
+                    FilledTonalButton(
+                        onClick = { showQueue = true },
+                        shape = RoundedCornerShape(20.dp),
+                        colors = if (isFullscreen || isCustomOrAmbient) {
+                            ButtonDefaults.filledTonalButtonColors(
+                                containerColor = Color.White.copy(alpha = 0.2f),
+                                contentColor = Color.White
+                            )
+                        } else {
+                            ButtonDefaults.filledTonalButtonColors()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                            contentDescription = "Queue",
+                            tint = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Queue (${queue.size})",
+                            color = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
 
@@ -1001,6 +1048,152 @@ private fun FullPlayerSheetInternal(
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // Fullscreen Sliding Lyrics Window Overlay
+            AnimatedVisibility(
+                visible = showLyrics,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = tween(350, easing = FastOutSlowInEasing)
+                ) + fadeIn(animationSpec = tween(250)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = tween(300, easing = FastOutSlowInEasing)
+                ) + fadeOut(animationSpec = tween(200)),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(35f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(rootBackground)
+                ) {
+                    if (isFullscreen) {
+                        // a. Frosted glass theme with background the same as album art for full screen player
+                        if (!highResCover.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = highResCover,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .scale(1.15f)
+                                    .blur(32.dp)
+                                    .clipToBounds(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFF141414))
+                            )
+                        }
+                        // Frosted dark glass overlay
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.58f))
+                        )
+                    } else {
+                        // b. Same color background as colors of original theme for non full screen variant
+                        if (isCustomImageTheme && !customThemeImagePath.isNullOrEmpty()) {
+                            AsyncImage(
+                                model = File(customThemeImagePath),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .scale(1.08f)
+                                    .blur(28.dp)
+                                    .clipToBounds(),
+                                contentScale = ContentScale.Crop
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.98f))
+                            )
+                        } else if (isAmbientTheme && ambientBrush != null) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .scale(1.08f)
+                                    .background(ambientBrush)
+                                    .blur(28.dp)
+                                    .clipToBounds()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = 0.98f))
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.background)
+                            )
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                    ) {
+                        // Top Header Bar
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            IconButton(onClick = { showLyrics = false }) {
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = "Close Lyrics",
+                                    modifier = Modifier.size(28.dp),
+                                    tint = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onBackground
+                                )
+                            }
+
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "LYRICS",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp,
+                                    color = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onBackground
+                                )
+                                Text(
+                                    text = "${track.title} • ${track.artist}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = (if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onBackground).copy(alpha = 0.7f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.size(48.dp))
+                        }
+
+                        // Synchronized Auto-scrolling Lyrics View
+                        LyricsView(
+                            lyricsState = lyricsState,
+                            currentTimeMs = state.currentPositionMs,
+                            onSeekTo = onSeekToPosition,
+                            textColor = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
             }

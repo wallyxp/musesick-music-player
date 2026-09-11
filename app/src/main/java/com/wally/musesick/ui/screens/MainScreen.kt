@@ -131,6 +131,7 @@ fun MainScreen(
     val queue by viewModel.queue.collectAsState()
     val isQueueReorderable by viewModel.isQueueReorderable.collectAsState()
     val isFullPlayerOpen by viewModel.isFullPlayerOpen.collectAsState()
+    val lyricsState by viewModel.lyricsState.collectAsState()
     val artists by viewModel.artists.collectAsState()
     val artistSearchQuery by viewModel.artistSearchQuery.collectAsState()
     val artistSearchResults by viewModel.artistSearchResults.collectAsState()
@@ -765,7 +766,9 @@ fun MainScreen(
             customAccentColor = customAccentColor,
             appTheme = appTheme,
             customThemeImagePath = customThemeImagePath,
-            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null
+            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null,
+            lyricsState = lyricsState,
+            onSeekToPosition = { viewModel.seekToPosition(it) }
         )
     }
 
