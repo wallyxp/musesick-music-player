@@ -1,6 +1,7 @@
 package com.wally.musesick.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
@@ -9,8 +10,17 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -91,6 +101,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.zIndex
 
+import java.io.File
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.scale
 import com.wally.musesick.model.AppTheme
 import com.wally.musesick.ui.theme.MusesickThemed
 
@@ -116,6 +130,9 @@ fun FullPlayerSheet(
     playerThemeVariant: String? = null,
     isQueueReorderable: Boolean = true,
     customAccentColor: Color? = null,
+    appTheme: AppTheme? = null,
+    customThemeImagePath: String? = null,
+    ambientBrush: Brush? = null,
     modifier: Modifier = Modifier
 ) {
     val isFullscreen = playerStyle == PlayerStyle.FULLSCREEN_ALBUM_ART
@@ -146,6 +163,9 @@ fun FullPlayerSheet(
                 playerTheme = playerTheme,
                 isQueueReorderable = isQueueReorderable,
                 customAccentColor = customAccentColor,
+                appTheme = appTheme,
+                customThemeImagePath = customThemeImagePath,
+                ambientBrush = ambientBrush,
                 modifier = modifier
             )
         }
@@ -169,6 +189,9 @@ fun FullPlayerSheet(
             playerTheme = playerTheme,
             isQueueReorderable = isQueueReorderable,
             customAccentColor = customAccentColor,
+            appTheme = appTheme,
+            customThemeImagePath = customThemeImagePath,
+            ambientBrush = ambientBrush,
             modifier = modifier
         )
     }
@@ -195,6 +218,9 @@ private fun FullPlayerSheetInternal(
     playerTheme: AppTheme? = null,
     isQueueReorderable: Boolean = true,
     customAccentColor: Color? = null,
+    appTheme: AppTheme? = null,
+    customThemeImagePath: String? = null,
+    ambientBrush: Brush? = null,
     modifier: Modifier = Modifier
 ) {
     val track = state.currentTrack ?: return
@@ -206,14 +232,35 @@ private fun FullPlayerSheetInternal(
     val density = LocalDensity.current
     val itemHeightPx = with(density) { 76.dp.toPx() }
 
+    var verticalSwipeAccumulator by remember { mutableFloatStateOf(0f) }
+
+    var prevClickTrigger by remember { mutableIntStateOf(0) }
+    val prevButtonScale by animateFloatAsState(
+        targetValue = if (prevClickTrigger > 0) 0.85f else 1f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
+        finishedListener = { if (prevClickTrigger > 0) prevClickTrigger = 0 },
+        label = "full_prev_scale"
+    )
+
+    var nextClickTrigger by remember { mutableIntStateOf(0) }
+    val nextButtonScale by animateFloatAsState(
+        targetValue = if (nextClickTrigger > 0) 0.85f else 1f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
+        finishedListener = { if (nextClickTrigger > 0) nextClickTrigger = 0 },
+        label = "full_next_scale"
+    )
+
     BackHandler(enabled = showQueue) {
         showQueue = false
     }
 
     val isFullscreen = playerStyle == PlayerStyle.FULLSCREEN_ALBUM_ART
     val isNonFullscreen = playerStyle == PlayerStyle.NON_FULLSCREEN_ALBUM_ART
+    val isCustomImageTheme = appTheme == AppTheme.CUSTOM_IMAGE
+    val isAmbientTheme = appTheme == AppTheme.AMBIENT
+    val isCustomOrAmbient = isCustomImageTheme || isAmbientTheme
 
-    val playerAccentColor = if (isFullscreen) {
+    val playerAccentColor = if (isFullscreen || isCustomOrAmbient) {
         Color.White
     } else if (playerTheme == AppTheme.CUSTOM_COLOR && customAccentColor != null) {
         customAccentColor
@@ -223,33 +270,69 @@ private fun FullPlayerSheetInternal(
 
     val highResCover = track.highResThumbnailUrl ?: track.thumbnailUrl
 
+    val rootBackground = when {
+        isFullscreen -> Color.Black
+        isCustomOrAmbient -> Color.Black.copy(alpha = 0.98f)
+        else -> MaterialTheme.colorScheme.background
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isFullscreen) Color.Black else MaterialTheme.colorScheme.background)
+            .background(rootBackground)
+            .then(
+                if (!showQueue) {
+                    Modifier.draggable(
+                        orientation = Orientation.Vertical,
+                        state = rememberDraggableState { delta ->
+                            verticalSwipeAccumulator += delta
+                            if (verticalSwipeAccumulator > 45f) {
+                                verticalSwipeAccumulator = 0f
+                                onClose()
+                            }
+                        },
+                        onDragStopped = { velocity ->
+                            if (velocity > 350f || verticalSwipeAccumulator > 25f) {
+                                verticalSwipeAccumulator = 0f
+                                onClose()
+                            } else {
+                                verticalSwipeAccumulator = 0f
+                            }
+                        }
+                    )
+                } else {
+                    Modifier
+                }
+            )
     ) {
         if (isFullscreen) {
-            // Fullscreen Album Art Background
-            if (!highResCover.isNullOrEmpty()) {
-                AsyncImage(
-                    model = highResCover,
-                    contentDescription = track.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFF161616)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Album,
-                        contentDescription = null,
-                        modifier = Modifier.size(120.dp),
-                        tint = Color.White.copy(alpha = 0.2f)
+            // Fullscreen Album Art Background with crossfade
+            AnimatedContent(
+                targetState = track.id,
+                transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(300)) },
+                label = "fullscreen_bg_art"
+            ) { _ ->
+                if (!highResCover.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = highResCover,
+                        contentDescription = track.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF161616)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Album,
+                            contentDescription = null,
+                            modifier = Modifier.size(120.dp),
+                            tint = Color.White.copy(alpha = 0.2f)
+                        )
+                    }
                 }
             }
 
@@ -287,6 +370,38 @@ private fun FullPlayerSheetInternal(
                         )
                     )
             )
+        } else if (isCustomImageTheme && !customThemeImagePath.isNullOrEmpty()) {
+            // Non-fullscreen album art with custom image theme: blurred photo with 98% opacity black overlay
+            AsyncImage(
+                model = File(customThemeImagePath),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(1.08f)
+                    .blur(28.dp)
+                    .clipToBounds(),
+                contentScale = ContentScale.Crop
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.98f))
+            )
+        } else if (isAmbientTheme && ambientBrush != null) {
+            // Non-fullscreen album art with ambient theme: blurred gradient with 98% opacity black overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(1.08f)
+                    .background(ambientBrush)
+                    .blur(28.dp)
+                    .clipToBounds()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.98f))
+            )
         }
 
         // Main Player UI Column
@@ -311,7 +426,7 @@ private fun FullPlayerSheetInternal(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Close",
                         modifier = Modifier.size(28.dp),
-                        tint = if (isFullscreen) Color.White else MaterialTheme.colorScheme.onBackground
+                        tint = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onBackground
                     )
                 }
 
@@ -346,26 +461,32 @@ private fun FullPlayerSheetInternal(
                         modifier = Modifier.size(260.dp),
                         shape = RoundedCornerShape(28.dp)
                     ) {
-                        if (!highResCover.isNullOrEmpty()) {
-                            AsyncImage(
-                                model = highResCover,
-                                contentDescription = track.title,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(playerAccentColor.copy(alpha = 0.25f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Album,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(90.dp),
-                                    tint = playerAccentColor
+                        AnimatedContent(
+                            targetState = track.id,
+                            transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(250)) },
+                            label = "non_fullscreen_art"
+                        ) { _ ->
+                            if (!highResCover.isNullOrEmpty()) {
+                                AsyncImage(
+                                    model = highResCover,
+                                    contentDescription = track.title,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
                                 )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(playerAccentColor.copy(alpha = 0.25f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Album,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(90.dp),
+                                        tint = playerAccentColor
+                                    )
+                                }
                             }
                         }
                     }
@@ -373,7 +494,16 @@ private fun FullPlayerSheetInternal(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-                // Track Title & Artist
+            // Track Title & Artist with smooth slide & crossfade
+            AnimatedContent(
+                targetState = track.id,
+                transitionSpec = {
+                    (slideInHorizontally { it / 3 } + fadeIn(tween(220)))
+                        .togetherWith(slideOutHorizontally { -it / 3 } + fadeOut(tween(220)))
+                },
+                label = "full_track_info_transition",
+                modifier = Modifier.fillMaxWidth()
+            ) { _ ->
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -382,7 +512,7 @@ private fun FullPlayerSheetInternal(
                         text = track.title,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        color = if (isFullscreen) Color.White else MaterialTheme.colorScheme.onBackground,
+                        color = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onBackground,
                         maxLines = 2,
                         textAlign = TextAlign.Center,
                         overflow = TextOverflow.Ellipsis
@@ -391,12 +521,13 @@ private fun FullPlayerSheetInternal(
                     Text(
                         text = track.artist,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = if (isFullscreen) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (isFullscreen || isCustomOrAmbient) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         textAlign = TextAlign.Center,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+            }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
@@ -414,7 +545,7 @@ private fun FullPlayerSheetInternal(
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = if (isFullscreen) {
+                    colors = if (isFullscreen || isCustomOrAmbient) {
                         SliderDefaults.colors(
                             thumbColor = Color.White,
                             activeTrackColor = Color.White,
@@ -439,12 +570,12 @@ private fun FullPlayerSheetInternal(
                     Text(
                         text = state.formattedPosition,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isFullscreen) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isFullscreen || isCustomOrAmbient) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = state.formattedDuration,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isFullscreen) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isFullscreen || isCustomOrAmbient) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -461,7 +592,7 @@ private fun FullPlayerSheetInternal(
                         Icon(
                             imageVector = Icons.Default.Shuffle,
                             contentDescription = "Shuffle",
-                            tint = if (isFullscreen) {
+                            tint = if (isFullscreen || isCustomOrAmbient) {
                                 if (state.isShuffle) Color.White else Color.White.copy(alpha = 0.5f)
                             } else {
                                 if (state.isShuffle) playerAccentColor else MaterialTheme.colorScheme.onSurfaceVariant
@@ -471,9 +602,17 @@ private fun FullPlayerSheetInternal(
 
                     // Previous
                     FilledTonalIconButton(
-                        onClick = onPrevious,
-                        modifier = Modifier.size(54.dp),
-                        colors = if (isFullscreen) {
+                        onClick = {
+                            prevClickTrigger++
+                            onPrevious()
+                        },
+                        modifier = Modifier
+                            .size(54.dp)
+                            .graphicsLayer {
+                                scaleX = prevButtonScale
+                                scaleY = prevButtonScale
+                            },
+                        colors = if (isFullscreen || isCustomOrAmbient) {
                             IconButtonDefaults.filledTonalIconButtonColors(
                                 containerColor = Color.White.copy(alpha = 0.22f),
                                 contentColor = Color.White
@@ -485,16 +624,16 @@ private fun FullPlayerSheetInternal(
                         Icon(
                             imageVector = Icons.Default.SkipPrevious,
                             contentDescription = "Previous",
-                            tint = if (isFullscreen) Color.White else MaterialTheme.colorScheme.onSurface,
+                            tint = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(28.dp)
                         )
                     }
 
-                    // Big Circular Play/Pause
+                    // Big Circular Play/Pause with morphing animation & buffering state
                     FilledIconButton(
                         onClick = onTogglePlayPause,
                         modifier = Modifier.size(72.dp),
-                        colors = if (isFullscreen) {
+                        colors = if (isFullscreen || isCustomOrAmbient) {
                             IconButtonDefaults.filledIconButtonColors(
                                 containerColor = Color.White,
                                 contentColor = Color.Black
@@ -506,27 +645,44 @@ private fun FullPlayerSheetInternal(
                             )
                         }
                     ) {
-                        if (state.isBuffering) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(32.dp),
-                                color = if (isFullscreen) Color.Black else MaterialTheme.colorScheme.onPrimary,
-                                strokeWidth = 3.dp
-                            )
-                        } else {
-                            Icon(
-                                imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (state.isPlaying) "Pause" else "Play",
-                                tint = if (isFullscreen) Color.Black else MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(38.dp)
-                            )
+                        AnimatedContent(
+                            targetState = Pair(state.isPlaying, state.isBuffering),
+                            transitionSpec = {
+                                (scaleIn(animationSpec = spring(dampingRatio = 0.62f, stiffness = 450f)) + fadeIn(tween(160)))
+                                    .togetherWith(scaleOut(animationSpec = spring(dampingRatio = 0.62f, stiffness = 450f)) + fadeOut(tween(160)))
+                            },
+                            label = "full_play_pause_transition"
+                        ) { (isPlaying, isBuffering) ->
+                            if (isBuffering) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(32.dp),
+                                    color = if (isFullscreen || isCustomOrAmbient) Color.Black else MaterialTheme.colorScheme.onPrimary,
+                                    strokeWidth = 3.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPlaying) "Pause" else "Play",
+                                    tint = if (isFullscreen || isCustomOrAmbient) Color.Black else MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(38.dp)
+                                )
+                            }
                         }
                     }
 
                     // Next
                     FilledTonalIconButton(
-                        onClick = onNext,
-                        modifier = Modifier.size(54.dp),
-                        colors = if (isFullscreen) {
+                        onClick = {
+                            nextClickTrigger++
+                            onNext()
+                        },
+                        modifier = Modifier
+                            .size(54.dp)
+                            .graphicsLayer {
+                                scaleX = nextButtonScale
+                                scaleY = nextButtonScale
+                            },
+                        colors = if (isFullscreen || isCustomOrAmbient) {
                             IconButtonDefaults.filledTonalIconButtonColors(
                                 containerColor = Color.White.copy(alpha = 0.22f),
                                 contentColor = Color.White
@@ -538,7 +694,7 @@ private fun FullPlayerSheetInternal(
                         Icon(
                             imageVector = Icons.Default.SkipNext,
                             contentDescription = "Next",
-                            tint = if (isFullscreen) Color.White else MaterialTheme.colorScheme.onSurface,
+                            tint = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -548,7 +704,7 @@ private fun FullPlayerSheetInternal(
                         Icon(
                             imageVector = Icons.Default.Repeat,
                             contentDescription = "Repeat",
-                            tint = if (isFullscreen) {
+                            tint = if (isFullscreen || isCustomOrAmbient) {
                                 if (state.isRepeat) Color.White else Color.White.copy(alpha = 0.5f)
                             } else {
                                 if (state.isRepeat) playerAccentColor else MaterialTheme.colorScheme.onSurfaceVariant
@@ -563,7 +719,7 @@ private fun FullPlayerSheetInternal(
                 FilledTonalButton(
                     onClick = { showQueue = true },
                     shape = RoundedCornerShape(20.dp),
-                    colors = if (isFullscreen) {
+                    colors = if (isFullscreen || isCustomOrAmbient) {
                         ButtonDefaults.filledTonalButtonColors(
                             containerColor = Color.White.copy(alpha = 0.2f),
                             contentColor = Color.White
@@ -575,13 +731,13 @@ private fun FullPlayerSheetInternal(
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                         contentDescription = "Queue",
-                        tint = if (isFullscreen) Color.White else MaterialTheme.colorScheme.onSurface,
+                        tint = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Queue (${queue.size})",
-                        color = if (isFullscreen) Color.White else MaterialTheme.colorScheme.onSurface
+                        color = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }

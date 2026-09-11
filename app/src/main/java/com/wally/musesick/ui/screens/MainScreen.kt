@@ -8,6 +8,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -56,10 +58,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import java.io.File
 import kotlinx.coroutines.launch
 import com.wally.musesick.ui.MusicViewModel
 import androidx.compose.ui.graphics.Color
@@ -77,6 +85,7 @@ import com.wally.musesick.ui.screens.ArtistOnboardingScreen
 import com.wally.musesick.ui.screens.SettingsAppThemeScreen
 import com.wally.musesick.ui.screens.SettingsNowPlayingScreen
 import com.wally.musesick.ui.screens.SettingsScreen
+import com.wally.musesick.ui.theme.rememberAmbientBrush
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,6 +123,7 @@ fun MainScreen(
     val playerTheme by viewModel.playerTheme.collectAsState()
     val playerThemeVariant by viewModel.playerThemeVariant.collectAsState()
     val customAccentColor by viewModel.customAccentColor.collectAsState()
+    val customThemeImagePath by viewModel.customThemeImagePath.collectAsState()
 
     val currentScreen by viewModel.currentScreen.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
@@ -232,12 +242,55 @@ fun MainScreen(
         }
     }
 
-    Scaffold(
+    val isPhotoOrAmbient = (appTheme == AppTheme.CUSTOM_IMAGE || appTheme == AppTheme.AMBIENT)
+    val ambientBrush = rememberAmbientBrush()
+
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
+            .background(if (isPhotoOrAmbient) Color(0xFF121212) else MaterialTheme.colorScheme.background)
+    ) {
+        if (appTheme == AppTheme.CUSTOM_IMAGE && !customThemeImagePath.isNullOrEmpty()) {
+            AsyncImage(
+                model = File(customThemeImagePath!!),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(1.08f)
+                    .blur(28.dp)
+                    .clipToBounds(),
+                contentScale = ContentScale.Crop
+            )
+            // Very darkened layer on top of it
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.78f))
+            )
+        } else if (appTheme == AppTheme.AMBIENT) {
+            // Ambient gradient based on the hour of the day
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scale(1.08f)
+                    .background(ambientBrush)
+                    .blur(28.dp)
+                    .clipToBounds()
+            )
+            // Very darkened layer on top of it
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.78f))
+            )
+        }
+
+        Scaffold(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (isPhotoOrAmbient) Color.Transparent else MaterialTheme.colorScheme.background),
+            containerColor = if (isPhotoOrAmbient) Color.Transparent else MaterialTheme.colorScheme.background,
+            contentWindowInsets = WindowInsets(0.dp),
         topBar = {
                 if (currentScreen == ScreenState.HOME) {
                     // Header displaying the name of the active window on the top-left
@@ -307,14 +360,27 @@ fun MainScreen(
                 }
             },
         bottomBar = {
-            if (playbackState.currentTrack != null && !isFullPlayerOpen) {
-                Box(modifier = Modifier.navigationBarsPadding()) {
-                    MiniPlayerBar(
-                        state = playbackState,
-                        onTogglePlayPause = { viewModel.togglePlayPause() },
-                        onNext = { viewModel.nextTrack() },
-                        onClick = { viewModel.openFullPlayer() }
-                    )
+            if (playbackState.currentTrack != null) {
+                AnimatedVisibility(
+                    visible = !isFullPlayerOpen,
+                    enter = slideInVertically(
+                        initialOffsetY = { it },
+                        animationSpec = spring(dampingRatio = 0.84f, stiffness = 380f)
+                    ) + fadeIn(animationSpec = tween(220)),
+                    exit = slideOutVertically(
+                        targetOffsetY = { it },
+                        animationSpec = spring(dampingRatio = 0.88f, stiffness = 420f)
+                    ) + fadeOut(animationSpec = tween(180))
+                ) {
+                    Box(modifier = Modifier.navigationBarsPadding()) {
+                        MiniPlayerBar(
+                            state = playbackState,
+                            onTogglePlayPause = { viewModel.togglePlayPause() },
+                            onNext = { viewModel.nextTrack() },
+                            onClick = { viewModel.openFullPlayer() },
+                            onSwipeUp = { viewModel.openFullPlayer() }
+                        )
+                    }
                 }
             }
         }
@@ -553,15 +619,18 @@ fun MainScreen(
                             currentTheme = appTheme,
                             currentVariant = appThemeVariant,
                             customAccentColor = customAccentColor,
+                            customThemeImagePath = customThemeImagePath,
                             onThemeSelected = { theme, variant -> viewModel.setAppTheme(theme, variant) },
                             onVariantSelected = { viewModel.setAppThemeVariant(it) },
                             onColorSelected = { viewModel.setCustomAccentColor(it) },
+                            onSelectCustomImage = { viewModel.setCustomThemeImage(it) },
                             onBack = { viewModel.navigateBack() }
                         )
                     }
                 }
             }
         }
+    }
     }
 
     // Song Action Context Menu Sheet (Long press)
@@ -588,7 +657,10 @@ fun MainScreen(
             onAddToNewPlaylist = {
                 viewModel.openNewPlaylistSheet(track)
             },
-            onDismiss = { viewModel.closeSongMenu() }
+            onDismiss = { viewModel.closeSongMenu() },
+            isCustomImageTheme = isPhotoOrAmbient,
+            customThemeImagePath = customThemeImagePath,
+            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null
         )
     }
 
@@ -605,7 +677,10 @@ fun MainScreen(
             onCreateNewClick = {
                 viewModel.openNewPlaylistSheet(targetTrackForPlaylist)
             },
-            onDismiss = { viewModel.closeExistingPlaylistSheet() }
+            onDismiss = { viewModel.closeExistingPlaylistSheet() },
+            isCustomImageTheme = isPhotoOrAmbient,
+            customThemeImagePath = customThemeImagePath,
+            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null
         )
     }
 
@@ -633,7 +708,10 @@ fun MainScreen(
                 }
             },
             onClearYtPreview = { viewModel.clearYouTubePlaylistPreview() },
-            onDismiss = { viewModel.closeNewPlaylistSheet() }
+            onDismiss = { viewModel.closeNewPlaylistSheet() },
+            isCustomImageTheme = isPhotoOrAmbient,
+            customThemeImagePath = customThemeImagePath,
+            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null
         )
     }
 
@@ -647,15 +725,24 @@ fun MainScreen(
                 Toast.makeText(context, "Playlist updated", Toast.LENGTH_SHORT).show()
                 editingPlaylist = null
             },
-            onDismiss = { editingPlaylist = null }
+            onDismiss = { editingPlaylist = null },
+            isCustomImageTheme = isPhotoOrAmbient,
+            customThemeImagePath = customThemeImagePath,
+            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null
         )
     }
 
     // Full Player Modal Sheet
     AnimatedVisibility(
         visible = isFullPlayerOpen,
-        enter = slideInVertically(initialOffsetY = { it }),
-        exit = slideOutVertically(targetOffsetY = { it })
+        enter = slideInVertically(
+            initialOffsetY = { it },
+            animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f)
+        ) + fadeIn(animationSpec = tween(220)),
+        exit = slideOutVertically(
+            targetOffsetY = { it },
+            animationSpec = spring(dampingRatio = 0.85f, stiffness = 400f)
+        ) + fadeOut(animationSpec = tween(180))
     ) {
         FullPlayerSheet(
             state = playbackState,
@@ -675,7 +762,10 @@ fun MainScreen(
             playerTheme = playerTheme,
             playerThemeVariant = playerThemeVariant,
             isQueueReorderable = isQueueReorderable,
-            customAccentColor = customAccentColor
+            customAccentColor = customAccentColor,
+            appTheme = appTheme,
+            customThemeImagePath = customThemeImagePath,
+            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null
         )
     }
 

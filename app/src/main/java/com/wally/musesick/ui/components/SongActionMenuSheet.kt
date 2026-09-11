@@ -32,6 +32,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -39,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.wally.musesick.model.Track
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,20 +56,59 @@ fun SongActionMenuSheet(
     onAddToExistingPlaylist: () -> Unit,
     onAddToNewPlaylist: () -> Unit,
     onDismiss: () -> Unit,
+    isCustomImageTheme: Boolean = false,
+    customThemeImagePath: String? = null,
+    ambientBrush: Brush? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = if (isCustomImageTheme || ambientBrush != null) Color.Black.copy(alpha = 0.98f) else MaterialTheme.colorScheme.surface,
         tonalElevation = 6.dp
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = 16.dp)
+                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
         ) {
+            if (isCustomImageTheme && !customThemeImagePath.isNullOrEmpty()) {
+                AsyncImage(
+                    model = File(customThemeImagePath),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .scale(1.1f)
+                        .blur(28.dp)
+                        .clipToBounds(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.98f))
+                )
+            } else if (ambientBrush != null) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .scale(1.1f)
+                        .background(ambientBrush)
+                        .blur(28.dp)
+                        .clipToBounds()
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.98f))
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp)
+            ) {
             // Song Header Info
             Row(
                 modifier = Modifier
@@ -174,6 +219,7 @@ fun SongActionMenuSheet(
                 }
             )
         }
+        } // end Box
     }
 }
 
