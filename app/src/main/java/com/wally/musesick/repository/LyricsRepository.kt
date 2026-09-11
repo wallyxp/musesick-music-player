@@ -28,7 +28,7 @@ class LyricsRepository {
 
     companion object {
         private const val BASE_URL = "https://lrclib.net"
-        private const val USER_AGENT = "Musesick/1.1.2 (https://github.com/wallyxp/musesick-music-player)"
+        private const val USER_AGENT = "Musesick/1.1.3 (https://github.com/wallyxp/musesick-music-player)"
         private const val TIMEOUT_MS = 6000
     }
 
