@@ -30,6 +30,9 @@ import com.wally.musesick.repository.SearchHistoryRepository
 import com.wally.musesick.repository.SettingsRepository
 import com.wally.musesick.repository.PlayCountRepository
 import com.wally.musesick.repository.SuggestedPlaylistsRepository
+import com.wally.musesick.model.LyricsUiState
+import com.wally.musesick.repository.LyricsRepository
+import com.wally.musesick.repository.LyricsResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,8 +70,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsRepository = SettingsRepository(application)
     private val playCountRepository = PlayCountRepository(application)
     private val suggestedPlaylistsRepository = SuggestedPlaylistsRepository(application, ytRepository, playCountRepository)
+    private val lyricsRepository = LyricsRepository()
     private val updateManager = UpdateManager()
     val playerManager = PlayerManager.getInstance(application)
+
+    // Lyrics State
+    private val _lyricsState = MutableStateFlow<LyricsUiState>(LyricsUiState.Idle)
+    val lyricsState: StateFlow<LyricsUiState> = _lyricsState.asStateFlow()
+    private val lyricsCache = mutableMapOf<String, LyricsUiState>()
+    private var lastLyricsTrackId: String? = null
 
     // Onboarding & Preferences
     private val _hasCompletedArtistOnboarding = MutableStateFlow(settingsRepository.hasCompletedArtistOnboarding())
@@ -267,6 +277,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         loadFavoriteArtists()
         loadRecentSearches()
         observePlaybackForRecentHistory()
+        observePlaybackForLyrics()
     }
 
     private fun observePlaybackForRecentHistory() {
@@ -276,6 +287,49 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 if (track != null && _recentlyPlayed.value.firstOrNull()?.id != track.id) {
                     recordTrackPlayed(track)
                 }
+            }
+        }
+    }
+
+    private fun observePlaybackForLyrics() {
+        viewModelScope.launch {
+            playerManager.playbackState.collect { state ->
+                val track = state.currentTrack
+                if (track != null && track.id != lastLyricsTrackId) {
+                    lastLyricsTrackId = track.id
+                    loadLyricsForTrack(track)
+                }
+            }
+        }
+    }
+
+    fun loadLyricsForTrack(track: Track, forceRefresh: Boolean = false) {
+        val cached = lyricsCache[track.id]
+        if (!forceRefresh && cached != null) {
+            _lyricsState.value = cached
+            return
+        }
+
+        viewModelScope.launch {
+            _lyricsState.value = LyricsUiState.Loading
+            val durationSec = track.durationMs / 1000L
+            val result = lyricsRepository.fetchLyrics(
+                trackName = track.title,
+                artistName = track.artist,
+                durationSeconds = durationSec
+            )
+            val uiState = when (result) {
+                is LyricsResult.Success -> LyricsUiState.Success(
+                    lyrics = result.lyrics,
+                    plainLyrics = result.plainLyrics
+                )
+                is LyricsResult.Instrumental -> LyricsUiState.Instrumental
+                is LyricsResult.NotFound -> LyricsUiState.Empty(result.reason)
+                is LyricsResult.Error -> LyricsUiState.Empty("Lyrics not available")
+            }
+            lyricsCache[track.id] = uiState
+            if (playerManager.playbackState.value.currentTrack?.id == track.id) {
+                _lyricsState.value = uiState
             }
         }
     }
@@ -827,6 +881,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val targetMs = (dur * fraction).toLong()
             playerManager.seekTo(targetMs)
         }
+    }
+
+    fun seekToPosition(positionMs: Long) {
+        playerManager.seekTo(positionMs)
     }
 
     fun toggleShuffle() {
