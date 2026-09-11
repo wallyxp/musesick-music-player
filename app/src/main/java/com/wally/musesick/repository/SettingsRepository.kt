@@ -2,10 +2,15 @@ package com.wally.musesick.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
 import com.wally.musesick.model.AppTheme
 import com.wally.musesick.model.PlayerStyle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 
-class SettingsRepository(context: Context) {
+class SettingsRepository(private val context: Context) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("musesick_settings", Context.MODE_PRIVATE)
@@ -18,6 +23,7 @@ class SettingsRepository(context: Context) {
         private const val KEY_PLAYER_THEME = "player_theme"
         private const val KEY_PLAYER_THEME_VARIANT = "player_theme_variant"
         private const val KEY_CUSTOM_ACCENT_COLOR = "custom_accent_color"
+        private const val KEY_CUSTOM_THEME_IMAGE_PATH = "custom_theme_image_path"
         const val DEFAULT_ACCENT_COLOR = 0xFF6750A4.toInt() // Royal Violet
     }
 
@@ -39,7 +45,7 @@ class SettingsRepository(context: Context) {
     }
 
     fun getAppTheme(): AppTheme {
-        val themeName = prefs.getString(KEY_APP_THEME, AppTheme.MATERIAL_YOU.name)
+        val themeName = prefs.getString(KEY_APP_THEME, AppTheme.AMBIENT.name)
         return AppTheme.fromString(themeName)
     }
 
@@ -86,5 +92,36 @@ class SettingsRepository(context: Context) {
 
     fun setCustomAccentColor(colorInt: Int) {
         prefs.edit().putInt(KEY_CUSTOM_ACCENT_COLOR, colorInt).apply()
+    }
+
+    fun getCustomThemeImagePath(): String? {
+        return prefs.getString(KEY_CUSTOM_THEME_IMAGE_PATH, null)
+    }
+
+    fun setCustomThemeImagePath(path: String?) {
+        prefs.edit().putString(KEY_CUSTOM_THEME_IMAGE_PATH, path).apply()
+    }
+
+    suspend fun saveCustomThemeImage(sourceUri: Uri): String? = withContext(Dispatchers.IO) {
+        try {
+            val fileName = "custom_theme_bg_${System.currentTimeMillis()}.jpg"
+            val targetFile = File(context.filesDir, fileName)
+            context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                FileOutputStream(targetFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            // Delete old file if exists and different
+            val oldPath = getCustomThemeImagePath()
+            if (!oldPath.isNullOrBlank() && oldPath != targetFile.absolutePath) {
+                try {
+                    File(oldPath).delete()
+                } catch (_: Exception) {}
+            }
+            targetFile.absolutePath
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 }

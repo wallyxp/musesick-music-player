@@ -96,6 +96,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _customAccentColor = MutableStateFlow(Color(settingsRepository.getCustomAccentColor()))
     val customAccentColor: StateFlow<Color> = _customAccentColor.asStateFlow()
 
+    private val _customThemeImagePath = MutableStateFlow(settingsRepository.getCustomThemeImagePath())
+    val customThemeImagePath: StateFlow<String?> = _customThemeImagePath.asStateFlow()
+
     private val _isSettingsDialogOpen = MutableStateFlow(false)
     val isSettingsDialogOpen: StateFlow<Boolean> = _isSettingsDialogOpen.asStateFlow()
 
@@ -535,6 +538,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                    (color.blue * 255).toInt()
         settingsRepository.setCustomAccentColor(argb)
         _customAccentColor.value = color
+    }
+
+    fun setCustomThemeImage(uri: Uri) {
+        viewModelScope.launch {
+            val savedPath = settingsRepository.saveCustomThemeImage(uri)
+            if (savedPath != null) {
+                settingsRepository.setCustomThemeImagePath(savedPath)
+                _customThemeImagePath.value = savedPath
+                setAppTheme(AppTheme.CUSTOM_IMAGE)
+            }
+        }
     }
 
     fun refreshSuggestedPlaylists(force: Boolean = false) {

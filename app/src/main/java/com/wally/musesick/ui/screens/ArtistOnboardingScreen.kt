@@ -78,32 +78,11 @@ fun ArtistOnboardingScreen(
     val selectedArtists = remember { mutableStateListOf<Artist>() }
     val focusManager = LocalFocusManager.current
 
-    // Expanded curated starter artists
-    val starterArtists = remember(initialArtists) {
-        val list = initialArtists.toMutableList()
-        val extraPresets = listOf(
-            Artist(id = "the_weeknd", name = "The Weeknd", subtitle = "R&B / Pop", thumbnailUrl = "https://lh3.googleusercontent.com/9tHqL1zJ0Q5uX3p2Z-hZ0N1=w120-h120-p-l90-rj"),
-            Artist(id = "taylor_swift", name = "Taylor Swift", subtitle = "Pop / Singer-Songwriter", thumbnailUrl = "https://lh3.googleusercontent.com/i9-0=w120-h120-p-l90-rj"),
-            Artist(id = "eminem", name = "Eminem", subtitle = "Hip Hop / Rap", thumbnailUrl = "https://lh3.googleusercontent.com/em=w120-h120-p-l90-rj"),
-            Artist(id = "daft_punk", name = "Daft Punk", subtitle = "Electronic / French Touch", thumbnailUrl = "https://lh3.googleusercontent.com/dp=w120-h120-p-l90-rj"),
-            Artist(id = "billie_eilish", name = "Billie Eilish", subtitle = "Alt Pop", thumbnailUrl = "https://lh3.googleusercontent.com/be=w120-h120-p-l90-rj"),
-            Artist(id = "linkin_park", name = "Linkin Park", subtitle = "Nu Metal / Alt Rock", thumbnailUrl = "https://lh3.googleusercontent.com/lp=w120-h120-p-l90-rj"),
-            Artist(id = "drake", name = "Drake", subtitle = "Hip Hop / R&B", thumbnailUrl = "https://lh3.googleusercontent.com/dr=w120-h120-p-l90-rj"),
-            Artist(id = "coldplay", name = "Coldplay", subtitle = "Pop Rock / Alt", thumbnailUrl = "https://lh3.googleusercontent.com/cp=w120-h120-p-l90-rj")
-        )
-        for (extra in extraPresets) {
-            if (list.none { it.name.equals(extra.name, ignoreCase = true) }) {
-                list.add(extra)
-            }
-        }
-        list
-    }
-
-    val displayedArtists = remember(searchQuery, searchResults, starterArtists) {
-        if (searchQuery.isNotBlank() && searchResults.isNotEmpty()) {
+    val displayedArtists = remember(searchQuery, searchResults, selectedArtists.size) {
+        if (searchQuery.isNotBlank()) {
             searchResults
         } else {
-            starterArtists
+            selectedArtists.toList()
         }
     }
 
@@ -259,8 +238,71 @@ fun ArtistOnboardingScreen(
                 }
             }
 
-            // Artists Grid
-            items(displayedArtists, key = { it.id }) { artist ->
+            // Artists Grid or Empty State
+            if (displayedArtists.isEmpty()) {
+                item(span = { GridItemSpan(3) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 56.dp, horizontal = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = if (searchQuery.isNotBlank()) {
+                                    if (isSearching) "Searching artists..." else "No artists found for \"$searchQuery\""
+                                } else {
+                                    "search for your favourite artists"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                            if (searchQuery.isBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Type an artist name in the search bar above to personalize your music",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                if (searchQuery.isBlank() && selectedArtists.isNotEmpty()) {
+                    item(span = { GridItemSpan(3) }) {
+                        Text(
+                            text = "Selected Artists (${selectedArtists.size})",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                        )
+                    }
+                }
+
+                items(displayedArtists, key = { it.id }) { artist ->
                 val isSelected = selectedArtists.any { it.id == artist.id || it.name.equals(artist.name, ignoreCase = true) }
 
                 Column(
@@ -339,5 +381,6 @@ fun ArtistOnboardingScreen(
                 }
             }
         }
+    }
     }
 }

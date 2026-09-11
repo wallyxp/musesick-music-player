@@ -21,6 +21,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import java.io.File
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
@@ -80,6 +86,9 @@ fun NewPlaylistSheet(
     onConfirmImportYtPlaylist: (customTitle: String?) -> Unit = {},
     onClearYtPreview: () -> Unit = {},
     onDismiss: () -> Unit,
+    isCustomImageTheme: Boolean = false,
+    customThemeImagePath: String? = null,
+    ambientBrush: Brush? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     var title by remember { mutableStateOf("") }
@@ -286,16 +295,52 @@ fun NewPlaylistSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = if (isCustomImageTheme || ambientBrush != null) Color.Black.copy(alpha = 0.98f) else MaterialTheme.colorScheme.surface,
         tonalElevation = 6.dp
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
         ) {
+            if (isCustomImageTheme && !customThemeImagePath.isNullOrEmpty()) {
+                AsyncImage(
+                    model = File(customThemeImagePath),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .scale(1.1f)
+                        .blur(28.dp)
+                        .clipToBounds(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.98f))
+                )
+            } else if (ambientBrush != null) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .scale(1.1f)
+                        .background(ambientBrush)
+                        .blur(28.dp)
+                        .clipToBounds()
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.98f))
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -455,6 +500,7 @@ fun NewPlaylistSheet(
                 }
             }
         }
+        } // end Box
     }
 }
 
@@ -466,20 +512,59 @@ fun ExistingPlaylistSheet(
     onSelectPlaylist: (Playlist) -> Unit,
     onCreateNewClick: () -> Unit,
     onDismiss: () -> Unit,
+    isCustomImageTheme: Boolean = false,
+    customThemeImagePath: String? = null,
+    ambientBrush: Brush? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = if (isCustomImageTheme || ambientBrush != null) Color.Black.copy(alpha = 0.98f) else MaterialTheme.colorScheme.surface,
         tonalElevation = 6.dp
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(bottom = 16.dp)
+                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
         ) {
+            if (isCustomImageTheme && !customThemeImagePath.isNullOrEmpty()) {
+                AsyncImage(
+                    model = File(customThemeImagePath),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .scale(1.1f)
+                        .blur(28.dp)
+                        .clipToBounds(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.98f))
+                )
+            } else if (ambientBrush != null) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .scale(1.1f)
+                        .background(ambientBrush)
+                        .blur(28.dp)
+                        .clipToBounds()
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.98f))
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp)
+            ) {
             // Header
             Row(
                 modifier = Modifier
@@ -633,6 +718,7 @@ fun ExistingPlaylistSheet(
                 }
             }
         }
+        } // end Box
     }
 }
 
@@ -642,6 +728,9 @@ fun EditPlaylistSheet(
     playlist: Playlist,
     onSave: (title: String, newImageUri: Uri?, removeImage: Boolean) -> Unit,
     onDismiss: () -> Unit,
+    isCustomImageTheme: Boolean = false,
+    customThemeImagePath: String? = null,
+    ambientBrush: Brush? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     var title by remember(playlist) { mutableStateOf(playlist.title) }
@@ -664,16 +753,52 @@ fun EditPlaylistSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = if (isCustomImageTheme || ambientBrush != null) Color.Black.copy(alpha = 0.98f) else MaterialTheme.colorScheme.surface,
         tonalElevation = 6.dp
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
         ) {
+            if (isCustomImageTheme && !customThemeImagePath.isNullOrEmpty()) {
+                AsyncImage(
+                    model = File(customThemeImagePath),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .scale(1.1f)
+                        .blur(28.dp)
+                        .clipToBounds(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.98f))
+                )
+            } else if (ambientBrush != null) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .scale(1.1f)
+                        .background(ambientBrush)
+                        .blur(28.dp)
+                        .clipToBounds()
+                )
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.Black.copy(alpha = 0.98f))
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
             // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -838,6 +963,7 @@ fun EditPlaylistSheet(
                 }
             }
         }
+        } // end Box
     }
 }
 

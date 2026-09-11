@@ -35,12 +35,15 @@ class SettingsModelsTest {
         assertEquals(AppTheme.KANAGAWA, AppTheme.fromString("KANAGAWA"))
         assertEquals(AppTheme.NORD, AppTheme.fromString("NORD"))
         assertEquals(AppTheme.CUSTOM_COLOR, AppTheme.fromString("CUSTOM_COLOR"))
+        assertEquals(AppTheme.CUSTOM_IMAGE, AppTheme.fromString("CUSTOM_IMAGE"))
+        assertEquals("Add custom image", AppTheme.CUSTOM_IMAGE.displayName)
+        assertEquals(AppTheme.AMBIENT, AppTheme.fromString("AMBIENT"))
+        assertEquals("Ambient", AppTheme.AMBIENT.displayName)
 
-        // Removed styles safely fallback
-        assertEquals(AppTheme.MATERIAL_YOU, AppTheme.fromString("LIQUID_GLASS"))
-        // Fallbacks
-        assertEquals(AppTheme.MATERIAL_YOU, AppTheme.fromString("UNKNOWN_THEME"))
-        assertEquals(AppTheme.MATERIAL_YOU, AppTheme.fromString(null))
+        // Fallbacks default to AMBIENT
+        assertEquals(AppTheme.AMBIENT, AppTheme.fromString("LIQUID_GLASS"))
+        assertEquals(AppTheme.AMBIENT, AppTheme.fromString("UNKNOWN_THEME"))
+        assertEquals(AppTheme.AMBIENT, AppTheme.fromString(null))
     }
 
     @Test
@@ -82,5 +85,17 @@ class SettingsModelsTest {
         val defaultPreset = AccentColorPresets.first()
         assertEquals("royal_violet", defaultPreset.id)
         assertEquals("#6750A4", defaultPreset.hexCode)
+    }
+
+    @Test
+    fun testAmbientPalettes() {
+        assertEquals(12, com.wally.musesick.ui.theme.AmbientPalettes.slots.size)
+        val currentSlot = com.wally.musesick.ui.theme.AmbientPalettes.getCurrentSlot()
+        assertTrue(currentSlot in 0..11)
+        val palette = com.wally.musesick.ui.theme.AmbientPalettes.getPalette(currentSlot)
+        assertNotNull(palette.name)
+        assertTrue(palette.colors.size >= 2)
+        val millisUntilNext = com.wally.musesick.ui.theme.AmbientPalettes.getMillisUntilNextSlot()
+        assertTrue(millisUntilNext > 0L)
     }
 }

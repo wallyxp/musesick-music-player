@@ -43,6 +43,15 @@ import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Waves
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Gradient
+import androidx.compose.material.icons.filled.Wallpaper
+import com.wally.musesick.ui.theme.AmbientPalettes
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,6 +61,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
@@ -61,10 +71,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import java.io.File
 import com.wally.musesick.model.AccentColorPresets
 import com.wally.musesick.model.AppTheme
 import com.wally.musesick.model.ColorPreset
@@ -338,7 +351,7 @@ fun SettingsNowPlayingScreen(
             }
 
             // Themes List
-            items(AppTheme.values(), key = { it.name }) { theme ->
+            items(AppTheme.values().filter { it != AppTheme.CUSTOM_IMAGE }, key = { it.name }) { theme ->
                 val isThemeSelected = currentPlayerTheme == theme
                 val effectiveVariant = if (isThemeSelected) {
                     currentPlayerThemeVariant ?: theme.defaultVariant
@@ -401,12 +414,22 @@ fun SettingsAppThemeScreen(
     currentTheme: AppTheme,
     currentVariant: String,
     customAccentColor: Color,
+    customThemeImagePath: String? = null,
     onThemeSelected: (AppTheme, String) -> Unit,
     onVariantSelected: (String) -> Unit,
     onColorSelected: (Color) -> Unit,
+    onSelectCustomImage: (Uri) -> Unit = {},
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            onSelectCustomImage(uri)
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -475,42 +498,164 @@ fun SettingsAppThemeScreen(
                     isSelected = isThemeSelected,
                     selectedVariant = effectiveVariant,
                     icon = getThemeIcon(theme),
-                    onSelectTheme = { t, v -> onThemeSelected(t, v) },
+                    onSelectTheme = { t, v ->
+                        if (t == AppTheme.CUSTOM_IMAGE && customThemeImagePath.isNullOrEmpty()) {
+                            photoPickerLauncher.launch("image/*")
+                        } else {
+                            onThemeSelected(t, v)
+                        }
+                    },
                     onSelectVariant = { v -> onVariantSelected(v) },
-                    customContent = if (theme == AppTheme.CUSTOM_COLOR && isThemeSelected) {
-                        {
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Text(
-                                text = "SELECT ACCENT COLOR",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
-                            )
+                    customContent = when {
+                        theme == AppTheme.CUSTOM_COLOR && isThemeSelected -> {
+                            {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Text(
+                                    text = "SELECT ACCENT COLOR",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+                                )
 
-                            LazyVerticalGrid(
-                                columns = GridCells.Fixed(5),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(160.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                items(AccentColorPresets, key = { it.id }) { preset ->
-                                    val isColorChosen = preset.primaryColor == customAccentColor
-                                    ColorPresetItem(
-                                        preset = preset,
-                                        isSelected = isColorChosen,
-                                        onClick = {
-                                            onColorSelected(preset.primaryColor)
-                                            onThemeSelected(AppTheme.CUSTOM_COLOR, "")
-                                        }
-                                    )
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(5),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(160.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    items(AccentColorPresets, key = { it.id }) { preset ->
+                                        val isColorChosen = preset.primaryColor == customAccentColor
+                                        ColorPresetItem(
+                                            preset = preset,
+                                            isSelected = isColorChosen,
+                                            onClick = {
+                                                onColorSelected(preset.primaryColor)
+                                                onThemeSelected(AppTheme.CUSTOM_COLOR, "")
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
-                    } else null
+                        theme == AppTheme.CUSTOM_IMAGE && isThemeSelected -> {
+                            {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                if (!customThemeImagePath.isNullOrEmpty()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(54.dp)
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            AsyncImage(
+                                                model = File(customThemeImagePath),
+                                                contentDescription = "Selected Background",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(14.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Wallpaper Active",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = "Darkened & blurred behind app",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = { photoPickerLauncher.launch("image/*") },
+                                            shape = RoundedCornerShape(20.dp),
+                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                        ) {
+                                            Text("Change", style = MaterialTheme.typography.labelMedium)
+                                        }
+                                    }
+                                } else {
+                                    Button(
+                                        onClick = { photoPickerLauncher.launch("image/*") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AddPhotoAlternate,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Select Wallpaper Image")
+                                    }
+                                }
+                            }
+                        }
+                        theme == AppTheme.AMBIENT && isThemeSelected -> {
+                            {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                val currentSlot = AmbientPalettes.getCurrentSlot()
+                                val palette = AmbientPalettes.getPalette(currentSlot)
+                                val hourFormatted = String.format("%02d:00 - %02d:59", currentSlot * 2, currentSlot * 2 + 1)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(
+                                                androidx.compose.ui.graphics.Brush.verticalGradient(palette.colors)
+                                            )
+                                    )
+
+                                    Spacer(modifier = Modifier.width(14.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Active: ${palette.name} ($hourFormatted)",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "${palette.description} • Refreshes every 2 hours",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        else -> null
+                    }
                 )
             }
         }
@@ -671,6 +816,8 @@ private fun getThemeIcon(theme: AppTheme): ImageVector {
         AppTheme.KANAGAWA -> Icons.Default.Waves
         AppTheme.NORD -> Icons.Default.AcUnit
         AppTheme.CUSTOM_COLOR -> Icons.Default.Palette
+        AppTheme.CUSTOM_IMAGE -> Icons.Default.Wallpaper
+        AppTheme.AMBIENT -> Icons.Default.Gradient
     }
 }
 

@@ -93,10 +93,39 @@ fun createCustomDarkColorScheme(primaryColor: Color): ColorScheme {
         outline = md_theme_dark_outline
     )
 }
- 
+
+fun createCustomImageColorScheme(): ColorScheme {
+    return darkColorScheme(
+        primary = Color.White,
+        onPrimary = Color.Black,
+        primaryContainer = Color(0x4DFFFFFF),
+        onPrimaryContainer = Color.White,
+        secondary = Color(0xFFE0E0E0),
+        onSecondary = Color.Black,
+        secondaryContainer = Color(0x33FFFFFF),
+        onSecondaryContainer = Color.White,
+        tertiary = Color(0xFFB0BEC5),
+        onTertiary = Color.Black,
+        tertiaryContainer = Color(0x29FFFFFF),
+        onTertiaryContainer = Color.White,
+        error = md_theme_dark_error,
+        onError = md_theme_dark_onError,
+        errorContainer = md_theme_dark_errorContainer,
+        onErrorContainer = md_theme_dark_onErrorContainer,
+        background = Color.Transparent,
+        onBackground = Color.White,
+        surface = Color(0xB3181818),
+        onSurface = Color.White,
+        surfaceVariant = Color(0x4D2A2A2A),
+        onSurfaceVariant = Color(0xFFDDDDDD),
+        outline = Color(0x40FFFFFF),
+        outlineVariant = Color(0x26FFFFFF)
+    )
+}
+
 @Composable
 fun MusesickAppTheme(
-    appTheme: AppTheme = AppTheme.MATERIAL_YOU,
+    appTheme: AppTheme = AppTheme.AMBIENT,
     appThemeVariant: String = "",
     customAccentColor: Color = Color(0xFF6750A4),
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -112,6 +141,7 @@ fun MusesickAppTheme(
             }
         }
         AppTheme.CUSTOM_COLOR -> createCustomDarkColorScheme(customAccentColor)
+        AppTheme.CUSTOM_IMAGE, AppTheme.AMBIENT -> createCustomImageColorScheme()
         else -> {
             val palette = ThemePalettes.getPalette(appTheme, appThemeVariant)
             palette?.toColorScheme() ?: DarkColorScheme
@@ -145,6 +175,7 @@ fun MusesickThemed(
         AppTheme.CUSTOM_COLOR -> {
             createCustomDarkColorScheme(customAccentColor ?: Color(0xFF6750A4))
         }
+        AppTheme.CUSTOM_IMAGE, AppTheme.AMBIENT -> createCustomImageColorScheme()
         else -> {
             val palette = ThemePalettes.getPalette(theme, variant)
             palette?.toColorScheme() ?: DarkColorScheme
