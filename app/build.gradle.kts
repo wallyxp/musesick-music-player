@@ -12,8 +12,8 @@ android {
         applicationId = "com.wally.musesick"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.1.3"
+        versionCode = 9
+        versionName = "1.1.4"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -51,7 +51,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
     implementation("androidx.activity:activity-compose:1.9.2")
-    
+
     val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
@@ -72,4 +72,3 @@ dependencies {
     // Testing
     testImplementation("junit:junit:4.13.2")
 }
-

@@ -51,7 +51,8 @@ enum class ScreenState {
     RECENTLY_PLAYED,
     SETTINGS,
     SETTINGS_NOW_PLAYING,
-    SETTINGS_APP_THEME
+    SETTINGS_APP_THEME,
+    SETTINGS_AUTO_SYNC
 }
 
 enum class ArtistTrackListType {
@@ -267,9 +268,31 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _isFullPlayerOpen = MutableStateFlow(false)
     val isFullPlayerOpen: StateFlow<Boolean> = _isFullPlayerOpen.asStateFlow()
 
+    // YouTube Music Account & Sync State
+    private val _ytAccountInfo = MutableStateFlow<com.wally.musesick.repository.YtAccountInfo?>(
+        settingsRepository.getYtUserName()?.let { name ->
+            com.wally.musesick.repository.YtAccountInfo(
+                name = name,
+                handle = settingsRepository.getYtUserHandle() ?: "",
+                avatarUrl = settingsRepository.getYtUserAvatarUrl()
+            )
+        }
+    )
+    val ytAccountInfo: StateFlow<com.wally.musesick.repository.YtAccountInfo?> = _ytAccountInfo.asStateFlow()
+
+    private val _isSyncingYtAccount = MutableStateFlow(false)
+    val isSyncingYtAccount: StateFlow<Boolean> = _isSyncingYtAccount.asStateFlow()
+
+    private val _autoSyncInterval = MutableStateFlow(settingsRepository.getAutoSyncInterval())
+    val autoSyncInterval: StateFlow<SettingsRepository.AutoSyncInterval> = _autoSyncInterval.asStateFlow()
+
+    private val _lastPlaylistSyncTime = MutableStateFlow(settingsRepository.getLastPlaylistSyncTime())
+    val lastPlaylistSyncTime: StateFlow<Long> = _lastPlaylistSyncTime.asStateFlow()
+
     private var searchJob: Job? = null
 
     init {
+        ytRepository.cookie = settingsRepository.getYtMusicCookie()
         loadArtists()
         loadLocalTracks()
         loadPlaylists()
@@ -278,6 +301,210 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         loadRecentSearches()
         observePlaybackForRecentHistory()
         observePlaybackForLyrics()
+        if (!ytRepository.cookie.isNullOrBlank()) {
+            val interval = settingsRepository.getAutoSyncInterval()
+            val lastSync = settingsRepository.getLastPlaylistSyncTime()
+            val now = System.currentTimeMillis()
+            if (interval.durationMs != null && (lastSync == 0L || now - lastSync >= interval.durationMs)) {
+                refreshYtAccountAndPlaylists(silent = true)
+            } else {
+                // Still refresh account metadata quietly if missing
+                viewModelScope.launch {
+                    val fetchedAccount = ytRepository.fetchAccountInfo(fallbackAccountName = settingsRepository.getYtUserName())
+                    if (fetchedAccount != null) {
+                        settingsRepository.setYtUserName(fetchedAccount.name)
+                        settingsRepository.setYtUserHandle(fetchedAccount.handle)
+                        settingsRepository.setYtUserAvatarUrl(fetchedAccount.avatarUrl)
+                        _ytAccountInfo.value = fetchedAccount
+                    }
+                }
+            }
+        }
+    }
+
+    fun setAutoSyncInterval(interval: SettingsRepository.AutoSyncInterval) {
+        settingsRepository.setAutoSyncInterval(interval)
+        _autoSyncInterval.value = interval
+        if (!ytRepository.cookie.isNullOrBlank() && interval.durationMs != null) {
+            val lastSync = settingsRepository.getLastPlaylistSyncTime()
+            val now = System.currentTimeMillis()
+            if (lastSync == 0L || now - lastSync >= interval.durationMs) {
+                refreshYtAccountAndPlaylists(silent = true)
+            }
+        }
+    }
+
+    fun onYtMusicLoginSuccess(cookie: String, fallbackName: String? = null, fallbackAvatarUrl: String? = null) {
+        settingsRepository.setYtMusicCookie(cookie)
+        ytRepository.cookie = cookie
+        refreshYtAccountAndPlaylists(
+            silent = false,
+            fallbackName = fallbackName,
+            fallbackAvatarUrl = fallbackAvatarUrl
+        )
+    }
+
+    private suspend fun pushLocalPlaylistToYouTube(localPl: Playlist): String? {
+        if (ytRepository.cookie.isNullOrBlank()) return null
+        val videoIds = localPl.tracks.mapNotNull { track ->
+            ytRepository.resolveVideoIdForTrack(track)
+        }
+        val createdYtId = ytRepository.createYouTubePlaylist(
+            title = localPl.title,
+            videoIds = videoIds
+        )
+        if (!createdYtId.isNullOrBlank()) {
+            val newSyncedId = "yt_sync_$createdYtId"
+            val updatedList = playlistRepository.replacePlaylistId(localPl.id, newSyncedId)
+            _playlists.value = updatedList
+            if (_selectedPlaylist.value?.id == localPl.id) {
+                _selectedPlaylist.value = updatedList.find { it.id == newSyncedId }
+            }
+            return createdYtId
+        }
+        return null
+    }
+
+    fun refreshYtAccountAndPlaylists(
+        silent: Boolean = false,
+        fallbackName: String? = null,
+        fallbackAvatarUrl: String? = null
+    ) {
+        if (ytRepository.cookie.isNullOrBlank()) {
+            if (!silent) {
+                _updateToastMessage.value = "Please log in to YouTube Music first to sync playlists"
+            }
+            return
+        }
+        viewModelScope.launch {
+            _isSyncingYtAccount.value = true
+            try {
+                val fetchedAccount = ytRepository.fetchAccountInfo(fallbackAccountName = fallbackName)
+                val savedName = settingsRepository.getYtUserName()
+
+                val resolvedName = when {
+                    !fetchedAccount?.name.isNullOrBlank() -> fetchedAccount!!.name
+                    !fallbackName.isNullOrBlank() -> fallbackName
+                    !savedName.isNullOrBlank() -> savedName
+                    else -> "YouTube Music User"
+                }
+                val resolvedHandle = fetchedAccount?.handle
+                    ?: settingsRepository.getYtUserHandle()
+                    ?: ""
+                val resolvedAvatar = fetchedAccount?.avatarUrl
+                    ?: fallbackAvatarUrl?.takeIf { it.isNotBlank() }
+                    ?: settingsRepository.getYtUserAvatarUrl()
+
+                val info = com.wally.musesick.repository.YtAccountInfo(
+                    name = resolvedName,
+                    handle = resolvedHandle,
+                    avatarUrl = resolvedAvatar
+                )
+                settingsRepository.setYtUserName(info.name)
+                settingsRepository.setYtUserHandle(info.handle)
+                settingsRepository.setYtUserAvatarUrl(info.avatarUrl)
+                _ytAccountInfo.value = info
+
+                // 1. Fetch existing remote playlists first
+                val initialRemotePlaylists = ytRepository.fetchUserLibraryPlaylists().toMutableList()
+
+                // 2. Push any unsynced local playlists (or local changes on synced playlists) to YouTube Music
+                val currentLocalPlaylists = playlistRepository.getPlaylists()
+                var uploadedCount = 0
+                for (localPl in currentLocalPlaylists) {
+                    if (!localPl.id.startsWith("yt_sync_")) {
+                        // Check if a remote playlist with the same title already exists
+                        val existingRemote = initialRemotePlaylists.find {
+                            it.title.equals(localPl.title, ignoreCase = true)
+                        }
+                        if (existingRemote != null) {
+                            val newSyncedId = "yt_sync_${existingRemote.id}"
+                            val remoteTrackIds = existingRemote.tracks.map { it.id }.toSet()
+                            val missingVideoIds = localPl.tracks
+                                .mapNotNull { ytRepository.resolveVideoIdForTrack(it) }
+                                .filter { it !in remoteTrackIds }
+                            if (missingVideoIds.isNotEmpty()) {
+                                ytRepository.addVideosToYouTubePlaylist(existingRemote.id, missingVideoIds)
+                            }
+                            val updatedList = playlistRepository.replacePlaylistId(localPl.id, newSyncedId)
+                            _playlists.value = updatedList
+                            if (_selectedPlaylist.value?.id == localPl.id) {
+                                _selectedPlaylist.value = updatedList.find { it.id == newSyncedId }
+                            }
+                            uploadedCount++
+                        } else {
+                            // Create this local playlist on YouTube Music
+                            val createdYtId = pushLocalPlaylistToYouTube(localPl)
+                            if (createdYtId != null) {
+                                uploadedCount++
+                            }
+                        }
+                    } else {
+                        // Already a yt_sync_ playlist: push any locally added tracks or title renames
+                        val ytPlaylistId = localPl.id.removePrefix("yt_sync_")
+                        val matchingRemote = initialRemotePlaylists.find { it.id == ytPlaylistId }
+                        if (matchingRemote != null) {
+                            if (localPl.title != matchingRemote.title && localPl.title.isNotBlank()) {
+                                ytRepository.renameYouTubePlaylist(ytPlaylistId, localPl.title)
+                            }
+                            val remoteTrackIds = matchingRemote.tracks.map { it.id }.toSet()
+                            val missingVideoIds = localPl.tracks
+                                .mapNotNull { ytRepository.resolveVideoIdForTrack(it) }
+                                .filter { it !in remoteTrackIds }
+                            if (missingVideoIds.isNotEmpty()) {
+                                ytRepository.addVideosToYouTubePlaylist(ytPlaylistId, missingVideoIds)
+                            }
+                        }
+                    }
+                }
+
+                // 3. Re-fetch remote playlists if we pushed changes, then merge with local repository
+                val finalRemotePlaylists = if (uploadedCount > 0) {
+                    ytRepository.fetchUserLibraryPlaylists().ifEmpty { initialRemotePlaylists }
+                } else {
+                    initialRemotePlaylists
+                }
+
+                val updated = playlistRepository.syncYouTubePlaylists(finalRemotePlaylists)
+                _playlists.value = updated
+                if (_selectedPlaylist.value != null) {
+                    _selectedPlaylist.value = updated.find { it.id == _selectedPlaylist.value?.id }
+                }
+
+                val syncNowMs = System.currentTimeMillis()
+                settingsRepository.setLastPlaylistSyncTime(syncNowMs)
+                _lastPlaylistSyncTime.value = syncNowMs
+
+                val syncedTotal = updated.count { it.id.startsWith("yt_sync_") }
+                if (!silent) {
+                    _updateToastMessage.value = "Synced $syncedTotal playlists with YouTube Music"
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                if (!silent) {
+                    _updateToastMessage.value = "Failed to sync some playlists with YouTube Music"
+                }
+            } finally {
+                _isSyncingYtAccount.value = false
+            }
+        }
+    }
+
+    fun logoutYtMusic() {
+        viewModelScope.launch {
+            try {
+                android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                android.webkit.CookieManager.getInstance().flush()
+            } catch (_: Exception) {}
+            settingsRepository.clearYtAccount()
+            ytRepository.cookie = null
+            ytRepository.accessToken = null
+            ytRepository.profileAccessToken = null
+            _ytAccountInfo.value = null
+            val updated = playlistRepository.removeSyncedYouTubePlaylists()
+            _playlists.value = updated
+            _updateToastMessage.value = "Logged out of YouTube Music"
+        }
     }
 
     private fun observePlaybackForRecentHistory() {
@@ -483,6 +710,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _currentScreen.value = ScreenState.SETTINGS
                 true
             }
+            ScreenState.SETTINGS_AUTO_SYNC -> {
+                _currentScreen.value = ScreenState.SETTINGS
+                true
+            }
             ScreenState.SETTINGS -> {
                 _currentScreen.value = ScreenState.HOME
                 true
@@ -539,7 +770,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun closeSettings() {
         if (_currentScreen.value == ScreenState.SETTINGS ||
             _currentScreen.value == ScreenState.SETTINGS_NOW_PLAYING ||
-            _currentScreen.value == ScreenState.SETTINGS_APP_THEME
+            _currentScreen.value == ScreenState.SETTINGS_APP_THEME ||
+            _currentScreen.value == ScreenState.SETTINGS_AUTO_SYNC
         ) {
             _currentScreen.value = ScreenState.HOME
         }
@@ -552,6 +784,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openAppThemeSettings() {
         _currentScreen.value = ScreenState.SETTINGS_APP_THEME
+    }
+
+    fun openAutoSyncSettings() {
+        _currentScreen.value = ScreenState.SETTINGS_AUTO_SYNC
     }
 
     fun setPlayerStyle(style: PlayerStyle) {
@@ -939,6 +1175,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
             _isNewPlaylistSheetOpen.value = false
             _targetTrackForPlaylist.value = null
+
+            // Mirror newly created playlist to YouTube Music if logged in
+            if (!ytRepository.cookie.isNullOrBlank()) {
+                pushLocalPlaylistToYouTube(created)
+            }
         }
     }
 
@@ -951,15 +1192,43 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
             _isExistingPlaylistSheetOpen.value = false
             _targetTrackForPlaylist.value = null
+
+            // Mirror track addition to YouTube Music if logged in
+            if (!ytRepository.cookie.isNullOrBlank()) {
+                if (playlistId.startsWith("yt_sync_")) {
+                    val ytPlaylistId = playlistId.removePrefix("yt_sync_")
+                    val videoId = ytRepository.resolveVideoIdForTrack(track)
+                    if (!videoId.isNullOrBlank()) {
+                        ytRepository.addVideosToYouTubePlaylist(ytPlaylistId, listOf(videoId))
+                    }
+                } else {
+                    val targetLocal = updated.find { it.id == playlistId }
+                    if (targetLocal != null) {
+                        pushLocalPlaylistToYouTube(targetLocal)
+                    }
+                }
+            }
         }
     }
 
     fun removeTrackFromPlaylist(playlistId: String, trackId: String) {
         viewModelScope.launch {
+            val existingPlaylist = _playlists.value.find { it.id == playlistId }
+            val removedTrack = existingPlaylist?.tracks?.find { it.id == trackId }
+
             val updated = playlistRepository.removeTrackFromPlaylist(playlistId, trackId)
             _playlists.value = updated
             if (_selectedPlaylist.value?.id == playlistId) {
                 _selectedPlaylist.value = updated.find { it.id == playlistId }
+            }
+
+            // Mirror track removal to YouTube Music if logged in
+            if (!ytRepository.cookie.isNullOrBlank() && playlistId.startsWith("yt_sync_")) {
+                val ytPlaylistId = playlistId.removePrefix("yt_sync_")
+                val videoId = removedTrack?.let { ytRepository.resolveVideoIdForTrack(it) } ?: trackId
+                if (videoId.isNotBlank()) {
+                    ytRepository.removeVideoFromYouTubePlaylist(ytPlaylistId, videoId)
+                }
             }
         }
     }
@@ -972,12 +1241,19 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _selectedPlaylist.value = null
                 _currentScreen.value = ScreenState.HOME
             }
+
+            // Mirror playlist deletion to YouTube Music if logged in
+            if (!ytRepository.cookie.isNullOrBlank() && playlistId.startsWith("yt_sync_")) {
+                val ytPlaylistId = playlistId.removePrefix("yt_sync_")
+                ytRepository.deleteYouTubePlaylist(ytPlaylistId)
+            }
         }
     }
 
     fun editPlaylist(playlistId: String, newTitle: String, newImageUri: Uri?, removeImage: Boolean) {
         viewModelScope.launch {
             val current = _playlists.value.find { it.id == playlistId } ?: return@launch
+            val oldTitle = current.title
             val finalImagePath = when {
                 removeImage -> null
                 newImageUri != null -> playlistRepository.copyImageToInternalStorage(newImageUri)
@@ -987,6 +1263,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             _playlists.value = updated
             if (_selectedPlaylist.value?.id == playlistId) {
                 _selectedPlaylist.value = updated.find { it.id == playlistId }
+            }
+
+            // Mirror playlist rename / creation to YouTube Music if logged in
+            if (!ytRepository.cookie.isNullOrBlank()) {
+                if (playlistId.startsWith("yt_sync_")) {
+                    if (oldTitle != newTitle && newTitle.isNotBlank()) {
+                        val ytPlaylistId = playlistId.removePrefix("yt_sync_")
+                        ytRepository.renameYouTubePlaylist(ytPlaylistId, newTitle)
+                    }
+                } else {
+                    val updatedLocal = updated.find { it.id == playlistId }
+                    if (updatedLocal != null) {
+                        pushLocalPlaylistToYouTube(updatedLocal)
+                    }
+                }
             }
         }
     }
@@ -1015,6 +1306,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             val playlist = playlistRepository.importPlaylistFromJson(jsonString) ?: return@launch
             val all = playlistRepository.saveImportedPlaylist(playlist)
             _playlists.value = all
+            if (!ytRepository.cookie.isNullOrBlank() && !playlist.id.startsWith("yt_sync_")) {
+                pushLocalPlaylistToYouTube(playlist)
+            }
         }
     }
 
@@ -1061,7 +1355,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 _ytPlaylistPreview.value = null
                 _ytPlaylistImportError.value = null
                 _isNewPlaylistSheetOpen.value = false
-                onComplete?.invoke(created)
+                if (!ytRepository.cookie.isNullOrBlank()) {
+                    pushLocalPlaylistToYouTube(created)
+                }
+                val latestCreated = _playlists.value.find { it.title == finalTitle } ?: created
+                onComplete?.invoke(latestCreated)
             } catch (e: Exception) {
                 _ytPlaylistImportError.value = "Error saving playlist: ${e.message}"
             } finally {

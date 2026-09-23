@@ -341,5 +341,58 @@ class PlaylistRepository(private val context: Context) {
         savePlaylists(all)
         return all
     }
-}
 
+    suspend fun replacePlaylistId(oldId: String, newId: String): List<Playlist> = withContext(Dispatchers.IO) {
+        val current = getPlaylists()
+        val updated = current.map { playlist ->
+            if (playlist.id == oldId) {
+                playlist.copy(id = newId)
+            } else {
+                playlist
+            }
+        }
+        savePlaylists(updated)
+        updated
+    }
+
+    suspend fun syncYouTubePlaylists(ytPlaylists: List<com.wally.musesick.model.YouTubePlaylistData>): List<Playlist> = withContext(Dispatchers.IO) {
+        val existing = getPlaylists()
+        val existingById = existing.associateBy { it.id }
+        val localPlaylists = existing.filter { !it.id.startsWith("yt_sync_") }
+
+        val remoteSyncIds = ytPlaylists.map { "yt_sync_${it.id}" }.toSet()
+        // Keep any locally-created yt_sync_ playlists that haven't appeared in the library listing yet
+        val pendingSyncedLocal = existing.filter { it.id.startsWith("yt_sync_") && it.id !in remoteSyncIds }
+
+        val syncedPlaylists = ytPlaylists.map { ytPl ->
+            val syncId = "yt_sync_${ytPl.id}"
+            val prev = existingById[syncId]
+            val prevTracks = prev?.tracks ?: emptyList()
+            val mergedTracks = if (ytPl.tracks.isNotEmpty()) {
+                val remoteIds = ytPl.tracks.map { it.id }.toSet()
+                val localExtra = prevTracks.filter { it.id !in remoteIds }
+                ytPl.tracks + localExtra
+            } else {
+                prevTracks
+            }
+            Playlist(
+                id = syncId,
+                title = prev?.title?.takeIf { it.isNotBlank() } ?: ytPl.title.trim(),
+                imageUri = prev?.imageUri ?: ytPl.thumbnailUrl,
+                tracks = mergedTracks,
+                createdAt = prev?.createdAt ?: System.currentTimeMillis()
+            )
+        }
+
+        val combined = pendingSyncedLocal + syncedPlaylists + localPlaylists
+        savePlaylists(combined)
+        combined
+    }
+
+    suspend fun removeSyncedYouTubePlaylists(): List<Playlist> = withContext(Dispatchers.IO) {
+        val existing = getPlaylists()
+        val localOnly = existing.filter { !it.id.startsWith("yt_sync_") }
+        savePlaylists(localOnly)
+        localOnly
+    }
+}

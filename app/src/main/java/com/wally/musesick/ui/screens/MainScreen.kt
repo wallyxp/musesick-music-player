@@ -80,7 +80,9 @@ import com.wally.musesick.ui.components.ExistingPlaylistSheet
 import com.wally.musesick.ui.components.MiniPlayerBar
 import com.wally.musesick.ui.components.NewPlaylistSheet
 import com.wally.musesick.ui.components.SongActionMenuSheet
+import androidx.compose.material.icons.filled.Person
 import com.wally.musesick.ui.components.UpdateDialog
+import com.wally.musesick.ui.components.YouTubeLoginDialog
 import com.wally.musesick.ui.screens.ArtistOnboardingScreen
 import com.wally.musesick.ui.screens.SettingsAppThemeScreen
 import com.wally.musesick.ui.screens.SettingsNowPlayingScreen
@@ -189,6 +191,12 @@ fun MainScreen(
     val updateInfo by viewModel.updateInfo.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
     val updateToastMessage by viewModel.updateToastMessage.collectAsState()
+
+    // YouTube Music Account State
+    val ytAccountInfo by viewModel.ytAccountInfo.collectAsState()
+    val isSyncingYtAccount by viewModel.isSyncingYtAccount.collectAsState()
+    val autoSyncInterval by viewModel.autoSyncInterval.collectAsState()
+    var isYtLoginDialogOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(updateToastMessage) {
         updateToastMessage?.let { msg ->
@@ -345,16 +353,29 @@ fun MainScreen(
 
                             Spacer(modifier = Modifier.width(4.dp))
 
-                            IconButton(
-                                onClick = { viewModel.openSettings() },
-                                modifier = Modifier.size(36.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { viewModel.openSettings() },
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Settings,
-                                    contentDescription = "Settings",
-                                    tint = MaterialTheme.colorScheme.onBackground,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                if (!ytAccountInfo?.avatarUrl.isNullOrEmpty()) {
+                                    AsyncImage(
+                                        model = ytAccountInfo!!.avatarUrl,
+                                        contentDescription = ytAccountInfo?.name ?: "Profile",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "Profile",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -596,10 +617,33 @@ fun MainScreen(
                             appThemeVariant = appThemeVariant,
                             customAccentColor = customAccentColor,
                             isCheckingUpdate = isCheckingUpdate,
+                            ytAccountInfo = ytAccountInfo,
+                            isSyncingYtAccount = isSyncingYtAccount,
+                            autoSyncInterval = autoSyncInterval,
+                            onLoginYtMusic = { isYtLoginDialogOpen = true },
+                            onSyncYtMusic = { viewModel.refreshYtAccountAndPlaylists(silent = false) },
+                            onLogoutYtMusic = { viewModel.logoutYtMusic() },
+                            onOpenAutoSync = { viewModel.openAutoSyncSettings() },
                             onBack = { viewModel.navigateBack() },
                             onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
                             onOpenNowPlaying = { viewModel.openNowPlayingSettings() },
                             onOpenAppTheme = { viewModel.openAppThemeSettings() }
+                        )
+                    }
+                    ScreenState.SETTINGS_AUTO_SYNC -> {
+                        SettingsAutoSyncScreen(
+                            selectedInterval = autoSyncInterval,
+                            isSyncing = isSyncingYtAccount,
+                            isLoggedIn = ytAccountInfo != null,
+                            onSelectInterval = { viewModel.setAutoSyncInterval(it) },
+                            onSyncNow = {
+                                if (ytAccountInfo != null) {
+                                    viewModel.refreshYtAccountAndPlaylists(silent = false)
+                                } else {
+                                    isYtLoginDialogOpen = true
+                                }
+                            },
+                            onBack = { viewModel.navigateBack() }
                         )
                     }
                     ScreenState.SETTINGS_NOW_PLAYING -> {
@@ -784,6 +828,17 @@ fun MainScreen(
         )
     }
 
+    // YouTube Music InnerTube Login Dialog
+    if (isYtLoginDialogOpen) {
+        YouTubeLoginDialog(
+            onLoginSuccess = { cookie, fallbackName, fallbackAvatarUrl ->
+                isYtLoginDialogOpen = false
+                viewModel.onYtMusicLoginSuccess(cookie, fallbackName, fallbackAvatarUrl)
+            },
+            onDismiss = { isYtLoginDialogOpen = false }
+        )
+    }
+
     // Manage Favourite Artists Sheet
     if (isAddFavoriteArtistSheetOpen) {
         AddFavoriteArtistSheet(
@@ -802,7 +857,8 @@ fun MainScreen(
             onDismiss = {
                 isAddFavoriteArtistSheetOpen = false
                 viewModel.onArtistSearchQueryChanged("")
-            }
+            },
+            isCustomImageTheme = isPhotoOrAmbient
         )
     }
 }

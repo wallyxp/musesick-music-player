@@ -16,8 +16,24 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
+
+data class YtAccountInfo(
+    val name: String,
+    val handle: String = "",
+    val avatarUrl: String? = null
+)
 
 class YouTubeRepository {
+
+    @Volatile
+    var cookie: String? = null
+
+    @Volatile
+    var accessToken: String? = null
+
+    @Volatile
+    var profileAccessToken: String? = null
 
     suspend fun searchAll(query: String): SearchResult = withContext(Dispatchers.IO) {
         try {
@@ -348,29 +364,72 @@ class YouTubeRepository {
         if (playlistId.isEmpty()) return@withContext null
 
         val browseId = if (playlistId.startsWith("VL")) playlistId else "VL$playlistId"
+        val hasOAuth = !accessToken.isNullOrBlank()
+        var parsed: YouTubePlaylistData? = null
 
-        var jsonString = executeInnerTubeRequest(
-            "https://music.youtube.com/youtubei/v1/browse",
-            JSONObject().apply {
-                put("context", createClientContext())
-                put("browseId", browseId)
+        // 1. If authenticated with OAuth2 Bearer token (microG), try ANDROID_MUSIC & ANDROID first
+        if (hasOAuth) {
+            val androidMusicJson = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse",
+                JSONObject().apply {
+                    put("context", createAndroidMusicContext())
+                    put("browseId", browseId)
+                }
+            )
+            if (androidMusicJson != null) {
+                val candidate = parseYouTubePlaylistJson(playlistId, androidMusicJson)
+                if (candidate.tracks.isNotEmpty() || candidate.title != "YouTube Playlist") {
+                    parsed = candidate
+                }
             }
-        )
 
-        // Fallback without "VL" prefix if initial browse returned null
-        if (jsonString == null && !playlistId.startsWith("VL")) {
-            jsonString = executeInnerTubeRequest(
+            if (parsed == null || parsed.tracks.isEmpty()) {
+                val androidYtJson = executeInnerTubeRequest(
+                    "https://www.youtube.com/youtubei/v1/browse",
+                    JSONObject().apply {
+                        put("context", createAndroidContext())
+                        put("browseId", browseId)
+                    }
+                )
+                if (androidYtJson != null) {
+                    val candidate = parseYouTubePlaylistJson(playlistId, androidYtJson)
+                    if (candidate.tracks.isNotEmpty() || parsed == null) {
+                        parsed = candidate
+                    }
+                }
+            }
+        }
+
+        // 2. Also try WEB_REMIX if tracks not yet populated
+        if (parsed == null || parsed.tracks.isEmpty()) {
+            var jsonString = executeInnerTubeRequest(
                 "https://music.youtube.com/youtubei/v1/browse",
                 JSONObject().apply {
                     put("context", createClientContext())
-                    put("browseId", playlistId)
+                    put("browseId", browseId)
                 }
             )
+
+            // Fallback without "VL" prefix if initial browse returned null
+            if (jsonString == null && !playlistId.startsWith("VL")) {
+                jsonString = executeInnerTubeRequest(
+                    "https://music.youtube.com/youtubei/v1/browse",
+                    JSONObject().apply {
+                        put("context", createClientContext())
+                        put("browseId", playlistId)
+                    }
+                )
+            }
+
+            if (jsonString != null) {
+                val webCandidate = parseYouTubePlaylistJson(playlistId, jsonString)
+                if (webCandidate.tracks.isNotEmpty() || parsed == null) {
+                    parsed = webCandidate
+                }
+            }
         }
 
-        if (jsonString == null) return@withContext null
-
-        parseYouTubePlaylistJson(playlistId, jsonString)
+        parsed
     }
 
     private fun parseYouTubePlaylistJson(playlistId: String, jsonString: String): YouTubePlaylistData {
@@ -388,9 +447,13 @@ class YouTubeRepository {
                 val headerObj = when {
                     obj.has("musicResponsiveHeaderRenderer") -> obj.getJSONObject("musicResponsiveHeaderRenderer")
                     obj.has("musicDetailHeaderRenderer") -> obj.getJSONObject("musicDetailHeaderRenderer")
+                    obj.has("playlistHeaderRenderer") -> obj.getJSONObject("playlistHeaderRenderer")
                     obj.has("musicEditablePlaylistDetailHeaderRenderer") -> {
                         val editHeader = obj.getJSONObject("musicEditablePlaylistDetailHeaderRenderer")
                         editHeader.optJSONObject("header")?.optJSONObject("musicResponsiveHeaderRenderer") ?: editHeader
+                        editHeader.optJSONObject("header")?.optJSONObject("musicResponsiveHeaderRenderer")
+                            ?: editHeader.optJSONObject("header")?.optJSONObject("musicDetailHeaderRenderer")
+                            ?: editHeader
                     }
                     else -> null
                 }
@@ -401,9 +464,14 @@ class YouTubeRepository {
                         val t = titleRuns.getJSONObject(0).optString("text", "").trim()
                         if (t.isNotEmpty()) title = t
                     }
+                    val titleObj = headerObj.optJSONObject("title")
+                    val t = titleObj?.optString("simpleText", "")?.trim()?.ifEmpty { null }
+                        ?: titleObj?.optJSONArray("runs")?.optJSONObject(0)?.optString("text", "")?.trim()
+                    if (!t.isNullOrEmpty()) title = t
 
                     val straplineRuns = headerObj.optJSONObject("straplineTextOne")?.optJSONArray("runs")
                         ?: headerObj.optJSONObject("subtitle")?.optJSONArray("runs")
+                        ?: headerObj.optJSONObject("ownerText")?.optJSONArray("runs")
                     if (straplineRuns != null && straplineRuns.length() > 0) {
                         val a = straplineRuns.getJSONObject(0).optString("text", "").trim()
                         if (a.isNotEmpty() && !a.startsWith("Playlist") && !a.startsWith("Album")) {
@@ -415,6 +483,10 @@ class YouTubeRepository {
                         ?.optJSONObject("musicThumbnailRenderer")
                         ?.optJSONObject("thumbnail")
                         ?.optJSONArray("thumbnails")
+                        ?: headerObj.optJSONObject("playlistHeaderBanner")
+                            ?.optJSONObject("heroPlaylistThumbnailRenderer")
+                            ?.optJSONObject("thumbnail")
+                            ?.optJSONArray("thumbnails")
                     if (thumbs != null && thumbs.length() > 0) {
                         val rawUrl = thumbs.getJSONObject(thumbs.length() - 1).optString("url")
                         if (rawUrl.isNotEmpty()) {
@@ -422,6 +494,39 @@ class YouTubeRepository {
                         }
                     }
                 }
+            }
+
+            fun parsePlaylistVideoRenderer(item: JSONObject): Track? {
+                val vId = item.optString("videoId", "").trim()
+                if (vId.isEmpty()) return null
+                val titleObj = item.optJSONObject("title")
+                val trackTitle = titleObj?.optString("simpleText", "")?.trim()?.ifEmpty { null }
+                    ?: titleObj?.optJSONArray("runs")?.optJSONObject(0)?.optString("text", "")?.trim()
+                    ?: return null
+                if (trackTitle.isEmpty() || trackTitle == "[Deleted video]" || trackTitle == "[Private video]") return null
+                val artistName = item.optJSONObject("shortBylineText")
+                    ?.optJSONArray("runs")
+                    ?.optJSONObject(0)
+                    ?.optString("text", "")
+                    ?.removeSuffix(" - Topic")
+                    ?.trim()
+                    ?.ifEmpty { author ?: "YouTube Music" }
+                    ?: (author ?: "YouTube Music")
+                val lengthSec = item.optString("lengthSeconds", "0").toLongOrNull() ?: 0L
+                val thumbs = item.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+                val thumbUrl = if (thumbs != null && thumbs.length() > 0) {
+                    thumbs.getJSONObject(thumbs.length() - 1).optString("url")
+                } else null
+                return Track(
+                    id = vId,
+                    title = trackTitle,
+                    artist = artistName,
+                    durationMs = lengthSec * 1000L,
+                    thumbnailUrl = toLowResThumbnailUrl(thumbUrl),
+                    isLocal = false,
+                    audioFormat = AudioFormat.YOUTUBE,
+                    isVideo = false
+                )
             }
 
             fun walk(obj: Any?) {
@@ -432,6 +537,12 @@ class YouTubeRepository {
                         if (obj.has("musicResponsiveListItemRenderer")) {
                             val item = obj.getJSONObject("musicResponsiveListItemRenderer")
                             val track = parseTrackFromResponsiveItem(item, author ?: "YouTube", isVideo = false)
+                            if (track != null && seenTrackIds.add(track.id)) {
+                                tracks.add(track)
+                            }
+                        } else if (obj.has("playlistVideoRenderer")) {
+                            val item = obj.getJSONObject("playlistVideoRenderer")
+                            val track = parsePlaylistVideoRenderer(item)
                             if (track != null && seenTrackIds.add(track.id)) {
                                 tracks.add(track)
                             }
@@ -469,6 +580,7 @@ class YouTubeRepository {
                     "https://music.youtube.com/youtubei/v1/browse?continuation=$cToken&ctoken=$cToken",
                     JSONObject().apply {
                         put("context", createClientContext())
+                        put("context", if (!accessToken.isNullOrBlank()) createAndroidMusicContext() else createClientContext())
                     }
                 ) ?: break
 
@@ -954,8 +1066,778 @@ class YouTubeRepository {
         }
     }
 
+    private fun extractCookieValue(rawCookies: String, key: String): String? {
+        val pattern = Regex("""(?:^|;\s*)${Regex.escape(key)}=([^;]*)""")
+        return pattern.find(rawCookies)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun buildSapisidAuthorization(sapisid: String, origin: String = "https://music.youtube.com"): String {
+        val timestamp = System.currentTimeMillis() / 1000
+        val input = "$timestamp $sapisid $origin"
+        val digest = MessageDigest.getInstance("SHA-1").digest(input.toByteArray(Charsets.UTF_8))
+        val hash = digest.joinToString("") { "%02x".format(it) }
+        return "SAPISIDHASH ${timestamp}_${hash} SAPISID1PHASH ${timestamp}_${hash} SAPISID3PHASH ${timestamp}_${hash}"
+    }
+
+    private fun executeGetWithBearer(urlStr: String, token: String): String? {
+        return try {
+            val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 8000
+                readTimeout = 8000
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("Accept", "application/json")
+            }
+            if (conn.responseCode == 200) {
+                BufferedReader(InputStreamReader(conn.inputStream)).use { it.readText() }
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun fetchAccountInfo(fallbackAccountName: String? = null): YtAccountInfo? = withContext(Dispatchers.IO) {
+        val tokens = listOfNotNull(
+            profileAccessToken?.takeIf { it.isNotBlank() },
+            accessToken?.takeIf { it.isNotBlank() }
+        ).distinct()
+        val activeCookie = cookie?.takeIf { it.isNotBlank() }
+        if (tokens.isEmpty() && activeCookie == null && fallbackAccountName.isNullOrBlank()) return@withContext null
+
+        var bestName: String? = null
+        var bestHandle: String? = null
+        var bestAvatarUrl: String? = null
+
+        val emailPrefix = fallbackAccountName?.substringBefore("@")?.lowercase()
+
+        fun updateBest(candidateName: String?, candidateHandle: String?, candidateAvatar: String?) {
+            val cleanName = candidateName?.trim()?.takeIf { it.isNotEmpty() }
+            if (cleanName != null) {
+                if (bestName == null || (bestName!!.lowercase() == emailPrefix && cleanName.lowercase() != emailPrefix)) {
+                    bestName = cleanName
+                }
+            }
+            val cleanHandle = candidateHandle?.trim()?.takeIf { it.isNotEmpty() }
+            if (cleanHandle != null && bestHandle == null) {
+                bestHandle = cleanHandle
+            }
+            val cleanAvatar = candidateAvatar?.trim()?.takeIf { it.isNotEmpty() }
+            if (cleanAvatar != null && bestAvatarUrl == null) {
+                bestAvatarUrl = upgradeThumbnailUrl(cleanAvatar)
+            }
+        }
+
+        fun extractRunsText(obj: JSONObject?): String? {
+            if (obj == null) return null
+            if (obj.has("simpleText")) return obj.optString("simpleText").takeIf { it.isNotBlank() }
+            val runs = obj.optJSONArray("runs") ?: return null
+            val sb = StringBuilder()
+            for (i in 0 until runs.length()) {
+                sb.append(runs.getJSONObject(i).optString("text", ""))
+            }
+            return sb.toString().trim().takeIf { it.isNotEmpty() }
+        }
+
+        fun parseAccountMenuResponse(jsonStr: String) {
+            try {
+                fun walkAccount(node: Any?) {
+                    when (node) {
+                        is JSONObject -> {
+                            if (node.has("activeAccountHeaderRenderer")) {
+                                val header = node.getJSONObject("activeAccountHeaderRenderer")
+                                val name = extractRunsText(header.optJSONObject("accountName"))
+                                val handle = extractRunsText(header.optJSONObject("channelHandle"))
+                                    ?: extractRunsText(header.optJSONObject("email"))
+                                val thumbs = header.optJSONObject("accountPhoto")?.optJSONArray("thumbnails")
+                                val photo = if (thumbs != null && thumbs.length() > 0) {
+                                    thumbs.getJSONObject(thumbs.length() - 1).optString("url")
+                                } else null
+                                updateBest(name, handle, photo)
+                            } else if (node.has("accountItemRenderer")) {
+                                val item = node.getJSONObject("accountItemRenderer")
+                                if (item.optBoolean("isSelected", true)) {
+                                    val name = extractRunsText(item.optJSONObject("accountName"))
+                                    val handle = extractRunsText(item.optJSONObject("channelHandle"))
+                                    val thumbs = item.optJSONObject("accountPhoto")?.optJSONArray("thumbnails")
+                                    val photo = if (thumbs != null && thumbs.length() > 0) {
+                                        thumbs.getJSONObject(thumbs.length() - 1).optString("url")
+                                    } else null
+                                    updateBest(name, handle, photo)
+                                }
+                            } else if (node.has("topbarMenuButtonRenderer")) {
+                                val topbar = node.getJSONObject("topbarMenuButtonRenderer")
+                                val thumbs = topbar.optJSONObject("avatar")?.optJSONArray("thumbnails")
+                                val photo = if (thumbs != null && thumbs.length() > 0) {
+                                    thumbs.getJSONObject(thumbs.length() - 1).optString("url")
+                                } else null
+                                updateBest(null, null, photo)
+                            }
+                            val keys = node.keys()
+                            while (keys.hasNext()) {
+                                walkAccount(node.get(keys.next()))
+                            }
+                        }
+                        is JSONArray -> {
+                            for (i in 0 until node.length()) {
+                                walkAccount(node.get(i))
+                            }
+                        }
+                    }
+                }
+                walkAccount(JSONObject(jsonStr))
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 1. Query InnerTube account_menu with ANDROID and ANDROID_MUSIC clients (primary method used by microG / ReVanced)
+        if (tokens.isNotEmpty() || activeCookie != null) {
+            executeInnerTubeRequest(
+                "https://www.youtube.com/youtubei/v1/account/account_menu",
+                JSONObject().apply {
+                    put("context", createAndroidContext())
+                }
+            )?.let { parseAccountMenuResponse(it) }
+
+            if (bestName == null || bestAvatarUrl == null) {
+                executeInnerTubeRequest(
+                    "https://music.youtube.com/youtubei/v1/account/account_menu",
+                    JSONObject().apply {
+                        put("context", createAndroidMusicContext())
+                    }
+                )?.let { parseAccountMenuResponse(it) }
+            }
+
+            if (bestName == null || bestAvatarUrl == null) {
+                executeInnerTubeRequest(
+                    "https://music.youtube.com/youtubei/v1/account/account_menu",
+                    JSONObject().apply {
+                        put("context", createClientContext())
+                    }
+                )?.let { parseAccountMenuResponse(it) }
+            }
+        }
+
+        // 2. Query Google OAuth2 userinfo, People API, and YouTube Data API v3 channels?mine=true
+        for (tok in tokens) {
+            if (bestName != null && bestAvatarUrl != null) break
+
+            try {
+                val userInfoJson = executeGetWithBearer("https://www.googleapis.com/oauth2/v2/userinfo", tok)
+                    ?: executeGetWithBearer("https://openidconnect.googleapis.com/v1/userinfo", tok)
+                if (userInfoJson != null) {
+                    val obj = JSONObject(userInfoJson)
+                    val fullName = obj.optString("name", "").trim().ifEmpty {
+                        val given = obj.optString("given_name", "").trim()
+                        val family = obj.optString("family_name", "").trim()
+                        "$given $family".trim()
+                    }
+                    val email = obj.optString("email", "").trim()
+                    val picture = obj.optString("picture", "").trim()
+                    updateBest(fullName, email, picture)
+                }
+            } catch (_: Exception) {
+            }
+
+            if (bestName == null || bestAvatarUrl == null) {
+                try {
+                    val chJson = executeGetWithBearer(
+                        "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
+                        tok
+                    )
+                    if (chJson != null) {
+                        val items = JSONObject(chJson).optJSONArray("items")
+                        if (items != null && items.length() > 0) {
+                            val snippet = items.getJSONObject(0).optJSONObject("snippet")
+                            val title = snippet?.optString("title", "")?.trim()
+                            val customUrl = snippet?.optString("customUrl", "")?.trim()
+                            val thumb = snippet?.optJSONObject("thumbnails")?.let { t ->
+                                t.optJSONObject("high")?.optString("url")
+                                    ?: t.optJSONObject("medium")?.optString("url")
+                                    ?: t.optJSONObject("default")?.optString("url")
+                            }
+                            updateBest(title, customUrl, thumb)
+                        }
+                    }
+                } catch (_: Exception) {
+                }
+            }
+
+            if (bestName == null || bestAvatarUrl == null) {
+                try {
+                    val peopleJson = executeGetWithBearer(
+                        "https://people.googleapis.com/v1/people/me?personFields=names,photos",
+                        tok
+                    )
+                    if (peopleJson != null) {
+                        val root = JSONObject(peopleJson)
+                        val displayName = root.optJSONArray("names")?.optJSONObject(0)?.optString("displayName", "")?.trim()
+                        val photoUrl = root.optJSONArray("photos")?.optJSONObject(0)?.optString("url", "")?.trim()
+                        updateBest(displayName, null, photoUrl)
+                    }
+                } catch (_: Exception) {
+                }
+            }
+        }
+
+        if (!bestName.isNullOrBlank()) {
+            return@withContext YtAccountInfo(
+                name = bestName!!,
+                handle = bestHandle ?: fallbackAccountName.orEmpty(),
+                avatarUrl = bestAvatarUrl
+            )
+        }
+
+        if (!fallbackAccountName.isNullOrBlank()) {
+            val prettyName = fallbackAccountName.substringBefore("@")
+                .replace(".", " ")
+                .replace("_", " ")
+                .split(" ")
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { part -> part.replaceFirstChar { it.uppercase() } }
+                .ifBlank { fallbackAccountName }
+            return@withContext YtAccountInfo(
+                name = prettyName,
+                handle = fallbackAccountName,
+                avatarUrl = bestAvatarUrl
+            )
+        }
+
+        null
+    }
+
+    private fun fetchPlaylistItemsWithBearer(playlistId: String, token: String): List<Track> {
+        val tracks = mutableListOf<Track>()
+        var pageToken: String? = ""
+        var pages = 0
+        while (pageToken != null && pages < 4) {
+            pages++
+            val url = buildString {
+                append("https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=")
+                append(playlistId)
+                if (pageToken!!.isNotEmpty()) {
+                    append("&pageToken=").append(pageToken)
+                }
+            }
+            val jsonStr = executeGetWithBearer(url, token) ?: break
+            try {
+                val root = JSONObject(jsonStr)
+                val items = root.optJSONArray("items") ?: break
+                for (i in 0 until items.length()) {
+                    val item = items.getJSONObject(i)
+                    val snippet = item.optJSONObject("snippet") ?: continue
+                    val title = snippet.optString("title", "").trim()
+                    if (title.isEmpty() || title == "Private video" || title == "Deleted video") continue
+                    val videoId = snippet.optJSONObject("resourceId")?.optString("videoId", "")
+                        ?: item.optJSONObject("contentDetails")?.optString("videoId", "")
+                        ?: ""
+                    if (videoId.isEmpty()) continue
+                    val ownerChannel = snippet.optString("videoOwnerChannelTitle", "")
+                        .removeSuffix(" - Topic")
+                        .trim()
+                        .ifEmpty { snippet.optString("channelTitle", "YouTube Music") }
+                    val thumbs = snippet.optJSONObject("thumbnails")
+                    val thumbUrl = thumbs?.optJSONObject("maxres")?.optString("url")
+                        ?: thumbs?.optJSONObject("high")?.optString("url")
+                        ?: thumbs?.optJSONObject("medium")?.optString("url")
+                        ?: thumbs?.optJSONObject("default")?.optString("url")
+                    if (tracks.none { it.id == videoId }) {
+                        tracks.add(
+                            Track(
+                                id = videoId,
+                                title = title,
+                                artist = ownerChannel,
+                                durationMs = 0L,
+                                thumbnailUrl = toLowResThumbnailUrl(thumbUrl),
+                                isLocal = false,
+                                audioFormat = AudioFormat.YOUTUBE,
+                                isVideo = false
+                            )
+                        )
+                    }
+                }
+                pageToken = root.optString("nextPageToken", "").takeIf { it.isNotEmpty() }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                break
+            }
+        }
+        return tracks
+    }
+
+    suspend fun fetchUserLibraryPlaylists(): List<YouTubePlaylistData> = withContext(Dispatchers.IO) {
+        val token = accessToken?.takeIf { it.isNotBlank() } ?: profileAccessToken?.takeIf { it.isNotBlank() }
+        val activeCookie = cookie?.takeIf { it.isNotBlank() }
+        if (token == null && activeCookie == null) return@withContext emptyList()
+
+        val result = mutableListOf<YouTubePlaylistData>()
+        val seenIds = mutableSetOf<String>()
+
+        // 1. If OAuth2 Bearer token is available, fetch via YouTube Data API v3 (playlists?mine=true)
+        if (token != null) {
+            try {
+                val playlistsJson = executeGetWithBearer(
+                    "https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50",
+                    token
+                )
+                if (playlistsJson != null) {
+                    val items = JSONObject(playlistsJson).optJSONArray("items")
+                    if (items != null) {
+                        for (i in 0 until items.length()) {
+                            val obj = items.getJSONObject(i)
+                            val plId = obj.optString("id", "").trim()
+                            val snippet = obj.optJSONObject("snippet")
+                            val title = snippet?.optString("title", "")?.trim().orEmpty()
+                            val author = snippet?.optString("channelTitle", "")?.trim()
+                            val thumbs = snippet?.optJSONObject("thumbnails")
+                            val thumbUrl = thumbs?.optJSONObject("maxres")?.optString("url")
+                                ?: thumbs?.optJSONObject("high")?.optString("url")
+                                ?: thumbs?.optJSONObject("medium")?.optString("url")
+                                ?: thumbs?.optJSONObject("default")?.optString("url")
+                            if (plId.isNotEmpty() && title.isNotEmpty() && seenIds.add(plId)) {
+                                val apiTracks = fetchPlaylistItemsWithBearer(plId, token)
+                                val tracks = if (apiTracks.isNotEmpty()) {
+                                    apiTracks
+                                } else {
+                                    fetchPlaylistFromYouTube(plId)?.tracks ?: emptyList()
+                                }
+                                result.add(
+                                    YouTubePlaylistData(
+                                        id = plId,
+                                        title = title,
+                                        author = author,
+                                        thumbnailUrl = upgradeThumbnailUrl(thumbUrl) ?: tracks.firstOrNull()?.thumbnailUrl,
+                                        tracks = tracks
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 2. Also query InnerTube FEmusic_liked_playlists & FEmusic_library_landing (works with Bearer token or Cookie)
+        // 2. Query InnerTube Library endpoints using ANDROID_MUSIC, ANDROID, and WEB_REMIX clients
+        val discovered = LinkedHashMap<String, Triple<String, String?, String?>>()
+
+        fun addDiscoveredPlaylist(rawId: String, rawTitle: String, thumbUrl: String?, subtitle: String?) {
+            val title = rawTitle.trim()
+            if (title.isEmpty()) return
+            if (title.equals("New playlist", ignoreCase = true) ||
+                title.equals("Create playlist", ignoreCase = true) ||
+                title.equals("Episodes for later", ignoreCase = true)
+            ) return
+
+            val browseId = when {
+                rawId.startsWith("VL") -> rawId
+                rawId.startsWith("PL") || rawId.startsWith("RD") || rawId.startsWith("OLAK") || rawId == "LM" -> "VL$rawId"
+                else -> return
+            }
+            if (browseId == "VLSE") return
+            if (!discovered.containsKey(browseId)) {
+                discovered[browseId] = Triple(title, thumbUrl, subtitle)
+            }
+        }
+
+        fun scanLibraryJson(jsonStr: String) {
+            try {
+                val root = JSONObject(jsonStr)
+                fun walk(node: Any?) {
+                    when (node) {
+                        is JSONObject -> {
+                            if (node.has("musicTwoRowItemRenderer")) {
+                                val item = node.getJSONObject("musicTwoRowItemRenderer")
+                                val title = item.optJSONObject("title")?.optJSONArray("runs")?.optJSONObject(0)?.optString("text", "")?.trim()
+                                    ?: item.optJSONObject("title")?.optString("simpleText", "")?.trim()
+                                    ?: ""
+                                val browseId = item.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId", "") ?: ""
+                                val thumbs = item.optJSONObject("thumbnailRenderer")
+                                    ?.optJSONObject("musicThumbnailRenderer")
+                                    ?.optJSONObject("thumbnail")
+                                    ?.optJSONArray("thumbnails")
+                                val thumbUrl = if (thumbs != null && thumbs.length() > 0) {
+                                    upgradeThumbnailUrl(thumbs.getJSONObject(thumbs.length() - 1).optString("url"))
+                                } else null
+
+                                val subRuns = item.optJSONObject("subtitle")?.optJSONArray("runs")
+                                val subSb = StringBuilder()
+                                if (subRuns != null) {
+                                    for (i in 0 until subRuns.length()) {
+                                        subSb.append(subRuns.getJSONObject(i).optString("text", ""))
+                                    }
+                                }
+                                addDiscoveredPlaylist(browseId, title, thumbUrl, subSb.toString().trim())
+                            } else if (node.has("musicResponsiveListItemRenderer")) {
+                                val item = node.getJSONObject("musicResponsiveListItemRenderer")
+                                val browseId = item.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId", "") ?: ""
+                                val flexCols = item.optJSONArray("flexColumns")
+                                val title = flexCols?.optJSONObject(0)
+                                    ?.optJSONObject("musicResponsiveListItemFlexColumnRenderer")
+                                    ?.optJSONObject("text")?.optJSONArray("runs")?.optJSONObject(0)
+                                    ?.optString("text", "")?.trim() ?: ""
+                                val thumbs = item.optJSONObject("thumbnail")
+                                    ?.optJSONObject("musicThumbnailRenderer")
+                                    ?.optJSONObject("thumbnail")
+                                    ?.optJSONArray("thumbnails")
+                                val thumbUrl = if (thumbs != null && thumbs.length() > 0) {
+                                    upgradeThumbnailUrl(thumbs.getJSONObject(thumbs.length() - 1).optString("url"))
+                                } else null
+
+                                addDiscoveredPlaylist(browseId, title, thumbUrl, null)
+                            } else if (node.has("playlistRenderer") || node.has("compactPlaylistRenderer") || node.has("gridPlaylistRenderer")) {
+                                val item = node.optJSONObject("playlistRenderer")
+                                    ?: node.optJSONObject("compactPlaylistRenderer")
+                                    ?: node.optJSONObject("gridPlaylistRenderer")
+                                if (item != null) {
+                                    val plId = item.optString("playlistId", "").ifEmpty {
+                                        item.optJSONObject("navigationEndpoint")?.optJSONObject("browseEndpoint")?.optString("browseId", "") ?: ""
+                                    }
+                                    val titleObj = item.optJSONObject("title")
+                                    val title = titleObj?.optString("simpleText", "")?.trim()?.ifEmpty { null }
+                                        ?: titleObj?.optJSONArray("runs")?.optJSONObject(0)?.optString("text", "")?.trim()
+                                        ?: ""
+                                    val thumbs = item.optJSONObject("thumbnail")?.optJSONArray("thumbnails")
+                                        ?: item.optJSONArray("thumbnails")?.optJSONObject(0)?.optJSONArray("thumbnails")
+                                    val thumbUrl = if (thumbs != null && thumbs.length() > 0) {
+                                        upgradeThumbnailUrl(thumbs.getJSONObject(thumbs.length() - 1).optString("url"))
+                                    } else null
+                                    addDiscoveredPlaylist(plId, title, thumbUrl, null)
+                                }
+                            } else if (node.has("lockupViewModel")) {
+                                val lockup = node.getJSONObject("lockupViewModel")
+                                val contentId = lockup.optString("contentId", "")
+                                val title = lockup.optJSONObject("metadata")
+                                    ?.optJSONObject("lockupMetadataViewModel")
+                                    ?.optJSONObject("title")
+                                    ?.optString("content", "")
+                                    ?.trim() ?: ""
+                                val sources = lockup.optJSONObject("contentImage")
+                                    ?.optJSONObject("collectionThumbnailViewModel")
+                                    ?.optJSONObject("primaryThumbnail")
+                                    ?.optJSONObject("thumbnailViewModel")
+                                    ?.optJSONObject("image")
+                                    ?.optJSONArray("sources")
+                                val thumbUrl = if (sources != null && sources.length() > 0) {
+                                    upgradeThumbnailUrl(sources.getJSONObject(sources.length() - 1).optString("url"))
+                                } else null
+                                addDiscoveredPlaylist(contentId, title, thumbUrl, null)
+                            }
+
+                            val keys = node.keys()
+                            while (keys.hasNext()) {
+                                walk(node.get(keys.next()))
+                            }
+                        }
+                        is JSONArray -> {
+                            for (i in 0 until node.length()) {
+                                walk(node.get(i))
+                            }
+                        }
+                    }
+                }
+                walk(root)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // Query ANDROID_MUSIC client (works directly with microG OAuth2 Bearer token)
+        if (token != null) {
+            executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse",
+                JSONObject().apply {
+                    put("context", createAndroidMusicContext())
+                    put("browseId", "FEmusic_liked_playlists")
+                }
+            )?.let { scanLibraryJson(it) }
+
+            executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse",
+                JSONObject().apply {
+                    put("context", createAndroidMusicContext())
+                    put("browseId", "FEmusic_library_landing")
+                }
+            )?.let { scanLibraryJson(it) }
+
+            executeInnerTubeRequest(
+                "https://www.youtube.com/youtubei/v1/browse",
+                JSONObject().apply {
+                    put("context", createAndroidContext())
+                    put("browseId", "FEplaylist_aggregation")
+                }
+            )?.let { scanLibraryJson(it) }
+        }
+
+        // Also query WEB_REMIX client
+        executeInnerTubeRequest(
+            "https://music.youtube.com/youtubei/v1/browse",
+            JSONObject().apply {
+                put("context", createClientContext())
+                put("browseId", "FEmusic_liked_playlists")
+            }
+        )?.let { scanLibraryJson(it) }
+
+        executeInnerTubeRequest(
+            "https://music.youtube.com/youtubei/v1/browse",
+            JSONObject().apply {
+                put("context", createClientContext())
+                put("browseId", "FEmusic_library_landing")
+            }
+        )?.let { scanLibraryJson(it) }
+
+        for ((browseId, meta) in discovered) {
+            try {
+                val cleanId = browseId.removePrefix("VL")
+                if (!seenIds.add(cleanId)) continue
+                val fetched = fetchPlaylistFromYouTube(browseId)
+                val apiTracks = if ((fetched == null || fetched.tracks.isEmpty()) && token != null) {
+                    fetchPlaylistItemsWithBearer(cleanId, token)
+                } else emptyList()
+                val finalTracks = when {
+                    fetched != null && fetched.tracks.isNotEmpty() -> fetched.tracks
+                    apiTracks.isNotEmpty() -> apiTracks
+                    else -> emptyList()
+                }
+                val resolvedTitle = if (fetched == null || fetched.title == "YouTube Playlist" || fetched.title.isBlank()) {
+                    meta.first
+                } else {
+                    fetched.title
+                }
+                val resolvedThumb = fetched?.thumbnailUrl ?: meta.second ?: finalTracks.firstOrNull()?.thumbnailUrl
+                result.add(
+                    YouTubePlaylistData(
+                        id = cleanId,
+                        title = resolvedTitle,
+                        author = fetched?.author ?: meta.third,
+                        thumbnailUrl = resolvedThumb,
+                        tracks = finalTracks
+                    )
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        result
+    }
+
+    suspend fun resolveVideoIdForTrack(track: Track): String? = withContext(Dispatchers.IO) {
+        val rawId = track.id.trim()
+        // Standard YouTube video IDs are 11 characters without hyphens/spaces
+        if (!track.isLocal && rawId.length == 11 && !rawId.contains("-")) {
+            return@withContext rawId
+        }
+        try {
+            val query = "${track.title} ${track.artist}".trim()
+            val found = searchTracks(query).firstOrNull()
+            found?.id?.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun createYouTubePlaylist(
+        title: String,
+        videoIds: List<String> = emptyList(),
+        privacyStatus: String = "PRIVATE"
+    ): String? = withContext(Dispatchers.IO) {
+        if (cookie.isNullOrBlank() && accessToken.isNullOrBlank()) return@withContext null
+        try {
+            val cleanTitle = title.trim().ifEmpty { "Musesick Playlist" }
+            val payload = JSONObject().apply {
+                put("context", createClientContext())
+                put("title", cleanTitle)
+                put("description", "Synced with Musesick")
+                put("privacyStatus", privacyStatus)
+                if (videoIds.isNotEmpty()) {
+                    val vArr = JSONArray()
+                    videoIds.distinct().forEach { vId ->
+                        if (vId.isNotBlank()) vArr.put(vId)
+                    }
+                    put("videoIds", vArr)
+                }
+            }
+            val res = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/playlist/create",
+                payload
+            ) ?: return@withContext null
+            val root = JSONObject(res)
+            val createdId = root.optString("playlistId", "").removePrefix("VL").trim()
+            if (createdId.isNotEmpty()) {
+                return@withContext createdId
+            }
+            null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun renameYouTubePlaylist(playlistId: String, newTitle: String): Boolean = withContext(Dispatchers.IO) {
+        if (cookie.isNullOrBlank() && accessToken.isNullOrBlank()) return@withContext false
+        val cleanId = playlistId.removePrefix("yt_sync_").removePrefix("VL").trim()
+        if (cleanId.isEmpty()) return@withContext false
+        try {
+            val actions = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("action", "ACTION_SET_PLAYLIST_NAME")
+                    put("playlistName", newTitle.trim())
+                })
+            }
+            val payload = JSONObject().apply {
+                put("context", createClientContext())
+                put("playlistId", cleanId)
+                put("actions", actions)
+            }
+            val res = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse/edit_playlist",
+                payload
+            )
+            res != null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun addVideosToYouTubePlaylist(playlistId: String, videoIds: List<String>): Boolean = withContext(Dispatchers.IO) {
+        if (cookie.isNullOrBlank() && accessToken.isNullOrBlank()) return@withContext false
+        val cleanId = playlistId.removePrefix("yt_sync_").removePrefix("VL").trim()
+        val validIds = videoIds.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (cleanId.isEmpty() || validIds.isEmpty()) return@withContext false
+        try {
+            val actions = JSONArray()
+            for (vId in validIds) {
+                actions.put(JSONObject().apply {
+                    put("action", "ACTION_ADD_VIDEO")
+                    put("addedVideoId", vId)
+                    put("dedupeOption", "DEDUPE_OPTION_SKIP")
+                })
+            }
+            val payload = JSONObject().apply {
+                put("context", createClientContext())
+                put("playlistId", cleanId)
+                put("actions", actions)
+            }
+            val res = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse/edit_playlist",
+                payload
+            )
+            res != null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun removeVideoFromYouTubePlaylist(playlistId: String, videoId: String): Boolean = withContext(Dispatchers.IO) {
+        if (cookie.isNullOrBlank() && accessToken.isNullOrBlank()) return@withContext false
+        val cleanId = playlistId.removePrefix("yt_sync_").removePrefix("VL").trim()
+        if (cleanId.isEmpty() || videoId.isBlank()) return@withContext false
+        try {
+            // Browse the playlist first to locate the setVideoId for this videoId
+            val browseJson = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse",
+                JSONObject().apply {
+                    put("context", createClientContext())
+                    put("browseId", "VL$cleanId")
+                }
+            )
+            var foundSetVideoId: String? = null
+            if (browseJson != null) {
+                fun findSetId(node: Any?) {
+                    if (foundSetVideoId != null) return
+                    when (node) {
+                        is JSONObject -> {
+                            val itemData = node.optJSONObject("playlistItemData")
+                            if (itemData != null && itemData.optString("videoId") == videoId) {
+                                val setVid = itemData.optString("playlistSetVideoId", "").trim()
+                                if (setVid.isNotEmpty()) {
+                                    foundSetVideoId = setVid
+                                    return
+                                }
+                            }
+                            if (node.optString("removedVideoId") == videoId) {
+                                val setVid = node.optString("setVideoId", "").trim()
+                                if (setVid.isNotEmpty()) {
+                                    foundSetVideoId = setVid
+                                    return
+                                }
+                            }
+                            val keys = node.keys()
+                            while (keys.hasNext()) {
+                                findSetId(node.get(keys.next()))
+                            }
+                        }
+                        is JSONArray -> {
+                            for (i in 0 until node.length()) {
+                                findSetId(node.get(i))
+                            }
+                        }
+                    }
+                }
+                findSetId(JSONObject(browseJson))
+            }
+
+            val actionObj = JSONObject().apply {
+                put("action", "ACTION_REMOVE_VIDEO")
+                put("removedVideoId", videoId)
+                if (!foundSetVideoId.isNullOrEmpty()) {
+                    put("setVideoId", foundSetVideoId)
+                }
+            }
+            val payload = JSONObject().apply {
+                put("context", createClientContext())
+                put("playlistId", cleanId)
+                put("actions", JSONArray().put(actionObj))
+            }
+            val res = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse/edit_playlist",
+                payload
+            )
+            res != null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun deleteYouTubePlaylist(playlistId: String): Boolean = withContext(Dispatchers.IO) {
+        if (cookie.isNullOrBlank() && accessToken.isNullOrBlank()) return@withContext false
+        val cleanId = playlistId.removePrefix("yt_sync_").removePrefix("VL").trim()
+        if (cleanId.isEmpty()) return@withContext false
+        try {
+            val payload = JSONObject().apply {
+                put("context", createClientContext())
+                put("playlistId", cleanId)
+            }
+            val res = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/playlist/delete",
+                payload
+            )
+            res != null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     private fun executeInnerTubeRequest(urlStr: String, payload: JSONObject): String? {
         val url = URL(urlStr)
+        val token = accessToken?.takeIf { it.isNotBlank() } ?: profileAccessToken?.takeIf { it.isNotBlank() }
+        val activeCookie = cookie?.takeIf { it.isNotBlank() }
+        val clientName = payload.optJSONObject("context")
+            ?.optJSONObject("client")
+            ?.optString("clientName", "WEB_REMIX")
+            ?: "WEB_REMIX"
+        val isAndroidClient = clientName.startsWith("ANDROID")
+        val origin = if (urlStr.contains("www.youtube.com")) "https://www.youtube.com" else "https://music.youtube.com"
+
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             doOutput = true
@@ -966,7 +1848,57 @@ class YouTubeRepository {
                 "User-Agent",
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             )
-            setRequestProperty("Origin", "https://music.youtube.com")
+            setRequestProperty("Origin", origin)
+            setRequestProperty("Referer", "$origin/")
+            setRequestProperty("X-Origin", origin)
+            setRequestProperty("X-Goog-Api-Format-Version", "2")
+
+            when {
+                clientName == "ANDROID_MUSIC" -> {
+                    setRequestProperty(
+                        "User-Agent",
+                        "com.google.android.apps.youtube.music/6.42.52 (Linux; U; Android 14) gzip"
+                    )
+                }
+                clientName == "ANDROID" -> {
+                    setRequestProperty(
+                        "User-Agent",
+                        "com.google.android.youtube/19.09.37 (Linux; U; Android 14) gzip"
+                    )
+                }
+                else -> {
+                    setRequestProperty(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    )
+                }
+            }
+
+            if (token != null) {
+                setRequestProperty("Authorization", "Bearer $token")
+                setRequestProperty("X-Goog-AuthUser", "0")
+                if (!isAndroidClient && activeCookie != null) {
+                    setRequestProperty("Origin", origin)
+                    setRequestProperty("Referer", "$origin/")
+                    setRequestProperty("X-Origin", origin)
+                }
+            } else if (activeCookie != null) {
+                setRequestProperty("Origin", origin)
+                setRequestProperty("Referer", "$origin/")
+                setRequestProperty("X-Origin", origin)
+                setRequestProperty("Cookie", activeCookie)
+                setRequestProperty("X-Goog-AuthUser", "0")
+                val sapisid = extractCookieValue(activeCookie, "SAPISID")
+                    ?: extractCookieValue(activeCookie, "__Secure-3PAPISID")
+                    ?: extractCookieValue(activeCookie, "__Secure-1PAPISID")
+                if (sapisid != null) {
+                    setRequestProperty("Authorization", buildSapisidAuthorization(sapisid, origin))
+                }
+            } else if (!isAndroidClient) {
+                setRequestProperty("Origin", origin)
+                setRequestProperty("Referer", "$origin/")
+                setRequestProperty("X-Origin", origin)
+            }
         }
 
         OutputStreamWriter(connection.outputStream).use { writer ->
@@ -986,6 +1918,30 @@ class YouTubeRepository {
             put("client", JSONObject().apply {
                 put("clientName", "WEB_REMIX")
                 put("clientVersion", "1.20240101.01.00")
+                put("hl", "en")
+                put("gl", "US")
+            })
+        }
+    }
+
+    private fun createAndroidMusicContext(): JSONObject {
+        return JSONObject().apply {
+            put("client", JSONObject().apply {
+                put("clientName", "ANDROID_MUSIC")
+                put("clientVersion", "6.42.52")
+                put("androidSdkVersion", 34)
+                put("hl", "en")
+                put("gl", "US")
+            })
+        }
+    }
+
+    private fun createAndroidContext(): JSONObject {
+        return JSONObject().apply {
+            put("client", JSONObject().apply {
+                put("clientName", "ANDROID")
+                put("clientVersion", "19.09.37")
+                put("androidSdkVersion", 34)
                 put("hl", "en")
                 put("gl", "US")
             })

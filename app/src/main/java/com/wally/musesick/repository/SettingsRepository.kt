@@ -24,7 +24,84 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_PLAYER_THEME_VARIANT = "player_theme_variant"
         private const val KEY_CUSTOM_ACCENT_COLOR = "custom_accent_color"
         private const val KEY_CUSTOM_THEME_IMAGE_PATH = "custom_theme_image_path"
+        private const val KEY_YT_MUSIC_COOKIE = "yt_music_cookie"
+        private const val KEY_YT_USER_NAME = "yt_user_name"
+        private const val KEY_YT_USER_HANDLE = "yt_user_handle"
+        private const val KEY_YT_USER_AVATAR_URL = "yt_user_avatar_url"
+        private const val KEY_AUTO_SYNC_INTERVAL = "yt_auto_sync_interval"
+        private const val KEY_LAST_PLAYLIST_SYNC_TIME = "yt_last_playlist_sync_time"
         const val DEFAULT_ACCENT_COLOR = 0xFF6750A4.toInt() // Royal Violet
+    }
+
+    enum class AutoSyncInterval(val label: String, val subtitle: String, val durationMs: Long?) {
+        DAILY("Daily", "Sync playlists automatically every 24 hours", 24L * 60L * 60L * 1000L),
+        WEEKLY("Weekly", "Sync playlists automatically once a week", 7L * 24L * 60L * 60L * 1000L),
+        MONTHLY("Monthly", "Sync playlists automatically once a month", 30L * 24L * 60L * 60L * 1000L),
+        MANUAL("When I Choose to Sync", "Only sync when you tap Sync Now or edit playlists", null);
+
+        companion object {
+            fun fromString(value: String?): AutoSyncInterval {
+                return values().find { it.name == value } ?: DAILY
+            }
+        }
+    }
+
+    fun getAutoSyncInterval(): AutoSyncInterval {
+        return AutoSyncInterval.fromString(prefs.getString(KEY_AUTO_SYNC_INTERVAL, AutoSyncInterval.DAILY.name))
+    }
+
+    fun setAutoSyncInterval(interval: AutoSyncInterval) {
+        prefs.edit().putString(KEY_AUTO_SYNC_INTERVAL, interval.name).apply()
+    }
+
+    fun getLastPlaylistSyncTime(): Long {
+        return prefs.getLong(KEY_LAST_PLAYLIST_SYNC_TIME, 0L)
+    }
+
+    fun setLastPlaylistSyncTime(timestampMs: Long) {
+        prefs.edit().putLong(KEY_LAST_PLAYLIST_SYNC_TIME, timestampMs).apply()
+    }
+
+    fun getYtMusicCookie(): String? {
+        return prefs.getString(KEY_YT_MUSIC_COOKIE, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setYtMusicCookie(cookie: String?) {
+        prefs.edit().putString(KEY_YT_MUSIC_COOKIE, cookie).apply()
+    }
+
+    fun getYtUserName(): String? {
+        return prefs.getString(KEY_YT_USER_NAME, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setYtUserName(name: String?) {
+        prefs.edit().putString(KEY_YT_USER_NAME, name).apply()
+    }
+
+    fun getYtUserHandle(): String? {
+        return prefs.getString(KEY_YT_USER_HANDLE, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setYtUserHandle(handle: String?) {
+        prefs.edit().putString(KEY_YT_USER_HANDLE, handle).apply()
+    }
+
+    fun getYtUserAvatarUrl(): String? {
+        return prefs.getString(KEY_YT_USER_AVATAR_URL, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setYtUserAvatarUrl(url: String?) {
+        prefs.edit().putString(KEY_YT_USER_AVATAR_URL, url).apply()
+    }
+
+    fun clearYtAccount() {
+        prefs.edit()
+            .remove(KEY_YT_MUSIC_COOKIE)
+            .remove(KEY_YT_USER_NAME)
+            .remove(KEY_YT_USER_HANDLE)
+            .remove(KEY_YT_USER_AVATAR_URL)
+            .remove(KEY_LAST_PLAYLIST_SYNC_TIME)
+            .apply()
     }
 
     fun hasCompletedArtistOnboarding(): Boolean {
