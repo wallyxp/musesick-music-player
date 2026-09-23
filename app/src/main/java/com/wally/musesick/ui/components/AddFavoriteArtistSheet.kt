@@ -66,19 +66,23 @@ fun AddFavoriteArtistSheet(
     onAddFavorite: (Artist) -> Unit,
     onRemoveFavorite: (String) -> Unit,
     onDismiss: () -> Unit,
+    isCustomImageTheme: Boolean = false,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
     var searchQuery by remember { mutableStateOf("") }
+    val sheetBackgroundColor = if (isCustomImageTheme) Color.Black else MaterialTheme.colorScheme.surface
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surface,
+        containerColor = sheetBackgroundColor,
+        tonalElevation = 0.dp,
         dragHandle = null
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(sheetBackgroundColor)
                 .navigationBarsPadding()
                 .padding(vertical = 16.dp)
         ) {

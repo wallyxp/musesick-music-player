@@ -267,9 +267,25 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _isFullPlayerOpen = MutableStateFlow(false)
     val isFullPlayerOpen: StateFlow<Boolean> = _isFullPlayerOpen.asStateFlow()
 
+    // YouTube Music Account State
+    private val _ytAccountInfo = MutableStateFlow<com.wally.musesick.repository.YtAccountInfo?>(
+        settingsRepository.getYtUserName()?.let { name ->
+            com.wally.musesick.repository.YtAccountInfo(
+                name = name,
+                handle = settingsRepository.getYtUserHandle() ?: "",
+                avatarUrl = settingsRepository.getYtUserAvatarUrl()
+            )
+        }
+    )
+    val ytAccountInfo: StateFlow<com.wally.musesick.repository.YtAccountInfo?> = _ytAccountInfo.asStateFlow()
+
+    private val _isSyncingYtAccount = MutableStateFlow(false)
+    val isSyncingYtAccount: StateFlow<Boolean> = _isSyncingYtAccount.asStateFlow()
+
     private var searchJob: Job? = null
 
     init {
+        ytRepository.cookie = settingsRepository.getYtMusicCookie()
         loadArtists()
         loadLocalTracks()
         loadPlaylists()
@@ -278,6 +294,91 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         loadRecentSearches()
         observePlaybackForRecentHistory()
         observePlaybackForLyrics()
+        if (!ytRepository.cookie.isNullOrBlank()) {
+            refreshYtAccountAndPlaylists(silent = true)
+        }
+    }
+
+    fun onYtMusicLoginSuccess(cookie: String, fallbackName: String? = null, fallbackAvatarUrl: String? = null) {
+        settingsRepository.setYtMusicCookie(cookie)
+        ytRepository.cookie = cookie
+        refreshYtAccountAndPlaylists(
+            silent = false,
+            fallbackName = fallbackName,
+            fallbackAvatarUrl = fallbackAvatarUrl
+        )
+    }
+
+    fun refreshYtAccountAndPlaylists(
+        silent: Boolean = false,
+        fallbackName: String? = null,
+        fallbackAvatarUrl: String? = null
+    ) {
+        viewModelScope.launch {
+            _isSyncingYtAccount.value = true
+            try {
+                val fetchedAccount = ytRepository.fetchAccountInfo(fallbackAccountName = fallbackName)
+                val savedName = settingsRepository.getYtUserName()
+
+                val resolvedName = when {
+                    !fetchedAccount?.name.isNullOrBlank() -> fetchedAccount!!.name
+                    !fallbackName.isNullOrBlank() -> fallbackName
+                    !savedName.isNullOrBlank() -> savedName
+                    else -> "YouTube Music User"
+                }
+                val resolvedHandle = fetchedAccount?.handle
+                    ?: settingsRepository.getYtUserHandle()
+                    ?: ""
+                val resolvedAvatar = fetchedAccount?.avatarUrl
+                    ?: fallbackAvatarUrl?.takeIf { it.isNotBlank() }
+                    ?: settingsRepository.getYtUserAvatarUrl()
+
+                val info = com.wally.musesick.repository.YtAccountInfo(
+                    name = resolvedName,
+                    handle = resolvedHandle,
+                    avatarUrl = resolvedAvatar
+                )
+                settingsRepository.setYtUserName(info.name)
+                settingsRepository.setYtUserHandle(info.handle)
+                settingsRepository.setYtUserAvatarUrl(info.avatarUrl)
+                _ytAccountInfo.value = info
+
+                val ytPlaylists = ytRepository.fetchUserLibraryPlaylists()
+                if (ytPlaylists.isNotEmpty()) {
+                    val updated = playlistRepository.syncYouTubePlaylists(ytPlaylists)
+                    _playlists.value = updated
+                    if (!silent) {
+                        _updateToastMessage.value = "Signed in as ${info.name} • Synced ${ytPlaylists.size} playlists"
+                    }
+                } else if (!silent) {
+                    _updateToastMessage.value = "Signed in as ${info.name}"
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                if (!silent) {
+                    _updateToastMessage.value = "Logged in, but failed to sync some playlists"
+                }
+            } finally {
+                _isSyncingYtAccount.value = false
+            }
+        }
+    }
+
+    fun logoutYtMusic() {
+        viewModelScope.launch {
+            try {
+                android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                android.webkit.CookieManager.getInstance().flush()
+            } catch (_: Exception) {}
+            settingsRepository.clearYtAccount()
+            ytRepository.cookie = null
+            ytRepository.accessToken = null
+            ytRepository.profileAccessToken = null
+            _ytAccountInfo.value = null
+            val updated = playlistRepository.removeSyncedYouTubePlaylists()
+            _playlists.value = updated
+            _updateToastMessage.value = "Logged out of YouTube Music"
+        }
     }
 
     private fun observePlaybackForRecentHistory() {

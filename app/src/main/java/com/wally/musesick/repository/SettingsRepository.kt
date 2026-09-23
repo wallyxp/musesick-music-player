@@ -24,7 +24,52 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_PLAYER_THEME_VARIANT = "player_theme_variant"
         private const val KEY_CUSTOM_ACCENT_COLOR = "custom_accent_color"
         private const val KEY_CUSTOM_THEME_IMAGE_PATH = "custom_theme_image_path"
+        private const val KEY_YT_MUSIC_COOKIE = "yt_music_cookie"
+        private const val KEY_YT_USER_NAME = "yt_user_name"
+        private const val KEY_YT_USER_HANDLE = "yt_user_handle"
+        private const val KEY_YT_USER_AVATAR_URL = "yt_user_avatar_url"
         const val DEFAULT_ACCENT_COLOR = 0xFF6750A4.toInt() // Royal Violet
+    }
+
+    fun getYtMusicCookie(): String? {
+        return prefs.getString(KEY_YT_MUSIC_COOKIE, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setYtMusicCookie(cookie: String?) {
+        prefs.edit().putString(KEY_YT_MUSIC_COOKIE, cookie).apply()
+    }
+
+    fun getYtUserName(): String? {
+        return prefs.getString(KEY_YT_USER_NAME, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setYtUserName(name: String?) {
+        prefs.edit().putString(KEY_YT_USER_NAME, name).apply()
+    }
+
+    fun getYtUserHandle(): String? {
+        return prefs.getString(KEY_YT_USER_HANDLE, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setYtUserHandle(handle: String?) {
+        prefs.edit().putString(KEY_YT_USER_HANDLE, handle).apply()
+    }
+
+    fun getYtUserAvatarUrl(): String? {
+        return prefs.getString(KEY_YT_USER_AVATAR_URL, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setYtUserAvatarUrl(url: String?) {
+        prefs.edit().putString(KEY_YT_USER_AVATAR_URL, url).apply()
+    }
+
+    fun clearYtAccount() {
+        prefs.edit()
+            .remove(KEY_YT_MUSIC_COOKIE)
+            .remove(KEY_YT_USER_NAME)
+            .remove(KEY_YT_USER_HANDLE)
+            .remove(KEY_YT_USER_AVATAR_URL)
+            .apply()
     }
 
     fun hasCompletedArtistOnboarding(): Boolean {

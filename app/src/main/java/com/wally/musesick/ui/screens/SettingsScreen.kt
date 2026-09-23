@@ -82,6 +82,15 @@ import com.wally.musesick.model.AccentColorPresets
 import com.wally.musesick.model.AppTheme
 import com.wally.musesick.model.ColorPreset
 import com.wally.musesick.model.PlayerStyle
+import com.wally.musesick.repository.YtAccountInfo
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 /**
  * Main Settings Window
@@ -94,12 +103,60 @@ fun SettingsScreen(
     appThemeVariant: String = "",
     customAccentColor: Color,
     isCheckingUpdate: Boolean,
+    ytAccountInfo: YtAccountInfo? = null,
+    isSyncingYtAccount: Boolean = false,
+    onLoginYtMusic: () -> Unit = {},
+    onSyncYtMusic: () -> Unit = {},
+    onLogoutYtMusic: () -> Unit = {},
     onBack: () -> Unit,
     onCheckForUpdates: () -> Unit,
     onOpenNowPlaying: () -> Unit,
     onOpenAppTheme: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showAccountOptionsDialog by remember { mutableStateOf(false) }
+
+    if (showAccountOptionsDialog && ytAccountInfo != null) {
+        AlertDialog(
+            onDismissRequest = { showAccountOptionsDialog = false },
+            title = {
+                Text(
+                    text = ytAccountInfo.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "Your YouTube Music account is connected. You can re-sync your playlists or sign out.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showAccountOptionsDialog = false
+                        onSyncYtMusic()
+                    },
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text("Sync Playlists")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showAccountOptionsDialog = false
+                        onLogoutYtMusic()
+                    }
+                ) {
+                    Text("Log Out", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -121,8 +178,36 @@ fun SettingsScreen(
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
+
+            // Profile Avatar (Google Profile Picture when logged in, Default Profile Logo when Guest)
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!ytAccountInfo?.avatarUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = ytAccountInfo!!.avatarUrl,
+                        contentDescription = ytAccountInfo.name,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Default Profile",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
             Text(
-                text = "Settings",
+                text = ytAccountInfo?.name?.ifBlank { "Guest" } ?: "Guest",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
@@ -155,6 +240,28 @@ fun SettingsScreen(
                     subtitle = if (isCheckingUpdate) "Checking for new releases..." else "Current version: v$currentVersion",
                     isLoading = isCheckingUpdate,
                     onClick = onCheckForUpdates
+                )
+            }
+
+            // 2. Login with YouTube Music
+            item {
+                val isLoggedIn = ytAccountInfo != null
+                SettingsMenuCard(
+                    icon = Icons.Default.AccountCircle,
+                    title = if (isLoggedIn) "YouTube Music (${ytAccountInfo!!.name})" else "Login with YouTube Music",
+                    subtitle = when {
+                        isSyncingYtAccount -> "Syncing your YouTube Music playlists..."
+                        isLoggedIn -> "Connected • Tap to sync playlists or log out"
+                        else -> "Sign in with Google to sync your playlists & profile"
+                    },
+                    isLoading = isSyncingYtAccount,
+                    onClick = {
+                        if (isLoggedIn) {
+                            showAccountOptionsDialog = true
+                        } else {
+                            onLoginYtMusic()
+                        }
+                    }
                 )
             }
 
@@ -219,7 +326,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Version $currentVersion • Clean Aesthetics",
+                        text = "Version $currentVersion",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -829,6 +936,7 @@ private fun SettingsMenuCard(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    badgeText: String? = null,
     trailingIcon: ImageVector? = null,
     isLoading: Boolean = false,
     onClick: () -> Unit
@@ -866,12 +974,33 @@ private fun SettingsMenuCard(
             Spacer(modifier = Modifier.width(14.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (!badgeText.isNullOrEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = badgeText,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = subtitle,

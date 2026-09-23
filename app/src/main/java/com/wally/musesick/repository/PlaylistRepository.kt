@@ -341,5 +341,33 @@ class PlaylistRepository(private val context: Context) {
         savePlaylists(all)
         return all
     }
-}
 
+    suspend fun syncYouTubePlaylists(ytPlaylists: List<com.wally.musesick.model.YouTubePlaylistData>): List<Playlist> = withContext(Dispatchers.IO) {
+        val existing = getPlaylists()
+        val existingById = existing.associateBy { it.id }
+        val localPlaylists = existing.filter { !it.id.startsWith("yt_sync_") }
+
+        val syncedPlaylists = ytPlaylists.map { ytPl ->
+            val syncId = "yt_sync_${ytPl.id}"
+            val prev = existingById[syncId]
+            Playlist(
+                id = syncId,
+                title = ytPl.title.trim(),
+                imageUri = ytPl.thumbnailUrl ?: prev?.imageUri,
+                tracks = if (ytPl.tracks.isNotEmpty()) ytPl.tracks else (prev?.tracks ?: emptyList()),
+                createdAt = prev?.createdAt ?: System.currentTimeMillis()
+            )
+        }
+
+        val combined = syncedPlaylists + localPlaylists
+        savePlaylists(combined)
+        combined
+    }
+
+    suspend fun removeSyncedYouTubePlaylists(): List<Playlist> = withContext(Dispatchers.IO) {
+        val existing = getPlaylists()
+        val localOnly = existing.filter { !it.id.startsWith("yt_sync_") }
+        savePlaylists(localOnly)
+        localOnly
+    }
+}

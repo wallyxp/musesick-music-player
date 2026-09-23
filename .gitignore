@@ -26,3 +26,4 @@ captures/
 # Log/OS files
 *.log
 Thumbs.db
+.vscode
