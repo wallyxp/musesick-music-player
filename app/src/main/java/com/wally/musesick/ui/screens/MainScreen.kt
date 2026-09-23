@@ -195,6 +195,7 @@ fun MainScreen(
     // YouTube Music Account State
     val ytAccountInfo by viewModel.ytAccountInfo.collectAsState()
     val isSyncingYtAccount by viewModel.isSyncingYtAccount.collectAsState()
+    val autoSyncInterval by viewModel.autoSyncInterval.collectAsState()
     var isYtLoginDialogOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(updateToastMessage) {
@@ -618,13 +619,31 @@ fun MainScreen(
                             isCheckingUpdate = isCheckingUpdate,
                             ytAccountInfo = ytAccountInfo,
                             isSyncingYtAccount = isSyncingYtAccount,
+                            autoSyncInterval = autoSyncInterval,
                             onLoginYtMusic = { isYtLoginDialogOpen = true },
                             onSyncYtMusic = { viewModel.refreshYtAccountAndPlaylists(silent = false) },
                             onLogoutYtMusic = { viewModel.logoutYtMusic() },
+                            onOpenAutoSync = { viewModel.openAutoSyncSettings() },
                             onBack = { viewModel.navigateBack() },
                             onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
                             onOpenNowPlaying = { viewModel.openNowPlayingSettings() },
                             onOpenAppTheme = { viewModel.openAppThemeSettings() }
+                        )
+                    }
+                    ScreenState.SETTINGS_AUTO_SYNC -> {
+                        SettingsAutoSyncScreen(
+                            selectedInterval = autoSyncInterval,
+                            isSyncing = isSyncingYtAccount,
+                            isLoggedIn = ytAccountInfo != null,
+                            onSelectInterval = { viewModel.setAutoSyncInterval(it) },
+                            onSyncNow = {
+                                if (ytAccountInfo != null) {
+                                    viewModel.refreshYtAccountAndPlaylists(silent = false)
+                                } else {
+                                    isYtLoginDialogOpen = true
+                                }
+                            },
+                            onBack = { viewModel.navigateBack() }
                         )
                     }
                     ScreenState.SETTINGS_NOW_PLAYING -> {

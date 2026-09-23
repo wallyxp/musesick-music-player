@@ -82,9 +82,11 @@ import com.wally.musesick.model.AccentColorPresets
 import com.wally.musesick.model.AppTheme
 import com.wally.musesick.model.ColorPreset
 import com.wally.musesick.model.PlayerStyle
+import com.wally.musesick.repository.SettingsRepository
 import com.wally.musesick.repository.YtAccountInfo
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
@@ -105,9 +107,11 @@ fun SettingsScreen(
     isCheckingUpdate: Boolean,
     ytAccountInfo: YtAccountInfo? = null,
     isSyncingYtAccount: Boolean = false,
+    autoSyncInterval: SettingsRepository.AutoSyncInterval = SettingsRepository.AutoSyncInterval.DAILY,
     onLoginYtMusic: () -> Unit = {},
     onSyncYtMusic: () -> Unit = {},
     onLogoutYtMusic: () -> Unit = {},
+    onOpenAutoSync: () -> Unit = {},
     onBack: () -> Unit,
     onCheckForUpdates: () -> Unit,
     onOpenNowPlaying: () -> Unit,
@@ -262,6 +266,18 @@ fun SettingsScreen(
                             onLoginYtMusic()
                         }
                     }
+                )
+            }
+
+            // 3. Automatic Sync
+            item {
+                SettingsMenuCard(
+                    icon = Icons.Default.Sync,
+                    title = "Automatic Sync",
+                    subtitle = autoSyncInterval.label,
+                    trailingIcon = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                    isLoading = isSyncingYtAccount,
+                    onClick = onOpenAutoSync
                 )
             }
 
@@ -1175,5 +1191,139 @@ private fun ColorPresetItem(
             maxLines = 1,
             color = MaterialTheme.colorScheme.onSurface
         )
+    }
+}
+
+/**
+ * Automatic Sync Sub-Screen:
+ * Allows choosing between Daily, Weekly, Monthly, and When I Choose to Sync,
+ * with a bottom-centered "Sync Now" button for immediate two-way syncing.
+ */
+@Composable
+fun SettingsAutoSyncScreen(
+    selectedInterval: SettingsRepository.AutoSyncInterval,
+    isSyncing: Boolean,
+    isLoggedIn: Boolean,
+    onSelectInterval: (SettingsRepository.AutoSyncInterval) -> Unit,
+    onSyncNow: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 88.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Automatic Sync",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
+            ) {
+                item {
+                    Text(
+                        text = "CHOOSE SYNC FREQUENCY",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                    )
+                }
+
+                items(SettingsRepository.AutoSyncInterval.values().toList()) { interval ->
+                    ThemeOptionSelectCard(
+                        title = interval.label,
+                        description = interval.subtitle,
+                        icon = Icons.Default.Sync,
+                        isSelected = selectedInterval == interval,
+                        onClick = { onSelectInterval(interval) }
+                    )
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = if (isLoggedIn) {
+                            "Any playlists you create or edit in Musesick are automatically reflected on your YouTube Music playlists. Existing local playlists are also uploaded and linked when syncing."
+                        } else {
+                            "Log in with YouTube Music in Settings to enable two-way playlist syncing."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 18.sp,
+                        modifier = Modifier.padding(horizontal = 6.dp)
+                    )
+                }
+            }
+        }
+
+        // Bottom-Centered "Sync Now" Button
+        Button(
+            onClick = onSyncNow,
+            enabled = !isSyncing,
+            shape = RoundedCornerShape(24.dp),
+            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 24.dp)
+        ) {
+            if (isSyncing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Syncing...",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Sync,
+                    contentDescription = "Sync Now",
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Sync Now",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }

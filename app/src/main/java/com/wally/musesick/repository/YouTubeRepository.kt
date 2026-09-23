@@ -1626,6 +1626,207 @@ class YouTubeRepository {
         result
     }
 
+    suspend fun resolveVideoIdForTrack(track: Track): String? = withContext(Dispatchers.IO) {
+        val rawId = track.id.trim()
+        // Standard YouTube video IDs are 11 characters without hyphens/spaces
+        if (!track.isLocal && rawId.length == 11 && !rawId.contains("-")) {
+            return@withContext rawId
+        }
+        try {
+            val query = "${track.title} ${track.artist}".trim()
+            val found = searchTracks(query).firstOrNull()
+            found?.id?.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun createYouTubePlaylist(
+        title: String,
+        videoIds: List<String> = emptyList(),
+        privacyStatus: String = "PRIVATE"
+    ): String? = withContext(Dispatchers.IO) {
+        if (cookie.isNullOrBlank() && accessToken.isNullOrBlank()) return@withContext null
+        try {
+            val cleanTitle = title.trim().ifEmpty { "Musesick Playlist" }
+            val payload = JSONObject().apply {
+                put("context", createClientContext())
+                put("title", cleanTitle)
+                put("description", "Synced with Musesick")
+                put("privacyStatus", privacyStatus)
+                if (videoIds.isNotEmpty()) {
+                    val vArr = JSONArray()
+                    videoIds.distinct().forEach { vId ->
+                        if (vId.isNotBlank()) vArr.put(vId)
+                    }
+                    put("videoIds", vArr)
+                }
+            }
+            val res = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/playlist/create",
+                payload
+            ) ?: return@withContext null
+            val root = JSONObject(res)
+            val createdId = root.optString("playlistId", "").removePrefix("VL").trim()
+            if (createdId.isNotEmpty()) {
+                return@withContext createdId
+            }
+            null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun renameYouTubePlaylist(playlistId: String, newTitle: String): Boolean = withContext(Dispatchers.IO) {
+        if (cookie.isNullOrBlank() && accessToken.isNullOrBlank()) return@withContext false
+        val cleanId = playlistId.removePrefix("yt_sync_").removePrefix("VL").trim()
+        if (cleanId.isEmpty()) return@withContext false
+        try {
+            val actions = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("action", "ACTION_SET_PLAYLIST_NAME")
+                    put("playlistName", newTitle.trim())
+                })
+            }
+            val payload = JSONObject().apply {
+                put("context", createClientContext())
+                put("playlistId", cleanId)
+                put("actions", actions)
+            }
+            val res = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse/edit_playlist",
+                payload
+            )
+            res != null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun addVideosToYouTubePlaylist(playlistId: String, videoIds: List<String>): Boolean = withContext(Dispatchers.IO) {
+        if (cookie.isNullOrBlank() && accessToken.isNullOrBlank()) return@withContext false
+        val cleanId = playlistId.removePrefix("yt_sync_").removePrefix("VL").trim()
+        val validIds = videoIds.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (cleanId.isEmpty() || validIds.isEmpty()) return@withContext false
+        try {
+            val actions = JSONArray()
+            for (vId in validIds) {
+                actions.put(JSONObject().apply {
+                    put("action", "ACTION_ADD_VIDEO")
+                    put("addedVideoId", vId)
+                    put("dedupeOption", "DEDUPE_OPTION_SKIP")
+                })
+            }
+            val payload = JSONObject().apply {
+                put("context", createClientContext())
+                put("playlistId", cleanId)
+                put("actions", actions)
+            }
+            val res = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse/edit_playlist",
+                payload
+            )
+            res != null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun removeVideoFromYouTubePlaylist(playlistId: String, videoId: String): Boolean = withContext(Dispatchers.IO) {
+        if (cookie.isNullOrBlank() && accessToken.isNullOrBlank()) return@withContext false
+        val cleanId = playlistId.removePrefix("yt_sync_").removePrefix("VL").trim()
+        if (cleanId.isEmpty() || videoId.isBlank()) return@withContext false
+        try {
+            // Browse the playlist first to locate the setVideoId for this videoId
+            val browseJson = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse",
+                JSONObject().apply {
+                    put("context", createClientContext())
+                    put("browseId", "VL$cleanId")
+                }
+            )
+            var foundSetVideoId: String? = null
+            if (browseJson != null) {
+                fun findSetId(node: Any?) {
+                    if (foundSetVideoId != null) return
+                    when (node) {
+                        is JSONObject -> {
+                            val itemData = node.optJSONObject("playlistItemData")
+                            if (itemData != null && itemData.optString("videoId") == videoId) {
+                                val setVid = itemData.optString("playlistSetVideoId", "").trim()
+                                if (setVid.isNotEmpty()) {
+                                    foundSetVideoId = setVid
+                                    return
+                                }
+                            }
+                            if (node.optString("removedVideoId") == videoId) {
+                                val setVid = node.optString("setVideoId", "").trim()
+                                if (setVid.isNotEmpty()) {
+                                    foundSetVideoId = setVid
+                                    return
+                                }
+                            }
+                            val keys = node.keys()
+                            while (keys.hasNext()) {
+                                findSetId(node.get(keys.next()))
+                            }
+                        }
+                        is JSONArray -> {
+                            for (i in 0 until node.length()) {
+                                findSetId(node.get(i))
+                            }
+                        }
+                    }
+                }
+                findSetId(JSONObject(browseJson))
+            }
+
+            val actionObj = JSONObject().apply {
+                put("action", "ACTION_REMOVE_VIDEO")
+                put("removedVideoId", videoId)
+                if (!foundSetVideoId.isNullOrEmpty()) {
+                    put("setVideoId", foundSetVideoId)
+                }
+            }
+            val payload = JSONObject().apply {
+                put("context", createClientContext())
+                put("playlistId", cleanId)
+                put("actions", JSONArray().put(actionObj))
+            }
+            val res = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/browse/edit_playlist",
+                payload
+            )
+            res != null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    suspend fun deleteYouTubePlaylist(playlistId: String): Boolean = withContext(Dispatchers.IO) {
+        if (cookie.isNullOrBlank() && accessToken.isNullOrBlank()) return@withContext false
+        val cleanId = playlistId.removePrefix("yt_sync_").removePrefix("VL").trim()
+        if (cleanId.isEmpty()) return@withContext false
+        try {
+            val payload = JSONObject().apply {
+                put("context", createClientContext())
+                put("playlistId", cleanId)
+            }
+            val res = executeInnerTubeRequest(
+                "https://music.youtube.com/youtubei/v1/playlist/delete",
+                payload
+            )
+            res != null
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
     private fun executeInnerTubeRequest(urlStr: String, payload: JSONObject): String? {
         val url = URL(urlStr)
         val token = accessToken?.takeIf { it.isNotBlank() } ?: profileAccessToken?.takeIf { it.isNotBlank() }
