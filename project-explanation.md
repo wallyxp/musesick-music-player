@@ -1,7 +1,7 @@
 # Musesick Music Player — Complete Technical & Architectural Documentation
 
 **Package Name:** `com.wally.musesick`
-**Current Version:** `1.1.4` (`versionCode = 9`)
+**Current Version:** `1.1.5` (`versionCode = 10`)
 **Target / Compile SDK:** Android 15 (`API 35`), Minimum SDK: Android 8.0 (`API 26`)
 
 ---
@@ -107,7 +107,7 @@ All InnerTube requests use `POST` with `Content-Type: application/json`, `X-Goog
 * **[`settings.gradle.kts`](file:///Users/admin/Desktop/musesick-music-player/settings.gradle.kts)**: Configures Gradle plugin repositories (`google()`, `mavenCentral()`, `gradlePluginPortal()`), sets `rootProject.name = "Musesick"`, and includes the `:app` module.
 * **[`build.gradle.kts`](file:///Users/admin/Desktop/musesick-music-player/build.gradle.kts)**: Top-level Gradle build script declaring the Android Application plugin, Kotlin Android plugin, and Compose Compiler plugin versions.
 * **[`gradle.properties`](file:///Users/admin/Desktop/musesick-music-player/gradle.properties)**: Configures JVM heap memory args (`org.gradle.jvmargs`), AndroidX flags (`android.useAndroidX=true`), and Kotlin code style.
-* **[`app/build.gradle.kts`](file:///Users/admin/Desktop/musesick-music-player/app/build.gradle.kts)**: Module-level Gradle configuration defining namespace `com.wally.musesick`, `compileSdk = 35`, `minSdk = 26`, `versionName = "1.1.4"`, Java 21 compatibility, Jetpack Compose features, and all library dependencies.
+* **[`app/build.gradle.kts`](file:///Users/admin/Desktop/musesick-music-player/app/build.gradle.kts)**: Module-level Gradle configuration defining namespace `com.wally.musesick`, `compileSdk = 35`, `minSdk = 26`, `versionName = "1.1.5"`, Java 21 compatibility, Jetpack Compose features, and all library dependencies.
 * **[`app/proguard-rules.pro`](file:///Users/admin/Desktop/musesick-music-player/app/proguard-rules.pro)**: ProGuard/R8 shrinking and obfuscation rules for release builds.
 * **[`app/src/main/AndroidManifest.xml`](file:///Users/admin/Desktop/musesick-music-player/app/src/main/AndroidManifest.xml)**:
   * Declares permissions: `INTERNET`, `READ_MEDIA_AUDIO`, `READ_EXTERNAL_STORAGE`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `WAKE_LOCK`, `POST_NOTIFICATIONS`, and `REQUEST_INSTALL_PACKAGES`.
