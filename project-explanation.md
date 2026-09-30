@@ -287,6 +287,8 @@ All InnerTube requests use `POST` with `Content-Type: application/json`, `X-Goog
   * Dynamic Compose `MaterialTheme` wrapper (`MusesickTheme`) that computes ambient gradient brushes (`rememberAmbientBrush`) and applies user-selected color schemes (`AMOLED`, `MOCHA`, `OCEAN`, `FOREST`, `SAKURA`, `CUSTOM_COLOR`, `CUSTOM_IMAGE`).
 * **[`LrcParser.kt`](file:///Users/admin/Desktop/musesick-music-player/app/src/main/java/com/wally/musesick/util/LrcParser.kt)**:
   * Regex parser that converts standard `[mm:ss.xx]` or `[mm:ss.xxx]` `.lrc` text into sorted `List<LyricLine>` objects.
+* **[`ShareHelper.kt`](file:///Users/admin/Desktop/musesick-music-player/app/src/main/java/com/wally/musesick/util/ShareHelper.kt)**:
+  * Utility for handling song and album sharing. For local audio tracks, invokes Android's share chooser with the raw audio file stream (`audio/*`, `Intent.EXTRA_STREAM` with read permissions); for streaming tracks and albums, shares the canonical YouTube Music web links (`https://music.youtube.com/watch?v=...`, `https://music.youtube.com/browse/...`).
 * **[`UpdateManager.kt`](file:///Users/admin/Desktop/musesick-music-player/app/src/main/java/com/wally/musesick/update/UpdateManager.kt)**:
   * Handles semantic version comparison (`isNewerVersion`), GitHub Release API polling, streaming APK downloads with live progress callbacks, and `FileProvider` APK installation (`application/vnd.android.package-archive`).
 

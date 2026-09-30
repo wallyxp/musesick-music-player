@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
@@ -138,6 +139,7 @@ fun FullPlayerSheet(
     ambientBrush: Brush? = null,
     lyricsState: LyricsUiState = LyricsUiState.Idle,
     onSeekToPosition: (Long) -> Unit = {},
+    onShareTrack: (Track) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isFullscreen = playerStyle == PlayerStyle.FULLSCREEN_ALBUM_ART
@@ -173,6 +175,7 @@ fun FullPlayerSheet(
                 ambientBrush = ambientBrush,
                 lyricsState = lyricsState,
                 onSeekToPosition = onSeekToPosition,
+                onShareTrack = onShareTrack,
                 modifier = modifier
             )
         }
@@ -201,6 +204,7 @@ fun FullPlayerSheet(
             ambientBrush = ambientBrush,
             lyricsState = lyricsState,
             onSeekToPosition = onSeekToPosition,
+            onShareTrack = onShareTrack,
             modifier = modifier
         )
     }
@@ -232,6 +236,7 @@ private fun FullPlayerSheetInternal(
     ambientBrush: Brush? = null,
     lyricsState: LyricsUiState = LyricsUiState.Idle,
     onSeekToPosition: (Long) -> Unit = {},
+    onShareTrack: (Track) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val track = state.currentTrack ?: return
@@ -784,6 +789,26 @@ private fun FullPlayerSheetInternal(
                         Text(
                             text = "Queue (${queue.size})",
                             color = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // Share button (Icon only)
+                    FilledTonalIconButton(
+                        onClick = { onShareTrack(track) },
+                        colors = if (isFullscreen || isCustomOrAmbient) {
+                            IconButtonDefaults.filledTonalIconButtonColors(
+                                containerColor = Color.White.copy(alpha = 0.2f),
+                                contentColor = Color.White
+                            )
+                        } else {
+                            IconButtonDefaults.filledTonalIconButtonColors()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share",
+                            tint = if (isFullscreen || isCustomOrAmbient) Color.White else MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
