@@ -246,4 +246,3 @@ fun AlbumDetailScreen(
         }
     }
 }
-

@@ -657,6 +657,36 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun playArtist(artist: Artist, shuffle: Boolean = false) {
+        val currentSongs = if (_artistSongs.value.isNotEmpty()) {
+            _artistSongs.value
+        } else if (_allArtistTracks.value.isNotEmpty()) {
+            _allArtistTracks.value
+        } else emptyList()
+
+        if (currentSongs.isNotEmpty()) {
+            if (shuffle) shuffleAll(currentSongs) else playAll(currentSongs)
+            return
+        }
+
+        viewModelScope.launch {
+            _isArtistLoading.value = true
+            val tracks = if (currentArtistDetailData?.songs?.isNotEmpty() == true) {
+                currentArtistDetailData!!.songs
+            } else {
+                val details = ytRepository.getArtistDetails(artist)
+                currentArtistDetailData = details
+                _artistAlbums.value = details.albums
+                _artistSongs.value = details.songs
+                details.songs
+            }
+            _isArtistLoading.value = false
+            if (tracks.isNotEmpty()) {
+                if (shuffle) shuffleAll(tracks) else playAll(tracks)
+            }
+        }
+    }
+
     fun selectAlbum(album: Album) {
         _selectedAlbum.value = album
         _albumTracks.value = emptyList()

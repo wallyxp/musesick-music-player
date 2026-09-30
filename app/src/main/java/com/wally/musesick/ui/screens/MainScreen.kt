@@ -483,6 +483,8 @@ fun MainScreen(
                                 onSongClick = { track, list -> viewModel.playTrack(track, list) },
                                 onSongLongClick = { viewModel.openSongMenu(it) },
                                 onSeeMoreSongs = { viewModel.openArtistSongsList() },
+                                onPlay = { viewModel.playArtist(artist, shuffle = false) },
+                                onShufflePlay = { viewModel.playArtist(artist, shuffle = true) },
                                 isFavorite = favoriteArtists.any { it.id == artist.id },
                                 onToggleFavorite = { viewModel.toggleFavoriteArtist(artist) }
                             )

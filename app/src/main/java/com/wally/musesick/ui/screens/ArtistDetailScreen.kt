@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
@@ -82,6 +84,8 @@ fun ArtistDetailScreen(
     onSongClick: (Track, List<Track>) -> Unit,
     onSongLongClick: ((Track) -> Unit)? = null,
     onSeeMoreSongs: () -> Unit,
+    onPlay: () -> Unit = {},
+    onShufflePlay: () -> Unit = {},
     isFavorite: Boolean = false,
     onToggleFavorite: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -223,6 +227,44 @@ fun ArtistDetailScreen(
                                 fontWeight = FontWeight.Black,
                                 color = Color.White
                             )
+                        }
+                    }
+                }
+
+                // Play and Shuffle Play Action Buttons
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = onPlay,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Play", fontWeight = FontWeight.SemiBold)
+                        }
+
+                        OutlinedButton(
+                            onClick = onShufflePlay,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Shuffle,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Shuffle Play", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
