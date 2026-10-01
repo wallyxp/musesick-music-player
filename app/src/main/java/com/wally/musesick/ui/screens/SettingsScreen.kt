@@ -32,13 +32,10 @@ import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Coffee
-import androidx.compose.material.icons.filled.CropPortrait
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Park
 import androidx.compose.material.icons.filled.Pets
-import androidx.compose.material.icons.filled.PlayCircleOutline
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Tune
@@ -81,7 +78,6 @@ import java.io.File
 import com.wally.musesick.model.AccentColorPresets
 import com.wally.musesick.model.AppTheme
 import com.wally.musesick.model.ColorPreset
-import com.wally.musesick.model.PlayerStyle
 import com.wally.musesick.repository.SettingsRepository
 import com.wally.musesick.repository.YtAccountInfo
 import androidx.compose.material.icons.filled.AccountCircle
@@ -100,7 +96,6 @@ import androidx.compose.runtime.setValue
 @Composable
 fun SettingsScreen(
     currentVersion: String,
-    playerStyle: PlayerStyle,
     appTheme: AppTheme,
     appThemeVariant: String = "",
     customAccentColor: Color,
@@ -114,7 +109,6 @@ fun SettingsScreen(
     onOpenAutoSync: () -> Unit = {},
     onBack: () -> Unit,
     onCheckForUpdates: () -> Unit,
-    onOpenNowPlaying: () -> Unit,
     onOpenAppTheme: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -293,18 +287,7 @@ fun SettingsScreen(
                 )
             }
 
-            // 2. Now Playing
-            item {
-                SettingsMenuCard(
-                    icon = Icons.Default.PlayCircleOutline,
-                    title = "Now Playing",
-                    subtitle = playerStyle.displayName,
-                    trailingIcon = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                    onClick = onOpenNowPlaying
-                )
-            }
-
-            // 3. App Theme
+            // App Theme
             item {
                 val themeSubtitle = if (appTheme == AppTheme.CUSTOM_COLOR) {
                     val match = AccentColorPresets.find { it.primaryColor == customAccentColor }
@@ -347,183 +330,6 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-            }
-        }
-    }
-}
-
-/**
- * Dedicated Now Playing Settings Sub-Window
- */
-@Composable
-fun SettingsNowPlayingScreen(
-    currentStyle: PlayerStyle,
-    currentPlayerTheme: AppTheme?,
-    currentPlayerThemeVariant: String?,
-    customAccentColor: Color,
-    onStyleSelected: (PlayerStyle) -> Unit,
-    onPlayerThemeSelected: (AppTheme?, String?) -> Unit,
-    onPlayerThemeVariantSelected: (String) -> Unit,
-    onColorSelected: (Color) -> Unit,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .navigationBarsPadding()
-    ) {
-        // Top Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                Text(
-                    text = "Now Playing",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "Select visual style & theme for player screen",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 10.dp, bottom = 32.dp)
-        ) {
-            item {
-                Text(
-                    text = "DISPLAY STYLE",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
-                )
-            }
-
-            // Option 1: Full Screen Album Art
-            item {
-                ThemeOptionSelectCard(
-                    title = PlayerStyle.FULLSCREEN_ALBUM_ART.displayName,
-                    description = PlayerStyle.FULLSCREEN_ALBUM_ART.description,
-                    icon = Icons.Default.Fullscreen,
-                    isSelected = currentStyle == PlayerStyle.FULLSCREEN_ALBUM_ART,
-                    onClick = { onStyleSelected(PlayerStyle.FULLSCREEN_ALBUM_ART) }
-                )
-            }
-
-            // Option 2: Non Full Screen Album Art
-            item {
-                ThemeOptionSelectCard(
-                    title = PlayerStyle.NON_FULLSCREEN_ALBUM_ART.displayName,
-                    description = PlayerStyle.NON_FULLSCREEN_ALBUM_ART.description,
-                    icon = Icons.Default.CropPortrait,
-                    isSelected = currentStyle == PlayerStyle.NON_FULLSCREEN_ALBUM_ART,
-                    onClick = { onStyleSelected(PlayerStyle.NON_FULLSCREEN_ALBUM_ART) }
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "PLAYER THEME",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
-                )
-                Text(
-                    text = "Styles controls & surfaces when Non Full Screen Album Art is active. Retains Material You player layout.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
-                )
-            }
-
-            // Option 0: Match App Theme
-            item {
-                ThemeOptionSelectCard(
-                    title = "Match App Theme",
-                    description = "",
-                    icon = Icons.Default.Tune,
-                    isSelected = currentPlayerTheme == null,
-                    onClick = { onPlayerThemeSelected(null, null) }
-                )
-            }
-
-            // Themes List
-            items(AppTheme.values().filter { it != AppTheme.CUSTOM_IMAGE }, key = { it.name }) { theme ->
-                val isThemeSelected = currentPlayerTheme == theme
-                val effectiveVariant = if (isThemeSelected) {
-                    currentPlayerThemeVariant ?: theme.defaultVariant
-                } else {
-                    theme.defaultVariant
-                }
-
-                ThemeCardWithVariants(
-                    theme = theme,
-                    isSelected = isThemeSelected,
-                    selectedVariant = effectiveVariant,
-                    icon = getThemeIcon(theme),
-                    onSelectTheme = { t, v -> onPlayerThemeSelected(t, v) },
-                    onSelectVariant = { v -> onPlayerThemeVariantSelected(v) },
-                    customContent = if (theme == AppTheme.CUSTOM_COLOR && isThemeSelected) {
-                        {
-                            Spacer(modifier = Modifier.height(14.dp))
-                            Text(
-                                text = "SELECT ACCENT COLOR",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
-                            )
-
-                            LazyVerticalGrid(
-                                columns = GridCells.Fixed(5),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(160.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                items(AccentColorPresets, key = { it.id }) { preset ->
-                                    val isColorChosen = preset.primaryColor == customAccentColor
-                                    ColorPresetItem(
-                                        preset = preset,
-                                        isSelected = isColorChosen,
-                                        onClick = {
-                                            onColorSelected(preset.primaryColor)
-                                            onPlayerThemeSelected(AppTheme.CUSTOM_COLOR, null)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    } else null
-                )
             }
         }
     }

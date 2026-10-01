@@ -113,12 +113,11 @@ class SettingsRepository(private val context: Context) {
     }
 
     fun getPlayerStyle(): PlayerStyle {
-        val styleName = prefs.getString(KEY_PLAYER_STYLE, PlayerStyle.FULLSCREEN_ALBUM_ART.name)
-        return PlayerStyle.fromString(styleName)
+        return PlayerStyle.FULLSCREEN_ALBUM_ART
     }
 
     fun setPlayerStyle(style: PlayerStyle) {
-        prefs.edit().putString(KEY_PLAYER_STYLE, style.name).apply()
+        prefs.edit().putString(KEY_PLAYER_STYLE, PlayerStyle.FULLSCREEN_ALBUM_ART.name).apply()
     }
 
     fun getAppTheme(): AppTheme {

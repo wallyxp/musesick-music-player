@@ -50,7 +50,6 @@ enum class ScreenState {
     SEARCH,
     RECENTLY_PLAYED,
     SETTINGS,
-    SETTINGS_NOW_PLAYING,
     SETTINGS_APP_THEME,
     SETTINGS_AUTO_SYNC
 }
@@ -732,10 +731,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 closeArtistManager()
                 true
             }
-            ScreenState.SETTINGS_NOW_PLAYING -> {
-                _currentScreen.value = ScreenState.SETTINGS
-                true
-            }
             ScreenState.SETTINGS_APP_THEME -> {
                 _currentScreen.value = ScreenState.SETTINGS
                 true
@@ -799,17 +794,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeSettings() {
         if (_currentScreen.value == ScreenState.SETTINGS ||
-            _currentScreen.value == ScreenState.SETTINGS_NOW_PLAYING ||
             _currentScreen.value == ScreenState.SETTINGS_APP_THEME ||
             _currentScreen.value == ScreenState.SETTINGS_AUTO_SYNC
         ) {
             _currentScreen.value = ScreenState.HOME
         }
         _isSettingsDialogOpen.value = false
-    }
-
-    fun openNowPlayingSettings() {
-        _currentScreen.value = ScreenState.SETTINGS_NOW_PLAYING
     }
 
     fun openAppThemeSettings() {

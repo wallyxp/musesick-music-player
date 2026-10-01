@@ -85,7 +85,6 @@ import com.wally.musesick.ui.components.UpdateDialog
 import com.wally.musesick.ui.components.YouTubeLoginDialog
 import com.wally.musesick.ui.screens.ArtistOnboardingScreen
 import com.wally.musesick.ui.screens.SettingsAppThemeScreen
-import com.wally.musesick.ui.screens.SettingsNowPlayingScreen
 import com.wally.musesick.ui.screens.SettingsScreen
 import com.wally.musesick.ui.theme.rememberAmbientBrush
 
@@ -614,7 +613,6 @@ fun MainScreen(
                     ScreenState.SETTINGS -> {
                         SettingsScreen(
                             currentVersion = viewModel.currentAppVersion,
-                            playerStyle = playerStyle,
                             appTheme = appTheme,
                             appThemeVariant = appThemeVariant,
                             customAccentColor = customAccentColor,
@@ -628,7 +626,6 @@ fun MainScreen(
                             onOpenAutoSync = { viewModel.openAutoSyncSettings() },
                             onBack = { viewModel.navigateBack() },
                             onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
-                            onOpenNowPlaying = { viewModel.openNowPlayingSettings() },
                             onOpenAppTheme = { viewModel.openAppThemeSettings() }
                         )
                     }
@@ -645,19 +642,6 @@ fun MainScreen(
                                     isYtLoginDialogOpen = true
                                 }
                             },
-                            onBack = { viewModel.navigateBack() }
-                        )
-                    }
-                    ScreenState.SETTINGS_NOW_PLAYING -> {
-                        SettingsNowPlayingScreen(
-                            currentStyle = playerStyle,
-                            currentPlayerTheme = playerTheme,
-                            currentPlayerThemeVariant = playerThemeVariant,
-                            customAccentColor = customAccentColor,
-                            onStyleSelected = { viewModel.setPlayerStyle(it) },
-                            onPlayerThemeSelected = { theme, variant -> viewModel.setPlayerTheme(theme, variant) },
-                            onPlayerThemeVariantSelected = { viewModel.setPlayerThemeVariant(it) },
-                            onColorSelected = { viewModel.setCustomAccentColor(it) },
                             onBack = { viewModel.navigateBack() }
                         )
                     }
@@ -805,16 +789,21 @@ fun MainScreen(
             onRemoveFromQueue = { viewModel.removeFromQueue(it) },
             onTrackMenuClick = { viewModel.openSongMenu(it) },
             onClose = { viewModel.closeFullPlayer() },
-            playerStyle = playerStyle,
-            playerTheme = playerTheme,
-            playerThemeVariant = playerThemeVariant,
             isQueueReorderable = isQueueReorderable,
-            customAccentColor = customAccentColor,
-            appTheme = appTheme,
-            customThemeImagePath = customThemeImagePath,
-            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null,
             lyricsState = lyricsState,
-            onSeekToPosition = { viewModel.seekToPosition(it) }
+            onSeekToPosition = { viewModel.seekToPosition(it) },
+            onShareTrack = { track ->
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    if (track.isLocal) {
+                        putExtra(Intent.EXTRA_TEXT, "Listening to ${track.title} by ${track.artist}")
+                    } else {
+                        putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${track.id}")
+                    }
+                }
+                val shareIntent = Intent.createChooser(sendIntent, null)
+                context.startActivity(shareIntent)
+            }
         )
     }
 
