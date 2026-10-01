@@ -20,6 +20,9 @@ public final class MusicViewModel: ObservableObject {
     @Published public var favoriteArtists: [Artist] = []
     @Published public var recentlyPlayed: [Track] = []
     @Published public var suggestedTracks: [Track] = []
+    @Published public var likedSongs: [Track] = []
+    @Published public var fromYourArtistsTracks: [Track] = []
+    @Published public var genreSuggestedTracks: [Track] = []
     @Published public var showFavoriteArtistsPrompt: Bool = false
     @Published public var isSearchingArtists: Bool = false
     @Published public var searchedArtists: [Artist] = []
@@ -30,6 +33,7 @@ public final class MusicViewModel: ObservableObject {
     public init() {
         loadFavoriteArtists()
         loadRecentlyPlayed()
+        loadLikedSongs()
         setupTrackPlaybackObserver()
         loadInitialData()
     }
@@ -235,40 +239,83 @@ public final class MusicViewModel: ObservableObject {
         isSearchingArtists = false
     }
 
-    // MARK: - Suggested Tracks
+    // MARK: - Liked Songs
+
+    public func isLiked(track: Track) -> Bool {
+        likedSongs.contains(where: { $0.id == track.id })
+    }
+
+    public func toggleLike(track: Track) {
+        if let idx = likedSongs.firstIndex(where: { $0.id == track.id }) {
+            likedSongs.remove(at: idx)
+        } else {
+            likedSongs.insert(track, at: 0)
+        }
+        saveLikedSongs()
+    }
+
+    private func saveLikedSongs() {
+        if let data = try? JSONEncoder().encode(likedSongs) {
+            UserDefaults.standard.set(data, forKey: "musesick_liked_songs")
+        }
+    }
+
+    private func loadLikedSongs() {
+        if let data = UserDefaults.standard.data(forKey: "musesick_liked_songs"),
+           let list = try? JSONDecoder().decode([Track].self, from: data) {
+            self.likedSongs = list
+        }
+    }
+
+    // MARK: - Suggested Tracks & Playlists
 
     public func loadSuggestions() {
         Task {
-            if favoriteArtists.isEmpty {
-                if trendingSongs.isEmpty {
-                    let search = await YouTubeService.shared.searchAll(query: "Top Hits 2026")
-                    self.trendingSongs = search.songs
-                }
-                self.suggestedTracks = self.trendingSongs
-                return
-            }
-
-            var recommendations: [Track] = []
-            // Query top favorite artists
-            for artist in favoriteArtists.prefix(4) {
+            // 1. From Your Artists: contains top 7 songs from each favourite artist (capped at 100)
+            var artistSongs: [Track] = []
+            for artist in favoriteArtists {
                 let details = await YouTubeService.shared.getArtistDetails(artist: artist)
-                for song in details.songs.prefix(5) {
-                    if !recommendations.contains(where: { $0.id == song.id }) {
-                        recommendations.append(song)
+                let top7 = details.songs.prefix(7)
+                for s in top7 {
+                    if !artistSongs.contains(where: { $0.id == s.id }) {
+                        artistSongs.append(s)
+                        if artistSongs.count >= 100 { break }
+                    }
+                }
+                if artistSongs.count >= 100 { break }
+            }
+            self.fromYourArtistsTracks = artistSongs
+
+            // 2. Suggested For You: top songs from similar genres
+            var genreTracks: [Track] = []
+            if !favoriteArtists.isEmpty {
+                for artist in favoriteArtists.prefix(4) {
+                    let search = await YouTubeService.shared.searchAll(query: "\(artist.name) mix")
+                    for s in search.songs {
+                        if !genreTracks.contains(where: { $0.id == s.id }) && !artistSongs.contains(where: { $0.id == s.id }) {
+                            genreTracks.append(s)
+                        }
                     }
                 }
             }
-
-            // Supplement with trending tracks if sparse
-            if recommendations.count < 15 {
-                for song in self.trendingSongs {
-                    if !recommendations.contains(where: { $0.id == song.id }) {
-                        recommendations.append(song)
+            if genreTracks.count < 15 {
+                let genreSearch = await YouTubeService.shared.searchAll(query: "Top Hits 2026")
+                for s in genreSearch.songs {
+                    if !genreTracks.contains(where: { $0.id == s.id }) {
+                        genreTracks.append(s)
                     }
                 }
             }
+            self.genreSuggestedTracks = genreTracks.shuffled()
 
-            self.suggestedTracks = recommendations.shuffled()
+            // 3. Fallback suggestedTracks
+            if !self.fromYourArtistsTracks.isEmpty {
+                self.suggestedTracks = self.fromYourArtistsTracks
+            } else if !self.genreSuggestedTracks.isEmpty {
+                self.suggestedTracks = self.genreSuggestedTracks
+            } else {
+                self.suggestedTracks = self.trendingSongs
+            }
         }
     }
 
@@ -302,15 +349,22 @@ public final class MusicViewModel: ObservableObject {
         }
     }
 
-    public func openAlbum(_ album: Album) {
-        selectedAlbum = album
+    public func loadAlbumTracks(_ album: Album) {
         albumTracks = []
         Task {
             if let bId = album.browseId {
                 let tracks = await YouTubeService.shared.getAlbumTracks(browseId: bId)
                 self.albumTracks = tracks
+            } else {
+                let s = await YouTubeService.shared.searchAll(query: "\(album.title) \(album.artist)")
+                self.albumTracks = s.songs
             }
         }
+    }
+
+    public func openAlbum(_ album: Album) {
+        selectedAlbum = album
+        loadAlbumTracks(album)
     }
 
     public func playAll(tracks: [Track], shuffle: Bool = false) {
@@ -329,6 +383,39 @@ public final class MusicViewModel: ObservableObject {
                 openArtist(match)
                 return
             }
+        }
+        if url.scheme == "musesick" && url.host == "toggle_like" {
+            if let track = playerManager.state.currentTrack {
+                toggleLike(track: track)
+            }
+            return
+        }
+        if url.scheme == "musesick" && url.host == "lyrics" {
+            showFullPlayer = true
+            NotificationCenter.default.post(name: NSNotification.Name("MusesickShowLyrics"), object: nil)
+            return
+        }
+        if url.scheme == "musesick" && url.host == "show_all_songs" {
+            NotificationCenter.default.post(name: NSNotification.Name("MusesickShowAllSongs"), object: nil)
+            return
+        }
+        if url.scheme == "musesick" && url.host == "show_all_albums" {
+            NotificationCenter.default.post(name: NSNotification.Name("MusesickShowAllAlbums"), object: nil)
+            return
+        }
+        if url.scheme == "musesick" && url.host == "open_album" {
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let title = components?.queryItems?.first(where: { $0.name == "title" })?.value ?? "Album"
+            let artist = components?.queryItems?.first(where: { $0.name == "artist" })?.value ?? "Artist"
+            let album = Album(id: "album_test", title: title, artist: artist)
+            NotificationCenter.default.post(name: NSNotification.Name("MusesickOpenAlbum"), object: album)
+            return
+        }
+        if url.scheme == "musesick" && url.host == "open_playlist" {
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let id = components?.queryItems?.first(where: { $0.name == "id" })?.value ?? "from_your_artists"
+            NotificationCenter.default.post(name: NSNotification.Name("MusesickOpenPlaylist"), object: id)
+            return
         }
 
         var videoId: String?

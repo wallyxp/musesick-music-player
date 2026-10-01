@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct FullPlayerView: View {
+    @ObservedObject var viewModel: MusicViewModel
     @ObservedObject var playerManager: PlayerManager
     @Environment(\.dismiss) private var dismiss
 
@@ -9,8 +10,9 @@ public struct FullPlayerView: View {
     @State private var sliderValue: Double = -1.0
     @State private var isDraggingSlider = false
 
-    public init(playerManager: PlayerManager) {
-        self.playerManager = playerManager
+    public init(viewModel: MusicViewModel, playerManager: PlayerManager? = nil) {
+        self.viewModel = viewModel
+        self.playerManager = playerManager ?? viewModel.playerManager
     }
 
     private var currentTrack: Track? {
@@ -116,7 +118,8 @@ public struct FullPlayerView: View {
 
                     // Frosted Glass Lyrics Overlay
                     if showLyrics {
-                        lyricsOverlay(track: track)
+                        lyricsOverlay(track: track, geometry: geometry)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                             .zIndex(20)
                     }
@@ -124,6 +127,7 @@ public struct FullPlayerView: View {
                     // Sliding Queue Sheet
                     if showQueue {
                         queueOverlay
+                            .frame(width: geometry.size.width, height: geometry.size.height)
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                             .zIndex(30)
                     }
@@ -134,6 +138,9 @@ public struct FullPlayerView: View {
             }
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showLyrics)
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showQueue)
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MusesickShowLyrics"))) { _ in
+                showLyrics = true
+            }
         }
     }
 
@@ -170,7 +177,7 @@ public struct FullPlayerView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 20)
-        .padding(.top, 50)
+        .padding(.top, 14)
     }
 
     private var sliderSection: some View {
@@ -283,6 +290,20 @@ public struct FullPlayerView: View {
 
     private func bottomActionButtons(track: Track) -> some View {
         HStack(spacing: 12) {
+            // Like Button (Circular, similar to share with heart icon)
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                    viewModel.toggleLike(track: track)
+                }
+            }) {
+                Image(systemName: viewModel.isLiked(track: track) ? "heart.fill" : "heart")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(viewModel.isLiked(track: track) ? Color(red: 1.0, green: 0.25, blue: 0.35) : .white)
+                    .frame(width: 42, height: 42)
+                    .background(Color.white.opacity(0.2))
+                    .clipShape(Circle())
+            }
+
             // Lyrics Button
             Button(action: { showLyrics = true }) {
                 HStack(spacing: 6) {
@@ -329,7 +350,7 @@ public struct FullPlayerView: View {
 
     // MARK: - Lyrics Overlay
 
-    private func lyricsOverlay(track: Track) -> some View {
+    private func lyricsOverlay(track: Track, geometry: GeometryProxy) -> some View {
         ZStack {
             // Frosted blurred album cover background
             AsyncImage(url: URL(string: track.highResThumbnailUrl ?? track.thumbnailUrl ?? "")) { phase in
@@ -337,6 +358,8 @@ public struct FullPlayerView: View {
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
                         .blur(radius: 36)
                         .scaleEffect(1.2)
                         .ignoresSafeArea()
@@ -344,94 +367,146 @@ public struct FullPlayerView: View {
                     Color.black.ignoresSafeArea()
                 }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .clipped()
 
             // Dark frosted glass scrim
             Color.black.opacity(0.62)
                 .ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                // Header
+            VStack(spacing: 12) {
                 HStack {
                     Button(action: { showLyrics = false }) {
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 20, weight: .semibold))
+                            .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 40, height: 40)
+                            .background(Color.black.opacity(0.35))
+                            .clipShape(Circle())
                     }
 
                     Spacer()
 
-                    VStack(spacing: 2) {
+                    VStack(spacing: 3) {
                         Text("LYRICS")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 13, weight: .bold))
                             .tracking(2.0)
                             .foregroundColor(.white)
 
                         Text("\(track.title) • \(track.artist)")
-                            .font(.system(size: 11))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(1)
                     }
 
                     Spacer()
 
-                    Color.clear.frame(width: 44, height: 44)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 18, weight: .semibold))
+                        .frame(width: 40, height: 40)
+                        .opacity(0)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
 
                 // Synced Lyrics ScrollView
                 ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 20) {
                             switch playerManager.lyricsState {
                             case .loading:
-                                HStack {
-                                    Spacer()
+                                VStack(spacing: 12) {
                                     ProgressView().tint(.white)
-                                    Spacer()
+                                    Text("Fetching lyrics...")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.white.opacity(0.6))
                                 }
-                                .padding(.top, 40)
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 80)
 
                             case .success(let lines):
                                 ForEach(lines) { line in
                                     let isCurrent = isLineCurrent(line: line, allLines: lines)
                                     Text(line.text)
                                         .font(.system(size: isCurrent ? 24 : 18, weight: isCurrent ? .bold : .medium))
-                                        .foregroundColor(isCurrent ? .white : .white.opacity(0.4))
-                                        .scaleEffect(isCurrent ? 1.04 : 1.0, anchor: .leading)
-                                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isCurrent)
+                                        .foregroundColor(isCurrent ? .white : .white.opacity(0.35))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .multilineTextAlignment(.leading)
+                                        .scaleEffect(isCurrent ? 1.03 : 1.0, anchor: .leading)
+                                        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isCurrent)
                                         .id(line.id)
+                                        .contentShape(Rectangle())
                                         .onTapGesture {
                                             playerManager.seekTo(positionMs: line.timeMs)
                                         }
                                 }
 
                             case .instrumental:
-                                Text("Instrumental track")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.white.opacity(0.6))
-                                    .padding(.top, 40)
+                                VStack(spacing: 12) {
+                                    Image(systemName: "guitars.fill")
+                                        .font(.system(size: 36))
+                                        .foregroundColor(.white.opacity(0.35))
+                                    Text("Instrumental Track")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(.white.opacity(0.7))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 80)
 
                             case .notFound(let reason):
-                                Text(reason)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.white.opacity(0.5))
-                                    .padding(.top, 40)
+                                VStack(spacing: 12) {
+                                    Image(systemName: "quote.bubble")
+                                        .font(.system(size: 36))
+                                        .foregroundColor(.white.opacity(0.35))
+                                    Text(reason)
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.55))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 80)
 
                             case .error(let msg):
-                                Text(msg)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.white.opacity(0.5))
-                                    .padding(.top, 40)
+                                VStack(spacing: 12) {
+                                    Image(systemName: "exclamationmark.circle")
+                                        .font(.system(size: 36))
+                                        .foregroundColor(.white.opacity(0.35))
+                                    Text(msg)
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.55))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 80)
 
                             case .idle:
-                                EmptyView()
+                                VStack(spacing: 12) {
+                                    Image(systemName: "music.note")
+                                        .font(.system(size: 36))
+                                        .foregroundColor(.white.opacity(0.35))
+                                    Text("No lyrics available")
+                                        .font(.system(size: 15, weight: .medium))
+                                        .foregroundColor(.white.opacity(0.55))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 80)
                             }
                         }
                         .padding(.horizontal, 28)
-                        .padding(.vertical, 20)
+                        .padding(.top, 24)
+                        .padding(.bottom, 120)
                     }
+                    .mask(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0.0),
+                                .init(color: .black, location: 0.05),
+                                .init(color: .black, location: 0.90),
+                                .init(color: .clear, location: 1.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
                     .onChange(of: playerManager.state.currentPositionMs) { newPos in
                         if case .success(let lines) = playerManager.lyricsState {
                             if let current = lines.last(where: { $0.timeMs <= newPos }) {
@@ -443,7 +518,9 @@ public struct FullPlayerView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func isLineCurrent(line: LyricLine, allLines: [LyricLine]) -> Bool {
@@ -467,6 +544,8 @@ public struct FullPlayerView: View {
                             .font(.system(size: 20, weight: .semibold))
                             .foregroundColor(.white)
                             .frame(width: 44, height: 44)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(Circle())
                     }
 
                     Spacer()
@@ -481,7 +560,7 @@ public struct FullPlayerView: View {
                     Color.clear.frame(width: 44, height: 44)
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 10)
+                .padding(.top, 54)
 
                 // Queue List
                 List {

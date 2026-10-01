@@ -4,6 +4,7 @@ public struct StreamView: View {
     @ObservedObject var viewModel: MusicViewModel
     @FocusState private var isSearchFocused: Bool
     @State private var showAllRecentlyPlayed = false
+    @State private var selectedPlaylist: Playlist?
 
     public init(viewModel: MusicViewModel) {
         self.viewModel = viewModel
@@ -69,6 +70,19 @@ public struct StreamView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .navigationDestination(isPresented: $showAllRecentlyPlayed) {
                 RecentlyPlayedView(viewModel: viewModel)
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { selectedPlaylist != nil },
+                set: { if !$0 { selectedPlaylist = nil } }
+            )) {
+                if let playlist = selectedPlaylist {
+                    PlaylistDetailView(playlist: playlist, viewModel: viewModel)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MusesickOpenPlaylist"))) { notif in
+                if let id = notif.object as? String, let match = curatedPlaylists.first(where: { $0.id == id }) {
+                    selectedPlaylist = match
+                }
             }
         }
     }
@@ -377,9 +391,43 @@ public struct StreamView: View {
 
     // MARK: - 3. Suggested for You
 
+    private var curatedPlaylists: [Playlist] {
+        [
+            Playlist(
+                id: "from_your_artists",
+                title: "From Your Artists",
+                subtitle: "Top 7 songs from your favourites",
+                trackCount: viewModel.fromYourArtistsTracks.count,
+                tracks: viewModel.fromYourArtistsTracks
+            ),
+            Playlist(
+                id: "suggested_genres",
+                title: "Suggested For You",
+                subtitle: "Top songs from similar genres",
+                trackCount: viewModel.genreSuggestedTracks.count,
+                tracks: viewModel.genreSuggestedTracks
+            ),
+            Playlist(
+                id: "liked_songs",
+                title: "Your Liked Songs",
+                subtitle: "\(viewModel.likedSongs.count) favorites saved",
+                trackCount: viewModel.likedSongs.count,
+                tracks: viewModel.likedSongs
+            ),
+            Playlist(
+                id: "trending_discoveries",
+                title: "Trending Hits",
+                subtitle: "Popular right now worldwide",
+                trackCount: viewModel.trendingSongs.count,
+                tracks: viewModel.trendingSongs
+            )
+        ]
+    }
+
     private var suggestedForYouSection: some View {
         let displayTracks = viewModel.suggestedTracks.isEmpty ? viewModel.trendingSongs : viewModel.suggestedTracks
-        return VStack(alignment: .leading, spacing: 14) {
+        return VStack(alignment: .leading, spacing: 18) {
+            // Header
             HStack {
                 Text("SUGGESTED FOR YOU")
                     .font(.system(size: 13, weight: .bold))
@@ -387,28 +435,57 @@ public struct StreamView: View {
                     .foregroundColor(.white.opacity(0.7))
 
                 Spacer()
-
-                if !displayTracks.isEmpty {
-                    Button(action: {
-                        viewModel.playAll(tracks: displayTracks, shuffle: true)
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "shuffle")
-                                .font(.system(size: 12))
-                            Text("Shuffle")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.white.opacity(0.18))
-                        .clipShape(Capsule())
-                    }
-                }
             }
             .padding(.horizontal, 16)
 
-            if displayTracks.isEmpty {
+            // 4 Curated Playlists Horizontal Scroll
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(curatedPlaylists) { playlist in
+                        playlistCard(playlist)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+
+            // Quick Mix / Song list
+            if !displayTracks.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("QUICK MIX")
+                            .font(.system(size: 13, weight: .bold))
+                            .tracking(1.2)
+                            .foregroundColor(.white.opacity(0.7))
+
+                        Spacer()
+
+                        Button(action: {
+                            viewModel.playAll(tracks: displayTracks, shuffle: true)
+                        }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "shuffle")
+                                    .font(.system(size: 12))
+                                Text("Shuffle")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.white.opacity(0.18))
+                            .clipShape(Capsule())
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+
+                    VStack(spacing: 4) {
+                        ForEach(Array(displayTracks.prefix(15))) { song in
+                            songRow(track: song, list: displayTracks)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+            } else {
                 HStack {
                     Spacer()
                     ProgressView()
@@ -416,14 +493,106 @@ public struct StreamView: View {
                         .padding(.vertical, 20)
                     Spacer()
                 }
-            } else {
-                VStack(spacing: 4) {
-                    ForEach(displayTracks) { song in
-                        songRow(track: song, list: displayTracks)
-                    }
-                }
-                .padding(.horizontal, 16)
             }
+        }
+    }
+
+    private func playlistCard(_ playlist: Playlist) -> some View {
+        Button(action: {
+            selectedPlaylist = playlist
+        }) {
+            VStack(alignment: .leading, spacing: 8) {
+                ZStack(alignment: .bottomTrailing) {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: playlistGradientColors(for: playlist.id),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 154, height: 136)
+
+                    Image(systemName: playlistIcon(for: playlist.id))
+                        .font(.system(size: 44, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.85))
+                        .frame(width: 154, height: 136, alignment: .center)
+
+                    // Quick Play button
+                    Button(action: {
+                        let tracks = tracksForPlaylist(playlist)
+                        if !tracks.isEmpty {
+                            viewModel.playAll(tracks: tracks, shuffle: true)
+                        }
+                    }) {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 32))
+                            .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+                    }
+                    .padding(8)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(playlist.title)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+
+                    let count = tracksForPlaylist(playlist).count
+                    Text(count > 0 ? "\(count) songs" : (playlist.subtitle ?? ""))
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.6))
+                        .lineLimit(1)
+                }
+                .frame(width: 154, alignment: .leading)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func tracksForPlaylist(_ playlist: Playlist) -> [Track] {
+        switch playlist.id {
+        case "from_your_artists":
+            return viewModel.fromYourArtistsTracks
+        case "suggested_genres":
+            return viewModel.genreSuggestedTracks
+        case "liked_songs":
+            return viewModel.likedSongs
+        case "trending_discoveries":
+            return viewModel.trendingSongs
+        default:
+            return playlist.tracks
+        }
+    }
+
+    private func playlistGradientColors(for id: String) -> [Color] {
+        switch id {
+        case "from_your_artists":
+            return [Color(red: 0.55, green: 0.2, blue: 0.85), Color(red: 0.2, green: 0.4, blue: 0.9)]
+        case "suggested_genres":
+            return [Color(red: 0.2, green: 0.35, blue: 0.85), Color(red: 0.1, green: 0.75, blue: 0.8)]
+        case "liked_songs":
+            return [Color(red: 0.95, green: 0.2, blue: 0.4), Color(red: 0.65, green: 0.1, blue: 0.35)]
+        case "trending_discoveries":
+            return [Color(red: 1.0, green: 0.45, blue: 0.15), Color(red: 0.9, green: 0.2, blue: 0.45)]
+        default:
+            return [Color.blue, Color.purple]
+        }
+    }
+
+    private func playlistIcon(for id: String) -> String {
+        switch id {
+        case "from_your_artists":
+            return "person.2.circle.fill"
+        case "suggested_genres":
+            return "sparkles"
+        case "liked_songs":
+            return "heart.fill"
+        case "trending_discoveries":
+            return "flame.fill"
+        default:
+            return "music.note.list"
         }
     }
 

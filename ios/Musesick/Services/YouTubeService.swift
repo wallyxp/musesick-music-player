@@ -153,8 +153,8 @@ public actor YouTubeService {
             heroImageUrl = artist.highResImageUrl ?? artist.thumbnailUrl
         }
 
-        // Fallback search if albums or songs are sparse
-        if albums.count < 3 || songs.count < 3 {
+        // Enrich albums and songs so See All has a comprehensive list
+        if songs.count < 20 || albums.count < 8 {
             let searchRes = await searchAll(query: artist.name)
             for s in searchRes.songs where !songs.contains(where: { $0.id == s.id }) {
                 songs.append(s)
@@ -164,6 +164,19 @@ public actor YouTubeService {
             }
             if heroImageUrl == nil, let found = searchRes.artists.first(where: { $0.name.lowercased() == artist.name.lowercased() }) {
                 heroImageUrl = found.highResImageUrl ?? found.thumbnailUrl
+            }
+
+            if songs.count < 15 {
+                let songSearch = await searchAll(query: "\(artist.name) songs")
+                for s in songSearch.songs where !songs.contains(where: { $0.id == s.id }) {
+                    songs.append(s)
+                }
+            }
+            if albums.count < 8 {
+                let albumSearch = await searchAll(query: "\(artist.name) album")
+                for a in albumSearch.albums where !albums.contains(where: { $0.id == a.id }) {
+                    albums.append(a)
+                }
             }
         }
 

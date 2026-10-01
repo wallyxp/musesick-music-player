@@ -49,10 +49,12 @@ public struct HomeView: View {
             }
         }
         .fullScreenCover(isPresented: $viewModel.showFullPlayer) {
-            FullPlayerView(playerManager: viewModel.playerManager)
+            FullPlayerView(viewModel: viewModel, playerManager: viewModel.playerManager)
         }
         .sheet(item: $viewModel.selectedArtist) { artist in
-            ArtistDetailView(artist: artist, viewModel: viewModel)
+            NavigationStack {
+                ArtistDetailView(artist: artist, viewModel: viewModel)
+            }
         }
         .sheet(item: $viewModel.selectedAlbum) { album in
             NavigationStack {

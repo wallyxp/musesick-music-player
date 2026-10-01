@@ -5,6 +5,10 @@ public struct ArtistDetailView: View {
     @ObservedObject var viewModel: MusicViewModel
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showAllSongs: Bool = false
+    @State private var showAllAlbums: Bool = false
+    @State private var selectedAlbum: Album? = nil
+
     public init(artist: Artist, viewModel: MusicViewModel) {
         self.artist = artist
         self.viewModel = viewModel
@@ -93,21 +97,56 @@ public struct ArtistDetailView: View {
                             .padding(.horizontal, 20)
                             .padding(.top, 4)
 
-                            // Popular Songs Section
+                            // Popular Songs Section (Top 7 songs + See all)
                             if let songs = viewModel.artistDetail?.songs, !songs.isEmpty {
                                 VStack(alignment: .leading, spacing: 10) {
-                                    Text("POPULAR SONGS")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .tracking(1.2)
-                                        .foregroundColor(.white.opacity(0.7))
-                                        .padding(.horizontal, 20)
+                                    HStack {
+                                        Text("POPULAR SONGS")
+                                            .font(.system(size: 13, weight: .bold))
+                                            .tracking(1.2)
+                                            .foregroundColor(.white.opacity(0.7))
 
+                                        Spacer()
+
+                                        if songs.count > 7 {
+                                            Button(action: { showAllSongs = true }) {
+                                                Text("See all (\(songs.count))")
+                                                    .font(.system(size: 12, weight: .semibold))
+                                                    .foregroundColor(.white.opacity(0.85))
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
+
+                                    let top7 = Array(songs.prefix(7))
                                     VStack(spacing: 4) {
-                                        ForEach(songs) { song in
+                                        ForEach(top7) { song in
                                             songRow(song: song, list: songs)
                                         }
                                     }
                                     .padding(.horizontal, 20)
+
+                                    if songs.count > 7 {
+                                        Button(action: { showAllSongs = true }) {
+                                            HStack {
+                                                Image(systemName: "music.note.list")
+                                                    .font(.system(size: 13))
+                                                Text("See all \(songs.count) songs")
+                                                    .font(.system(size: 13, weight: .semibold))
+                                                Spacer()
+                                                Image(systemName: "chevron.right")
+                                                    .font(.system(size: 12, weight: .semibold))
+                                            }
+                                            .foregroundColor(.white.opacity(0.9))
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 11)
+                                            .background(Color.white.opacity(0.1))
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .padding(.horizontal, 20)
+                                        .padding(.top, 4)
+                                    }
                                 }
                             } else if viewModel.artistDetail == nil {
                                 HStack {
@@ -119,22 +158,57 @@ public struct ArtistDetailView: View {
                                 }
                             }
 
-                            // Albums & Releases Section
+                            // Albums & Releases Section (Top 5 albums + See all)
                             if let albums = viewModel.artistDetail?.albums, !albums.isEmpty {
                                 VStack(alignment: .leading, spacing: 10) {
-                                    Text("ALBUMS & RELEASES")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .tracking(1.2)
-                                        .foregroundColor(.white.opacity(0.7))
-                                        .padding(.horizontal, 20)
+                                    HStack {
+                                        Text("ALBUMS & RELEASES")
+                                            .font(.system(size: 13, weight: .bold))
+                                            .tracking(1.2)
+                                            .foregroundColor(.white.opacity(0.7))
 
+                                        Spacer()
+
+                                        if albums.count > 5 {
+                                            Button(action: { showAllAlbums = true }) {
+                                                Text("See all (\(albums.count))")
+                                                    .font(.system(size: 12, weight: .semibold))
+                                                    .foregroundColor(.white.opacity(0.85))
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
+
+                                    let top5 = Array(albums.prefix(5))
                                     ScrollView(.horizontal, showsIndicators: false) {
                                         HStack(spacing: 16) {
-                                            ForEach(albums) { album in
+                                            ForEach(top5) { album in
                                                 albumCard(album: album)
                                             }
                                         }
                                         .padding(.horizontal, 20)
+                                    }
+
+                                    if albums.count > 5 {
+                                        Button(action: { showAllAlbums = true }) {
+                                            HStack {
+                                                Image(systemName: "square.stack.fill")
+                                                    .font(.system(size: 13))
+                                                Text("See all \(albums.count) albums & releases")
+                                                    .font(.system(size: 13, weight: .semibold))
+                                                Spacer()
+                                                Image(systemName: "chevron.right")
+                                                    .font(.system(size: 12, weight: .semibold))
+                                            }
+                                            .foregroundColor(.white.opacity(0.9))
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 11)
+                                            .background(Color.white.opacity(0.1))
+                                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        }
+                                        .buttonStyle(.plain)
+                                        .padding(.horizontal, 20)
+                                        .padding(.top, 4)
                                     }
                                 }
                             }
@@ -161,6 +235,36 @@ public struct ArtistDetailView: View {
         }
         .navigationBarHidden(true)
         .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationDestination(isPresented: $showAllSongs) {
+            if let songs = viewModel.artistDetail?.songs {
+                ArtistAllSongsView(artist: artist, songs: songs, viewModel: viewModel)
+            }
+        }
+        .navigationDestination(isPresented: $showAllAlbums) {
+            if let albums = viewModel.artistDetail?.albums {
+                ArtistAllAlbumsView(artist: artist, albums: albums, viewModel: viewModel)
+            }
+        }
+        .navigationDestination(isPresented: Binding(
+            get: { selectedAlbum != nil },
+            set: { if !$0 { selectedAlbum = nil } }
+        )) {
+            if let album = selectedAlbum {
+                AlbumDetailView(album: album, viewModel: viewModel)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MusesickShowAllSongs"))) { _ in
+            showAllSongs = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MusesickShowAllAlbums"))) { _ in
+            showAllAlbums = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("MusesickOpenAlbum"))) { notif in
+            if let album = notif.object as? Album {
+                selectedAlbum = album
+                viewModel.loadAlbumTracks(album)
+            }
+        }
     }
 
     private var heroArtist: Artist {
@@ -210,7 +314,10 @@ public struct ArtistDetailView: View {
     }
 
     private func albumCard(album: Album) -> some View {
-        Button(action: { viewModel.openAlbum(album) }) {
+        Button(action: {
+            selectedAlbum = album
+            viewModel.loadAlbumTracks(album)
+        }) {
             VStack(alignment: .leading, spacing: 6) {
                 AsyncImage(url: URL(string: album.thumbnailUrl ?? "")) { phase in
                     if let image = phase.image {
