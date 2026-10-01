@@ -1,10 +1,13 @@
 import SwiftUI
 
 public struct HomeView: View {
-    @StateObject private var viewModel = MusicViewModel()
+    @ObservedObject var viewModel: MusicViewModel
     @State private var selectedTab = 0
 
-    public init() {}
+    @MainActor
+    public init(viewModel: MusicViewModel) {
+        self.viewModel = viewModel
+    }
 
     public var body: some View {
         ZStack(alignment: .bottom) {

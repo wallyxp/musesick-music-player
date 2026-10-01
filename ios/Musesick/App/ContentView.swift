@@ -1,18 +1,24 @@
 import SwiftUI
 
 public struct ContentView: View {
+    @StateObject private var viewModel = MusicViewModel()
+
     public init() {}
 
     public var body: some View {
         ZStack {
-            HomeView()
-
-            // Keep YouTube WebKit player engine mounted and active in view hierarchy
+            // Keep YouTube WebKit player engine mounted, opaque, and active behind the opaque UI
             YouTubePlayerBackgroundView()
-                .frame(width: 200, height: 200)
-                .opacity(0.001)
+                .frame(width: 120, height: 120)
+                .opacity(1.0)
                 .allowsHitTesting(false)
+
+            HomeView(viewModel: viewModel)
         }
         .preferredColorScheme(.dark)
+        .onOpenURL { url in
+            NSLog("[ContentView] Received incoming URL: %@", url.absoluteString)
+            viewModel.handleIncomingURL(url)
+        }
     }
 }

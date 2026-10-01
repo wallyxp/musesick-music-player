@@ -1,20 +1,8 @@
-# Gradle
+# Gradle / Android
 .gradle/
-build/
-!gradle/wrapper/gradle-wrapper.jar
-
-# Local configuration file (contains SDK path, API keys, etc.)
+**/build/
+android/local.properties
 local.properties
-
-# IDE - Android Studio / IntelliJ
-.idea/
-*.iml
-.DS_Store
-
-# Kotlin
-.kotlin/
-
-# Android
 *.apk
 *.aab
 *.ap_
@@ -23,7 +11,23 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# Log/OS files
+# Xcode / iOS
+**/DerivedData/
+**/build/
+*.xcuserstate
+project.xcworkspace/xcuserdata/
+*.xcuserdatad/
+*.swp
+*.lock
+Podfile.lock
+Pods/
+.build/
+
+# IDE / OS
+.idea/
+*.iml
+.DS_Store
+.kotlin/
 *.log
 Thumbs.db
-.vscode
+.vscode/

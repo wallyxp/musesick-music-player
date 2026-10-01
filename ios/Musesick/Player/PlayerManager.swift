@@ -25,10 +25,12 @@ public final class PlayerManager: ObservableObject, YouTubePlayerDelegate {
     private func setupAudioSession() {
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [])
+            try session.setCategory(.playback, mode: .default, policy: .longFormAudio, options: [])
             try session.setActive(true)
+            UIApplication.shared.beginReceivingRemoteControlEvents()
+            NSLog("[PlayerManager] AVAudioSession configured successfully for .playback (.longFormAudio)")
         } catch {
-            print("Failed to configure AVAudioSession: \(error)")
+            NSLog("[PlayerManager] Failed to configure AVAudioSession: %@", error.localizedDescription)
         }
     }
 
@@ -58,6 +60,7 @@ public final class PlayerManager: ObservableObject, YouTubePlayerDelegate {
     // MARK: - Playback Control
 
     public func play(track: Track, newQueue: [Track]? = nil) {
+        NSLog("[PlayerManager] play(track: '%@', id: '%@', isLocal: %d)", track.title, track.id, track.isLocal ? 1 : 0)
         if let newQ = newQueue {
             self.queue = newQ
             self.currentIndex = newQ.firstIndex(where: { $0.id == track.id }) ?? 0
@@ -121,10 +124,12 @@ public final class PlayerManager: ObservableObject, YouTubePlayerDelegate {
         // Time observer
         let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            guard let self = self else { return }
-            let ms = Int64(time.seconds * 1000)
-            self.state.currentPositionMs = ms
-            self.updateNowPlaying()
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                let ms = Int64(time.seconds * 1000)
+                self.state.currentPositionMs = ms
+                self.updateNowPlaying()
+            }
         }
 
         player.play()

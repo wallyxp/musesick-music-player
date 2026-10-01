@@ -16,15 +16,13 @@ public final class YouTubePlayerBridge: NSObject, WKScriptMessageHandler {
         guard let dict = message.body as? [String: Any],
               let event = dict["event"] as? String else { return }
 
-        #if DEBUG
-        NSLog("[YouTubeBridge] Received event: %@, data: %@", event, String(describing: dict))
-        #endif
-
         switch event {
         case "onReady":
+            NSLog("[YouTubeBridge] Player reported ready")
             delegate?.onPlayerReady()
         case "onStateChange":
             if let state = dict["data"] as? Int {
+                NSLog("[YouTubeBridge] State changed: %d", state)
                 delegate?.onStateChange(state: state)
             }
         case "onTimeUpdate":
@@ -33,7 +31,16 @@ public final class YouTubePlayerBridge: NSObject, WKScriptMessageHandler {
             delegate?.onTimeUpdate(currentTimeSeconds: curr, durationSeconds: dur)
         case "onError":
             let code = dict["data"] as? Int ?? -1
+            NSLog("[YouTubeBridge] Player error: %d", code)
             delegate?.onError(errorCode: code)
+        case "console":
+            if let msg = dict["message"] as? String {
+                NSLog("[YouTube JS] %@", msg)
+            }
+        case "consoleError":
+            if let msg = dict["message"] as? String {
+                NSLog("[YouTube JS Error] %@", msg)
+            }
         default:
             break
         }
@@ -68,7 +75,11 @@ public final class YouTubeWebEngine: NSObject, WKNavigationDelegate {
         config.userContentController = controller
 
         let wv = WKWebView(frame: CGRect(x: 0, y: 0, width: 240, height: 240), configuration: config)
-        wv.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1"
+        // Desktop Safari UA avoids mobile user-interaction blocks for embedded playback
+        wv.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
+        if #available(iOS 16.4, *) {
+            wv.isInspectable = true
+        }
         self.webView = wv
 
         super.init()
@@ -82,6 +93,7 @@ public final class YouTubeWebEngine: NSObject, WKNavigationDelegate {
         <html>
         <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
             <style>
                 html, body {
                     margin: 0;
@@ -91,146 +103,152 @@ public final class YouTubeWebEngine: NSObject, WKNavigationDelegate {
                     background-color: #000;
                     overflow: hidden;
                 }
-                iframe {
+                #player {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
                     width: 100%;
                     height: 100%;
-                    border: 0;
                 }
             </style>
         </head>
         <body>
-            <iframe id="ytplayer"
-                    type="text/html"
-                    width="100%"
-                    height="100%"
-                    src="about:blank"
-                    frameborder="0"
-                    allow="autoplay; encrypted-media; picture-in-picture"
-                    allowfullscreen>
-            </iframe>
+            <div id="player"></div>
             <script>
+                var player = null;
+                var isPlayerReady = false;
+                var pendingId = null;
+
+                function sendMsg(obj) {
+                    try {
+                        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.iOSBridge) {
+                            window.webkit.messageHandlers.iOSBridge.postMessage(obj);
+                        }
+                    } catch(e) {}
+                }
+
+                function log(msg) {
+                    sendMsg({event: 'console', message: String(msg)});
+                }
+
+                function logError(msg) {
+                    sendMsg({event: 'consoleError', message: String(msg)});
+                }
+
+                var observer = new MutationObserver(function(mutations) {
+                    var iframes = document.querySelectorAll('iframe');
+                    iframes.forEach(function(iframe) {
+                        iframe.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
+                        iframe.setAttribute('playsinline', '1');
+                    });
+                });
+                observer.observe(document.body, { childList: true, subtree: true });
+
                 var tag = document.createElement('script');
                 tag.src = "https://www.youtube.com/iframe_api";
                 var firstScriptTag = document.getElementsByTagName('script')[0];
                 firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-                var player = null;
-                var currentId = "";
-
                 function onYouTubeIframeAPIReady() {
-                    window.webkit.messageHandlers.iOSBridge.postMessage({event: 'onReady'});
+                    log('onYouTubeIframeAPIReady called');
+                    try {
+                        player = new YT.Player('player', {
+                            height: '100%',
+                            width: '100%',
+                            playerVars: {
+                                'playsinline': 1,
+                                'controls': 0,
+                                'autoplay': 1,
+                                'rel': 0,
+                                'origin': 'https://music.youtube.com'
+                            },
+                            events: {
+                                'onReady': onPlayerReady,
+                                'onStateChange': onPlayerStateChange,
+                                'onError': onPlayerError
+                            }
+                        });
+                    } catch(e) {
+                        logError('Error creating YT.Player: ' + e);
+                    }
                 }
 
-                function initPlayer(id) {
-                    currentId = id;
-                    var iframe = document.getElementById('ytplayer');
-                    iframe.src = "https://www.youtube.com/embed/" + id + "?enablejsapi=1&autoplay=1&playsinline=1&controls=0&origin=https://www.youtube.com";
+                function onPlayerReady(event) {
+                    log('onPlayerReady fired');
+                    isPlayerReady = true;
+                    sendMsg({event: 'onReady'});
+                    if (pendingId) {
+                        var vid = pendingId;
+                        pendingId = null;
+                        playVideo(vid);
+                    }
+                }
 
-                    player = new YT.Player('ytplayer', {
-                        events: {
-                            'onReady': function(e) {
-                                window.webkit.messageHandlers.iOSBridge.postMessage({event: 'onReady'});
-                                if (player && player.playVideo) {
-                                    player.playVideo();
-                                }
-                            },
-                            'onStateChange': function(e) {
-                                window.webkit.messageHandlers.iOSBridge.postMessage({event: 'onStateChange', data: e.data});
-                            },
-                            'onError': function(e) {
-                                window.webkit.messageHandlers.iOSBridge.postMessage({event: 'onError', data: e.data});
-                            }
-                        }
-                    });
+                function onPlayerStateChange(event) {
+                    log('onPlayerStateChange: ' + event.data);
+                    sendMsg({event: 'onStateChange', data: event.data});
+                }
+
+                function onPlayerError(event) {
+                    logError('onPlayerError: ' + event.data);
+                    sendMsg({event: 'onError', data: event.data});
                 }
 
                 function playVideo(id) {
-                    if (player && player.loadVideoById && currentId !== "") {
-                        currentId = id;
-                        player.loadVideoById({
-                            'videoId': id,
-                            'startSeconds': 0
-                        });
+                    log('playVideo called for: ' + id + ', isPlayerReady: ' + isPlayerReady);
+                    if (!isPlayerReady || !player || !player.loadVideoById) {
+                        pendingId = id;
+                        return;
+                    }
+                    try {
+                        player.loadVideoById(id);
                         setTimeout(function() {
                             if (player && player.playVideo) {
                                 player.playVideo();
                             }
-                        }, 200);
-                    } else if (typeof YT !== 'undefined' && YT.Player) {
-                        initPlayer(id);
-                    } else {
-                        currentId = id;
-                        var iframe = document.getElementById('ytplayer');
-                        iframe.src = "https://www.youtube.com/embed/" + id + "?enablejsapi=1&autoplay=1&playsinline=1&controls=0&origin=https://www.youtube.com";
+                        }, 100);
+                    } catch(e) {
+                        logError('playVideo error: ' + e);
                     }
                 }
 
                 function pauseVideo() {
                     if (player && player.pauseVideo) {
                         player.pauseVideo();
-                    } else {
-                        var iframe = document.getElementById('ytplayer');
-                        if (iframe && iframe.contentWindow) {
-                            iframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
-                        }
                     }
                 }
 
                 function resumeVideo() {
                     if (player && player.playVideo) {
                         player.playVideo();
-                    } else {
-                        var iframe = document.getElementById('ytplayer');
-                        if (iframe && iframe.contentWindow) {
-                            iframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
-                        }
                     }
                 }
 
                 function stopVideo() {
                     if (player && player.stopVideo) {
                         player.stopVideo();
-                    } else {
-                        var iframe = document.getElementById('ytplayer');
-                        if (iframe && iframe.contentWindow) {
-                            iframe.contentWindow.postMessage('{"event":"command","func":"stopVideo","args":""}', '*');
-                        }
                     }
                 }
 
                 function seekTo(sec) {
                     if (player && player.seekTo) {
                         player.seekTo(sec, true);
-                    } else {
-                        var iframe = document.getElementById('ytplayer');
-                        if (iframe && iframe.contentWindow) {
-                            iframe.contentWindow.postMessage('{"event":"command","func":"seekTo","args":[' + sec + ', true]}', '*');
-                        }
                     }
                 }
 
-                window.addEventListener('message', function(event) {
-                    try {
-                        var data = (typeof event.data === 'string') ? JSON.parse(event.data) : event.data;
-                        if (data && data.event === 'onStateChange') {
-                            window.webkit.messageHandlers.iOSBridge.postMessage({event: 'onStateChange', data: data.info});
-                        } else if (data && data.event === 'initialDelivery') {
-                            window.webkit.messageHandlers.iOSBridge.postMessage({event: 'onReady'});
-                        }
-                    } catch(e) {}
-                });
-
                 setInterval(function() {
                     if (player && player.getCurrentTime && player.getDuration) {
-                        var curr = player.getCurrentTime();
-                        var dur = player.getDuration();
-                        if (dur > 0) {
-                            window.webkit.messageHandlers.iOSBridge.postMessage({
-                                event: 'onTimeUpdate',
-                                currentTime: curr,
-                                duration: dur
-                            });
-                        }
+                        try {
+                            var curr = player.getCurrentTime();
+                            var dur = player.getDuration();
+                            if (dur > 0) {
+                                sendMsg({
+                                    event: 'onTimeUpdate',
+                                    currentTime: curr,
+                                    duration: dur
+                                });
+                            }
+                        } catch(e) {}
                     }
                 }, 500);
             </script>
@@ -238,18 +256,12 @@ public final class YouTubeWebEngine: NSObject, WKNavigationDelegate {
         </html>
         """
 
-        webView.loadHTMLString(html, baseURL: URL(string: "https://www.youtube.com"))
+        webView.loadHTMLString(html, baseURL: URL(string: "https://music.youtube.com"))
     }
 
     public func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        #if DEBUG
-        NSLog("[YouTubeWebEngine] HTML finished loading in WKWebView")
-        #endif
-        isReady = true
-        if let pending = pendingVideoId {
-            pendingVideoId = nil
-            play(videoId: pending)
-        }
+        NSLog("[YouTubeWebEngine] HTML skeleton finished loading in WKWebView")
+        // Note: isReady is set when onPlayerReady message is received from YouTube API
     }
 
     public func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -257,8 +269,10 @@ public final class YouTubeWebEngine: NSObject, WKNavigationDelegate {
     }
 
     public func markReady() {
+        NSLog("[YouTubeWebEngine] Player is ready to accept commands")
         isReady = true
         if let pending = pendingVideoId {
+            NSLog("[YouTubeWebEngine] Executing pending playback for videoId: %@", pending)
             pendingVideoId = nil
             play(videoId: pending)
         }

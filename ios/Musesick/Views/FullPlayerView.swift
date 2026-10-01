@@ -18,122 +18,123 @@ public struct FullPlayerView: View {
     }
 
     public var body: some View {
-        ZStack {
-            // Full-bleed Black Background
-            Color.black.ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                // Full-bleed Black Background
+                Color.black.ignoresSafeArea()
 
-            if let track = currentTrack {
-                // Background Album Art with Crossfade
-                AsyncImage(url: URL(string: track.highResThumbnailUrl ?? track.thumbnailUrl ?? "")) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                    default:
-                        Color(white: 0.08)
+                if let track = currentTrack {
+                    // Background Album Art with Crossfade
+                    AsyncImage(url: URL(string: track.highResThumbnailUrl ?? track.thumbnailUrl ?? "")) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                .clipped()
+                        default:
+                            Color(white: 0.08)
+                        }
                     }
-                }
-                .ignoresSafeArea()
+                    .ignoresSafeArea()
 
-                // Top Dark Gradient Scrim
-                VStack {
-                    LinearGradient(
-                        colors: [
-                            Color.black.opacity(0.85),
-                            Color.black.opacity(0.45),
-                            Color.clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 220)
-                    Spacer()
-                }
-                .ignoresSafeArea()
+                    // Top Dark Gradient Scrim
+                    VStack {
+                        LinearGradient(
+                            colors: [
+                                Color.black.opacity(0.85),
+                                Color.black.opacity(0.45),
+                                Color.clear
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 220)
+                        Spacer()
+                    }
+                    .frame(width: geometry.size.width)
+                    .ignoresSafeArea()
 
-                // Bottom Dark Gradient Scrim
-                VStack {
-                    Spacer()
-                    LinearGradient(
-                        colors: [
-                            Color.clear,
-                            Color.black.opacity(0.65),
-                            Color.black.opacity(0.92),
-                            Color.black
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 440)
-                }
-                .ignoresSafeArea()
+                    // Bottom Dark Gradient Scrim
+                    VStack {
+                        Spacer()
+                        LinearGradient(
+                            colors: [
+                                Color.clear,
+                                Color.black.opacity(0.65),
+                                Color.black.opacity(0.92),
+                                Color.black
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 440)
+                    }
+                    .frame(width: geometry.size.width)
+                    .ignoresSafeArea()
 
-                // Main Player UI Column
-                VStack(spacing: 0) {
-                    // Top Bar
-                    topBar(track: track)
-                        .padding(.top, 10)
+                    // Main Player UI Column
+                    VStack(spacing: 0) {
+                        // Top Bar
+                        topBar(track: track)
+
+                        Spacer()
+
+                        // Track Title & Artist
+                        VStack(spacing: 6) {
+                            Text(track.title)
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.white)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+
+                            Text(track.artist)
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white.opacity(0.8))
+                                .lineLimit(1)
+                        }
                         .padding(.horizontal, 24)
 
-                    Spacer()
+                        Spacer().frame(height: 28)
 
-                    // Track Title & Artist
-                    VStack(spacing: 6) {
-                        Text(track.title)
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.white)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
+                        // Scrubber Slider & Timestamps
+                        sliderSection
 
-                        Text(track.artist)
-                            .font(.system(size: 17, weight: .medium))
-                            .foregroundColor(.white.opacity(0.8))
-                            .lineLimit(1)
+                        Spacer().frame(height: 22)
+
+                        // Playback Controls Row
+                        controlsRow
+
+                        Spacer().frame(height: 26)
+
+                        // Bottom Action Buttons (Lyrics, Queue, Share)
+                        bottomActionButtons(track: track)
+                            .padding(.bottom, 28)
                     }
-                    .padding(.horizontal, 24)
+                    .frame(width: geometry.size.width, height: geometry.size.height)
 
-                    Spacer().frame(height: 24)
+                    // Frosted Glass Lyrics Overlay
+                    if showLyrics {
+                        lyricsOverlay(track: track)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .zIndex(20)
+                    }
 
-                    // Scrubber Slider & Timestamps
-                    sliderSection
-                        .padding(.horizontal, 24)
-
-                    Spacer().frame(height: 20)
-
-                    // Playback Controls Row
-                    controlsRow
-                        .padding(.horizontal, 16)
-
-                    Spacer().frame(height: 24)
-
-                    // Bottom Action Buttons (Lyrics, Queue, Share)
-                    bottomActionButtons(track: track)
-                        .padding(.bottom, 24)
+                    // Sliding Queue Sheet
+                    if showQueue {
+                        queueOverlay
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .zIndex(30)
+                    }
+                } else {
+                    Text("No track playing")
+                        .foregroundColor(.white)
                 }
-
-                // Frosted Glass Lyrics Overlay
-                if showLyrics {
-                    lyricsOverlay(track: track)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .zIndex(20)
-                }
-
-                // Sliding Queue Sheet
-                if showQueue {
-                    queueOverlay
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .zIndex(30)
-                }
-            } else {
-                Text("No track playing")
-                    .foregroundColor(.white)
             }
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showLyrics)
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showQueue)
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showLyrics)
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: showQueue)
     }
 
     // MARK: - Subviews
@@ -142,9 +143,11 @@ public struct FullPlayerView: View {
         HStack {
             Button(action: { dismiss() }) {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.white)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 40, height: 40)
+                    .background(Color.black.opacity(0.35))
+                    .clipShape(Circle())
             }
 
             Spacer()
@@ -156,7 +159,7 @@ public struct FullPlayerView: View {
 
             Spacer()
 
-            // Nothing Format Badge
+            // Format Badge
             Text(track.audioFormat.label)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(.white)
@@ -165,11 +168,15 @@ public struct FullPlayerView: View {
                 .background(Color.white.opacity(0.2))
                 .clipShape(Capsule())
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 20)
+        .padding(.top, 50)
     }
 
     private var sliderSection: some View {
-        VStack(spacing: 8) {
-            let progress = isDraggingSlider ? sliderValue : Double(playerManager.state.progressFraction)
+        VStack(spacing: 6) {
+            let currentFrac = Double(playerManager.state.progressFraction)
+            let progress = isDraggingSlider ? sliderValue : max(0.0, min(1.0, currentFrac))
 
             Slider(
                 value: Binding(
@@ -189,7 +196,7 @@ public struct FullPlayerView: View {
                     }
                 }
             )
-            .accentColor(.white)
+            .tint(.white)
 
             HStack {
                 Text(playerManager.state.formattedPosition)
@@ -203,38 +210,38 @@ public struct FullPlayerView: View {
                     .foregroundColor(.white.opacity(0.8))
             }
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
     }
 
     private var controlsRow: some View {
-        HStack(spacing: 24) {
+        HStack {
             // Shuffle
             Button(action: { playerManager.toggleShuffle() }) {
                 Image(systemName: "shuffle")
-                    .font(.system(size: 20))
+                    .font(.system(size: 18))
                     .foregroundColor(playerManager.state.isShuffle ? .white : .white.opacity(0.45))
                     .frame(width: 44, height: 44)
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity)
 
             // Previous
             Button(action: { playerManager.previousTrack() }) {
                 Image(systemName: "backward.fill")
-                    .font(.system(size: 22))
+                    .font(.system(size: 20))
                     .foregroundColor(.white)
-                    .frame(width: 54, height: 54)
-                    .background(Color.white.opacity(0.22))
+                    .frame(width: 48, height: 48)
+                    .background(Color.white.opacity(0.18))
                     .clipShape(Circle())
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity)
 
             // Big Circular Play/Pause
             Button(action: { playerManager.togglePlayPause() }) {
                 ZStack {
                     Circle()
                         .fill(Color.white)
-                        .frame(width: 72, height: 72)
+                        .frame(width: 68, height: 68)
 
                     if playerManager.state.isBuffering {
                         ProgressView()
@@ -242,35 +249,36 @@ public struct FullPlayerView: View {
                             .scaleEffect(1.2)
                     } else {
                         Image(systemName: playerManager.state.isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 28))
+                            .font(.system(size: 26))
                             .foregroundColor(.black)
                             .offset(x: playerManager.state.isPlaying ? 0 : 2)
                     }
                 }
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity)
 
             // Next
             Button(action: { playerManager.nextTrack() }) {
                 Image(systemName: "forward.fill")
-                    .font(.system(size: 22))
+                    .font(.system(size: 20))
                     .foregroundColor(.white)
-                    .frame(width: 54, height: 54)
-                    .background(Color.white.opacity(0.22))
+                    .frame(width: 48, height: 48)
+                    .background(Color.white.opacity(0.18))
                     .clipShape(Circle())
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity)
 
             // Repeat
             Button(action: { playerManager.toggleRepeat() }) {
                 Image(systemName: "repeat")
-                    .font(.system(size: 20))
+                    .font(.system(size: 18))
                     .foregroundColor(playerManager.state.isRepeat ? .white : .white.opacity(0.45))
                     .frame(width: 44, height: 44)
             }
+            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
     }
 
     private func bottomActionButtons(track: Track) -> some View {
