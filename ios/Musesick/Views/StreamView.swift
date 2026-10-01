@@ -3,6 +3,7 @@ import SwiftUI
 public struct StreamView: View {
     @ObservedObject var viewModel: MusicViewModel
     @FocusState private var isSearchFocused: Bool
+    @State private var showAllRecentlyPlayed = false
 
     public init(viewModel: MusicViewModel) {
         self.viewModel = viewModel
@@ -55,7 +56,7 @@ public struct StreamView: View {
                         } else if !viewModel.searchResults.songs.isEmpty || !viewModel.searchResults.artists.isEmpty || !viewModel.searchResults.albums.isEmpty {
                             searchResultsSection
                         } else {
-                            trendingSection
+                            mainStreamSections
                         }
 
                         Spacer().frame(height: 80)
@@ -66,6 +67,9 @@ public struct StreamView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(Color.black, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .navigationDestination(isPresented: $showAllRecentlyPlayed) {
+                RecentlyPlayedView(viewModel: viewModel)
+            }
         }
     }
 
@@ -175,12 +179,97 @@ public struct StreamView: View {
         }
     }
 
-    // MARK: - Trending Section
+    // MARK: - Main Stream Sections (3 Core Sections)
 
-    private var trendingSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+    private var mainStreamSections: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            recentlyPlayedSection
+            favouriteArtistsSection
+            suggestedForYouSection
+        }
+    }
+
+    // MARK: - 1. Recently Played (Last 5 played songs + See all)
+
+    private var recentlyPlayedSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("QUICK PICKS")
+                Text("RECENTLY PLAYED")
+                    .font(.system(size: 13, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundColor(.white.opacity(0.7))
+
+                Spacer()
+
+                if !viewModel.recentlyPlayed.isEmpty {
+                    Button(action: { showAllRecentlyPlayed = true }) {
+                        Text("See all (\(viewModel.recentlyPlayed.count))")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.85))
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+
+            if viewModel.recentlyPlayed.isEmpty {
+                HStack(spacing: 12) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 24))
+                        .foregroundColor(.white.opacity(0.3))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("No recently played songs")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.85))
+                        Text("Songs you play will appear here")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                    Spacer()
+                }
+                .padding(14)
+                .background(Color(white: 0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 16)
+            } else {
+                let last5 = Array(viewModel.recentlyPlayed.prefix(5))
+                VStack(spacing: 4) {
+                    ForEach(last5) { song in
+                        songRow(track: song, list: viewModel.recentlyPlayed)
+                    }
+                }
+                .padding(.horizontal, 16)
+
+                // Option below it for seeing all -> shows all the recently played songs
+                Button(action: { showAllRecentlyPlayed = true }) {
+                    HStack {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 14))
+                        Text("See all recently played (\(viewModel.recentlyPlayed.count))")
+                            .font(.system(size: 13, weight: .semibold))
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundColor(.white.opacity(0.9))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color(white: 0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    // MARK: - 2. Favourite Artists
+
+    private var favouriteArtistsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("FAVOURITE ARTISTS")
                     .font(.system(size: 13, weight: .bold))
                     .tracking(1.2)
                     .foregroundColor(.white.opacity(0.7))
@@ -188,29 +277,171 @@ public struct StreamView: View {
                 Spacer()
 
                 Button(action: {
-                    viewModel.playAll(tracks: viewModel.trendingSongs, shuffle: true)
+                    viewModel.showFavoriteArtistsPrompt = true
                 }) {
                     HStack(spacing: 4) {
-                        Image(systemName: "shuffle")
-                            .font(.system(size: 12))
-                        Text("Shuffle")
+                        Image(systemName: viewModel.favoriteArtists.isEmpty ? "plus.circle.fill" : "pencil")
+                            .font(.system(size: 11))
+                        Text(viewModel.favoriteArtists.isEmpty ? "Select" : "Edit")
                             .font(.system(size: 12, weight: .semibold))
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
                     .background(Color.white.opacity(0.18))
                     .clipShape(Capsule())
                 }
             }
             .padding(.horizontal, 16)
 
-            VStack(spacing: 4) {
-                ForEach(viewModel.trendingSongs) { song in
-                    songRow(track: song, list: viewModel.trendingSongs)
+            if viewModel.favoriteArtists.isEmpty {
+                Button(action: {
+                    viewModel.showFavoriteArtistsPrompt = true
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.crop.circle.badge.plus")
+                            .font(.system(size: 26))
+                            .foregroundColor(.white.opacity(0.5))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Pick your favourite artists")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white)
+                            Text("Personalize your music stream and recommendations")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.55))
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.4))
+                    }
+                    .padding(14)
+                    .background(Color(white: 0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal, 16)
+                }
+                .buttonStyle(.plain)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(viewModel.favoriteArtists) { artist in
+                            Button(action: { viewModel.openArtist(artist) }) {
+                                VStack(spacing: 8) {
+                                    AsyncImage(url: URL(string: artist.thumbnailUrl ?? "")) { phase in
+                                        if let image = phase.image {
+                                            image.resizable().aspectRatio(contentMode: .fill)
+                                        } else {
+                                            Circle()
+                                                .fill(
+                                                    LinearGradient(
+                                                        colors: [.purple.opacity(0.8), .blue.opacity(0.8)],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    )
+                                                )
+                                                .overlay(
+                                                    Text(String(artist.name.prefix(2)).uppercased())
+                                                        .font(.system(size: 20, weight: .bold))
+                                                        .foregroundColor(.white)
+                                                )
+                                        }
+                                    }
+                                    .frame(width: 76, height: 76)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
+
+                                    Text(artist.name)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                        .frame(width: 80)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        // Add more button
+                        Button(action: {
+                            viewModel.showFavoriteArtistsPrompt = true
+                        }) {
+                            VStack(spacing: 8) {
+                                Circle()
+                                    .fill(Color(white: 0.14))
+                                    .frame(width: 76, height: 76)
+                                    .overlay(
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 22, weight: .semibold))
+                                            .foregroundColor(.white.opacity(0.8))
+                                    )
+                                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
+
+                                Text("Add More")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.7))
+                                    .lineLimit(1)
+                                    .frame(width: 80)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 16)
+                }
+            }
+        }
+    }
+
+    // MARK: - 3. Suggested for You
+
+    private var suggestedForYouSection: some View {
+        let displayTracks = viewModel.suggestedTracks.isEmpty ? viewModel.trendingSongs : viewModel.suggestedTracks
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("SUGGESTED FOR YOU")
+                    .font(.system(size: 13, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundColor(.white.opacity(0.7))
+
+                Spacer()
+
+                if !displayTracks.isEmpty {
+                    Button(action: {
+                        viewModel.playAll(tracks: displayTracks, shuffle: true)
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "shuffle")
+                                .font(.system(size: 12))
+                            Text("Shuffle")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(0.18))
+                        .clipShape(Capsule())
+                    }
                 }
             }
             .padding(.horizontal, 16)
+
+            if displayTracks.isEmpty {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .tint(.white)
+                        .padding(.vertical, 20)
+                    Spacer()
+                }
+            } else {
+                VStack(spacing: 4) {
+                    ForEach(displayTracks) { song in
+                        songRow(track: song, list: displayTracks)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
         }
     }
 

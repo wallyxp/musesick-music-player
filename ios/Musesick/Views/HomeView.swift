@@ -61,5 +61,8 @@ public struct HomeView: View {
                 AlbumDetailView(album: album, viewModel: viewModel)
             }
         }
+        .sheet(isPresented: $viewModel.showFavoriteArtistsPrompt) {
+            FavoriteArtistsSelectionView(viewModel: viewModel)
+        }
     }
 }

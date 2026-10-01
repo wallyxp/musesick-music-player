@@ -93,6 +93,7 @@ public final class PlayerManager: ObservableObject, YouTubePlayerDelegate {
         }
 
         updateNowPlaying()
+        NotificationCenter.default.post(name: Notification.Name("MusesickTrackPlayed"), object: track)
     }
 
     private func playLocal(track: Track) {
