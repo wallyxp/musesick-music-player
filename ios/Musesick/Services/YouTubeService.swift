@@ -109,6 +109,7 @@ public actor YouTubeService {
     public func getArtistDetails(artist: Artist) async -> ArtistDetailData {
         var albums: [Album] = []
         var songs: [Track] = []
+        var heroImageUrl: String? = nil
 
         if let browseId = artist.browseId, !browseId.isEmpty {
             let url = URL(string: "https://music.youtube.com/youtubei/v1/browse")!
@@ -129,8 +130,27 @@ public actor YouTubeService {
                    (response as? HTTPURLResponse)?.statusCode == 200,
                    let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
                     parseArtistBrowse(json, artistName: artist.name, albums: &albums, songs: &songs)
+
+                    // Extract hero/header image
+                    if let header = json["header"] as? [String: Any] {
+                        let headerRenderer = (header["musicImmersiveHeaderRenderer"] as? [String: Any]) ?? (header["musicVisualHeaderRenderer"] as? [String: Any])
+                        if let hr = headerRenderer {
+                            let thumbDict = (hr["thumbnail"] as? [String: Any]) ?? (hr["foregroundThumbnail"] as? [String: Any])
+                            if let mt = thumbDict?["musicThumbnailRenderer"] as? [String: Any],
+                               let tObj = mt["thumbnail"] as? [String: Any],
+                               let thumbs = tObj["thumbnails"] as? [[String: Any]],
+                               let best = thumbs.last {
+                                heroImageUrl = best["url"] as? String
+                            }
+                        }
+                    }
                 }
             }
+        }
+
+        // Fallback hero image to artist high-res image
+        if heroImageUrl == nil {
+            heroImageUrl = artist.highResImageUrl ?? artist.thumbnailUrl
         }
 
         // Fallback search if albums or songs are sparse
@@ -142,9 +162,12 @@ public actor YouTubeService {
             for a in searchRes.albums where !albums.contains(where: { $0.id == a.id }) {
                 albums.append(a)
             }
+            if heroImageUrl == nil, let found = searchRes.artists.first(where: { $0.name.lowercased() == artist.name.lowercased() }) {
+                heroImageUrl = found.highResImageUrl ?? found.thumbnailUrl
+            }
         }
 
-        return ArtistDetailData(albums: albums, songs: songs)
+        return ArtistDetailData(albums: albums, songs: songs, heroImageUrl: heroImageUrl)
     }
 
     // MARK: - JSON Parsing Helpers
@@ -154,6 +177,9 @@ public actor YouTubeService {
 
         func scan(_ obj: Any) {
             if let dict = obj as? [String: Any] {
+                if let card = dict["musicCardShelfRenderer"] as? [String: Any] {
+                    parseCardShelf(card, into: &result)
+                }
                 if let renderer = dict["musicResponsiveListItemRenderer"] as? [String: Any] {
                     parseResponsiveItem(renderer, into: &result)
                 }
@@ -169,6 +195,51 @@ public actor YouTubeService {
 
         scan(root)
         return result
+    }
+
+    private func parseCardShelf(_ card: [String: Any], into result: inout SearchResult) {
+        var title = ""
+        var browseId: String? = nil
+        if let titleObj = card["title"] as? [String: Any],
+           let runs = titleObj["runs"] as? [[String: Any]],
+           let first = runs.first {
+            title = first["text"] as? String ?? ""
+            if let nav = first["navigationEndpoint"] as? [String: Any],
+               let bEndpoint = nav["browseEndpoint"] as? [String: Any] {
+                browseId = bEndpoint["browseId"] as? String
+            }
+        }
+
+        var thumbUrl: String? = nil
+        if let thumbDict = card["thumbnail"] as? [String: Any],
+           let mt = thumbDict["musicThumbnailRenderer"] as? [String: Any],
+           let tObj = mt["thumbnail"] as? [String: Any],
+           let thumbs = tObj["thumbnails"] as? [[String: Any]],
+           let best = thumbs.last {
+            thumbUrl = best["url"] as? String
+        }
+
+        if !title.isEmpty, let bId = browseId {
+            let artist = Artist(
+                id: bId,
+                name: title,
+                thumbnailUrl: thumbUrl,
+                fullImageUrl: thumbUrl?.replacingOccurrences(of: "=w120-h120", with: "=w1024-h1024"),
+                subtitle: "Artist",
+                browseId: bId
+            )
+            if !result.artists.contains(where: { $0.id == artist.id }) {
+                result.artists.insert(artist, at: 0)
+            }
+        }
+    }
+
+    public func fetchArtistImage(artistName: String) async -> (thumbnailUrl: String?, fullImageUrl: String?, browseId: String?) {
+        let res = await searchAll(query: artistName)
+        if let match = res.artists.first(where: { $0.name.lowercased() == artistName.lowercased() }) ?? res.artists.first {
+            return (match.thumbnailUrl, match.highResImageUrl, match.browseId)
+        }
+        return (nil, nil, nil)
     }
 
     private func parseResponsiveItem(_ item: [String: Any], into result: inout SearchResult) {
@@ -192,6 +263,13 @@ public actor YouTubeService {
                 if let bEndpoint = navEndpoint["browseEndpoint"] as? [String: Any] {
                     browseId = bEndpoint["browseId"] as? String
                 }
+            }
+        }
+
+        if browseId == nil {
+            if let navEndpoint = item["navigationEndpoint"] as? [String: Any],
+               let bEndpoint = navEndpoint["browseEndpoint"] as? [String: Any] {
+                browseId = bEndpoint["browseId"] as? String
             }
         }
 
@@ -241,6 +319,7 @@ public actor YouTubeService {
                 id: bId,
                 name: title,
                 thumbnailUrl: thumbUrl,
+                fullImageUrl: thumbUrl?.replacingOccurrences(of: "=w120-h120", with: "=w1024-h1024"),
                 subtitle: "Artist",
                 browseId: bId
             )

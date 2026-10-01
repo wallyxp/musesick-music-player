@@ -8,116 +8,7 @@ public struct FavoriteArtistsSelectionView: View {
     @State private var searchTask: Task<Void, Never>? = nil
 
     // Curated list of popular artists for fast onboarding
-    private let popularArtists: [Artist] = [
-        Artist(
-            id: "UCqECaJ8Gagnn7YCbPEzWH6g",
-            name: "Taylor Swift",
-            thumbnailUrl: "https://lh3.googleusercontent.com/occfWn2b_8kXn0u1H_6Q3E2iXf4g5qE6_K3jM9mF9Wc",
-            browseId: "UCqECaJ8Gagnn7YCbPEzWH6g"
-        ),
-        Artist(
-            id: "UC0WP5P-ufpRfjbNrmOWwLBQ",
-            name: "The Weeknd",
-            thumbnailUrl: "https://lh3.googleusercontent.com/s6nC1zUo5T0Yx1fQ9p7l9R2fX3b4_a2K4c7z6B2h",
-            browseId: "UC0WP5P-ufpRfjbNrmOWwLBQ"
-        ),
-        Artist(
-            id: "UCByOQJnP38d8icU43IZ4Hig",
-            name: "Drake",
-            thumbnailUrl: "https://lh3.googleusercontent.com/4M2oZk3M3pW0Y4f8b9kL7r8s7j4m3Q1z2w4l9V6c",
-            browseId: "UCByOQJnP38d8icU43IZ4Hig"
-        ),
-        Artist(
-            id: "UCiGm_E4DwYcU-fqGNPUC_HA",
-            name: "Billie Eilish",
-            thumbnailUrl: "https://lh3.googleusercontent.com/2Xy-gA9GZ4R-e9lqM8bV2w4m3s8F1k4a6s8d2h4j",
-            browseId: "UCiGm_E4DwYcU-fqGNPUC_HA"
-        ),
-        Artist(
-            id: "UClTBq0U4fD5D-zYqXlX2-wA",
-            name: "Arijit Singh",
-            thumbnailUrl: "https://lh3.googleusercontent.com/8E_P3n9K0m3r1l3o9F2fX3b4_a2K4c7z6B2h3j4k",
-            browseId: "UClTBq0U4fD5D-zYqXlX2-wA"
-        ),
-        Artist(
-            id: "UCoUM-UJ7rirJMX9vdsm8Qaw",
-            name: "Bruno Mars",
-            thumbnailUrl: "https://lh3.googleusercontent.com/7v3k0m1n2b3v4c5x6z7l8k9j0h1g2f3d4s5a6p7o",
-            browseId: "UCoUM-UJ7rirJMX9vdsm8Qaw"
-        ),
-        Artist(
-            id: "UC0C-w0YjGpqDXGB8trv6VwA",
-            name: "Ed Sheeran",
-            thumbnailUrl: "https://lh3.googleusercontent.com/8b3v4c5x6z7l8k9j0h1g2f3d4s5a6p7o8i9u0y1t",
-            browseId: "UC0C-w0YjGpqDXGB8trv6VwA"
-        ),
-        Artist(
-            id: "UCq-Fj5jknLsUf-MWSy4_brA",
-            name: "Diljit Dosanjh",
-            thumbnailUrl: "https://lh3.googleusercontent.com/9p7l9R2fX3b4_a2K4c7z6B2h3j4k5l6m7n8b9v0c",
-            browseId: "UCq-Fj5jknLsUf-MWSy4_brA"
-        ),
-        Artist(
-            id: "UC-J-KZfRV8c13fZEQB9cewQ",
-            name: "Dua Lipa",
-            thumbnailUrl: "https://lh3.googleusercontent.com/6B2h3j4k5l6m7n8b9v0c1x2z3a4s5d6f7g8h9j0k",
-            browseId: "UC-J-KZfRV8c13fZEQB9cewQ"
-        ),
-        Artist(
-            id: "UCtp830o9i3YfUf-X03hU3qw",
-            name: "Justin Bieber",
-            thumbnailUrl: "https://lh3.googleusercontent.com/3j4k5l6m7n8b9v0c1x2z3a4s5d6f7g8h9j0k1l2m",
-            browseId: "UCtp830o9i3YfUf-X03hU3qw"
-        ),
-        Artist(
-            id: "UCedvOgsKFrsUEPy294G0vHNw",
-            name: "Eminem",
-            thumbnailUrl: "https://lh3.googleusercontent.com/1x2z3a4s5d6f7g8h9j0k1l2m3n4b5v6c7x8z9a0s",
-            browseId: "UCedvOgsKFrsUEPy294G0vHNw"
-        ),
-        Artist(
-            id: "UCDPM_n1atn2ijUwHd0NNRQw",
-            name: "Coldplay",
-            thumbnailUrl: "https://lh3.googleusercontent.com/4s5d6f7g8h9j0k1l2m3n4b5v6c7x8z9a0s1d2f3g",
-            browseId: "UCDPM_n1atn2ijUwHd0NNRQw"
-        ),
-        Artist(
-            id: "UC6p5AoxkQvL-4v3Pj_YvYpQ",
-            name: "Kendrick Lamar",
-            thumbnailUrl: "https://lh3.googleusercontent.com/7g8h9j0k1l2m3n4b5v6c7x8z9a0s1d2f3g4h5j6k",
-            browseId: "UC6p5AoxkQvL-4v3Pj_YvYpQ"
-        ),
-        Artist(
-            id: "UCeLHszkByNZtPKcaVxoCOew",
-            name: "Post Malone",
-            thumbnailUrl: "https://lh3.googleusercontent.com/2m3n4b5v6c7x8z9a0s1d2f3g4h5j6k7l8m9n0b1v",
-            browseId: "UCeLHszkByNZtPKcaVxoCOew"
-        ),
-        Artist(
-            id: "UCq3ab_z4H5v0qWn0R4zX_0g",
-            name: "Shreya Ghoshal",
-            thumbnailUrl: "https://lh3.googleusercontent.com/5v6c7x8z9a0s1d2f3g4h5j6k7l8m9n0b1v2c3x4z",
-            browseId: "UCq3ab_z4H5v0qWn0R4zX_0g"
-        ),
-        Artist(
-            id: "UCm9SZAl03ETDbzT5qWGmLJw",
-            name: "Olivia Rodrigo",
-            thumbnailUrl: "https://lh3.googleusercontent.com/8z9a0s1d2f3g4h5j6k7l8m9n0b1v2c3x4z5a6s7d",
-            browseId: "UCm9SZAl03ETDbzT5qWGmLJw"
-        ),
-        Artist(
-            id: "UC9CoOnJ6STxwWjmp983jGmqw",
-            name: "Ariana Grande",
-            thumbnailUrl: "https://lh3.googleusercontent.com/1d2f3g4h5j6k7l8m9n0b1v2c3x4z5a6s7d8f9g0h",
-            browseId: "UC9CoOnJ6STxwWjmp983jGmqw"
-        ),
-        Artist(
-            id: "UCtxD0x6AuNN6bTwt_rC7zDA",
-            name: "Bad Bunny",
-            thumbnailUrl: "https://lh3.googleusercontent.com/3g4h5j6k7l8m9n0b1v2c3x4z5a6s7d8f9g0h1j2k",
-            browseId: "UCtxD0x6AuNN6bTwt_rC7zDA"
-        )
-    ]
+    private var popularArtists: [Artist] { Artist.popularArtists }
 
     private let columns = [
         GridItem(.flexible(), spacing: 14),
@@ -348,28 +239,14 @@ public struct FavoriteArtistsSelectionView: View {
         }) {
             VStack(spacing: 8) {
                 ZStack(alignment: .topTrailing) {
-                    AsyncImage(url: URL(string: artist.thumbnailUrl ?? "")) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } else {
+                    ArtistPhotoView(artist: artist)
+                        .frame(width: 90, height: 90)
+                        .clipShape(Circle())
+                        .overlay(
                             Circle()
-                                .fill(artistGradient(for: artist.name))
-                                .overlay(
-                                    Text(artistInitials(for: artist.name))
-                                        .font(.system(size: 24, weight: .bold))
-                                        .foregroundColor(.white)
-                                )
-                        }
-                    }
-                    .frame(width: 90, height: 90)
-                    .clipShape(Circle())
-                    .overlay(
-                        Circle()
-                            .stroke(selected ? Color.white : Color.white.opacity(0.1), lineWidth: selected ? 3 : 1)
-                    )
-                    .shadow(color: selected ? Color.white.opacity(0.3) : .clear, radius: 8)
+                                .stroke(selected ? Color.white : Color.white.opacity(0.1), lineWidth: selected ? 3 : 1)
+                        )
+                        .shadow(color: selected ? Color.white.opacity(0.3) : .clear, radius: 8)
 
                     if selected {
                         Image(systemName: "checkmark.circle.fill")

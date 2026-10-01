@@ -52,9 +52,7 @@ public struct HomeView: View {
             FullPlayerView(playerManager: viewModel.playerManager)
         }
         .sheet(item: $viewModel.selectedArtist) { artist in
-            NavigationStack {
-                ArtistDetailView(artist: artist, viewModel: viewModel)
-            }
+            ArtistDetailView(artist: artist, viewModel: viewModel)
         }
         .sheet(item: $viewModel.selectedAlbum) { album in
             NavigationStack {

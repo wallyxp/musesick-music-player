@@ -53,6 +53,8 @@ public final class MusicViewModel: ObservableObject {
             showFavoriteArtistsPrompt = true
         }
 
+        preloadFavoriteArtistFullImages()
+
         Task {
             // Load trending / recommended YouTube Music tracks
             let search = await YouTubeService.shared.searchAll(query: "Top Hits 2026")
@@ -123,6 +125,7 @@ public final class MusicViewModel: ObservableObject {
         }
         UserDefaults.standard.set(true, forKey: "musesick_has_selected_favorites")
         loadSuggestions()
+        preloadFavoriteArtistFullImages()
     }
 
     public func toggleFavoriteArtist(_ artist: Artist) {
@@ -137,7 +140,86 @@ public final class MusicViewModel: ObservableObject {
     private func loadFavoriteArtists() {
         if let data = UserDefaults.standard.data(forKey: "musesick_favorite_artists"),
            let list = try? JSONDecoder().decode([Artist].self, from: data) {
-            self.favoriteArtists = list
+            var upgraded = list
+            var changed = false
+            for idx in 0..<upgraded.count {
+                if let match = Artist.popularArtists.first(where: { $0.name.lowercased() == upgraded[idx].name.lowercased() }) {
+                    if upgraded[idx].thumbnailUrl == nil || upgraded[idx].thumbnailUrl?.contains("lh3.googleusercontent.com/occfWn") == true || upgraded[idx].thumbnailUrl?.isEmpty == true {
+                        upgraded[idx].thumbnailUrl = match.thumbnailUrl
+                        upgraded[idx].fullImageUrl = match.fullImageUrl
+                        upgraded[idx].browseId = match.browseId
+                        changed = true
+                    }
+                }
+            }
+            self.favoriteArtists = upgraded
+            if changed {
+                if let encoded = try? JSONEncoder().encode(upgraded) {
+                    UserDefaults.standard.set(encoded, forKey: "musesick_favorite_artists")
+                }
+            }
+        }
+    }
+
+    public func preloadFavoriteArtistFullImages() {
+        Task {
+            var updated = false
+            for i in 0..<favoriteArtists.count {
+                let artist = favoriteArtists[i]
+
+                // Check popularArtists first for instant high quality images
+                if let match = Artist.popularArtists.first(where: { $0.name.lowercased() == artist.name.lowercased() }) {
+                    if favoriteArtists[i].thumbnailUrl == nil || favoriteArtists[i].thumbnailUrl?.contains("lh3.googleusercontent.com/occfWn") == true || favoriteArtists[i].thumbnailUrl?.isEmpty == true {
+                        favoriteArtists[i].thumbnailUrl = match.thumbnailUrl
+                        favoriteArtists[i].fullImageUrl = match.fullImageUrl
+                        favoriteArtists[i].browseId = match.browseId
+                        updated = true
+                    }
+                } else if artist.thumbnailUrl == nil || artist.thumbnailUrl?.contains("lh3.googleusercontent.com/occfWn") == true {
+                    let fresh = await YouTubeService.shared.fetchArtistImage(artistName: artist.name)
+                    if let newThumb = fresh.thumbnailUrl {
+                        favoriteArtists[i].thumbnailUrl = newThumb
+                        updated = true
+                    }
+                    if let newFull = fresh.fullImageUrl {
+                        favoriteArtists[i].fullImageUrl = newFull
+                        updated = true
+                    }
+                    if let bId = fresh.browseId {
+                        favoriteArtists[i].browseId = bId
+                        updated = true
+                    }
+                }
+
+                let cur = favoriteArtists[i]
+
+                // 1. Preload thumbnail
+                if let thumbStr = cur.thumbnailUrl, !thumbStr.isEmpty,
+                   ArtistImageCache.shared.image(for: thumbStr) == nil,
+                   let thumbUrl = URL(string: thumbStr) {
+                    if let (data, _) = try? await URLSession.shared.data(from: thumbUrl),
+                       let img = UIImage(data: data) {
+                        ArtistImageCache.shared.insertImage(img, for: thumbStr)
+                    }
+                }
+
+                // 2. Preload full-size image on opening the app
+                let fullStr = cur.highResImageUrl ?? cur.fullImageUrl ?? ""
+                if !fullStr.isEmpty,
+                   ArtistImageCache.shared.image(for: fullStr) == nil,
+                   let fullUrl = URL(string: fullStr) {
+                    if let (data, _) = try? await URLSession.shared.data(from: fullUrl),
+                       let img = UIImage(data: data) {
+                        ArtistImageCache.shared.insertImage(img, for: fullStr)
+                    }
+                }
+            }
+
+            if updated {
+                if let data = try? JSONEncoder().encode(favoriteArtists) {
+                    UserDefaults.standard.set(data, forKey: "musesick_favorite_artists")
+                }
+            }
         }
     }
 
@@ -238,12 +320,30 @@ public final class MusicViewModel: ObservableObject {
     }
 
     public func handleIncomingURL(_ url: URL) {
+        if url.scheme == "musesick" && url.host == "artist" {
+            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            if let name = components?.queryItems?.first(where: { $0.name == "name" })?.value {
+                let match = favoriteArtists.first(where: { $0.name.lowercased() == name.lowercased() })
+                    ?? Artist.popularArtists.first(where: { $0.name.lowercased() == name.lowercased() })
+                    ?? Artist(id: name, name: name)
+                openArtist(match)
+                return
+            }
+        }
+
         var videoId: String?
         if let components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
             if let vItem = components.queryItems?.first(where: { $0.name == "v" }) {
                 videoId = vItem.value
             } else if url.host == "youtu.be" {
                 videoId = url.pathComponents.dropFirst().first
+            } else if url.pathComponents.contains("channel") {
+                if let idx = url.pathComponents.firstIndex(of: "channel"), idx + 1 < url.pathComponents.count {
+                    let browseId = url.pathComponents[idx + 1]
+                    let a = Artist(id: browseId, name: "Artist", browseId: browseId)
+                    openArtist(a)
+                    return
+                }
             }
         }
         guard let id = videoId, !id.isEmpty else { return }

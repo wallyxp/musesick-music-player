@@ -330,28 +330,10 @@ public struct StreamView: View {
                         ForEach(viewModel.favoriteArtists) { artist in
                             Button(action: { viewModel.openArtist(artist) }) {
                                 VStack(spacing: 8) {
-                                    AsyncImage(url: URL(string: artist.thumbnailUrl ?? "")) { phase in
-                                        if let image = phase.image {
-                                            image.resizable().aspectRatio(contentMode: .fill)
-                                        } else {
-                                            Circle()
-                                                .fill(
-                                                    LinearGradient(
-                                                        colors: [.purple.opacity(0.8), .blue.opacity(0.8)],
-                                                        startPoint: .topLeading,
-                                                        endPoint: .bottomTrailing
-                                                    )
-                                                )
-                                                .overlay(
-                                                    Text(String(artist.name.prefix(2)).uppercased())
-                                                        .font(.system(size: 20, weight: .bold))
-                                                        .foregroundColor(.white)
-                                                )
-                                        }
-                                    }
-                                    .frame(width: 76, height: 76)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
+                                    ArtistPhotoView(artist: artist)
+                                        .frame(width: 76, height: 76)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
 
                                     Text(artist.name)
                                         .font(.system(size: 12, weight: .medium))
