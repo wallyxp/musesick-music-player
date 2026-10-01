@@ -1,0 +1,406 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+/* Begin PBXBuildFile section */
+		ADAEF666049448518A3DC9A0 /* MusesickApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9082E0C8BDB64239AFCF3B12 /* MusesickApp.swift */; };
+		020C06F9B596463A95A5A9EA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A504102D9EA4921BC9CFDFA /* ContentView.swift */; };
+		795F73E1E1D54750AC1C319B /* Track.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D4371EAAEDF488B8CB59C74 /* Track.swift */; };
+		C9679345257E40EF8EB6B9C2 /* Artist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CF40B8B66B74100AC513F3E /* Artist.swift */; };
+		C2572446D8B24CB8A30213E2 /* Album.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8444F29D19094755A3CD245E /* Album.swift */; };
+		91D310E6270D446BB198F817 /* Playlist.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCA1352E479E4F60BF4F29F1 /* Playlist.swift */; };
+		A25AA21DDDDE47F2AD53C5F8 /* Lyrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22157A241090496E821BEC04 /* Lyrics.swift */; };
+		FA00960DB3C341A2BD99A38C /* PlaybackState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCDE9A3415044EADB62AA3A3 /* PlaybackState.swift */; };
+		FA11CD6865524497B13411ED /* YouTubeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E163B9FA7AA4C3885BA42D3 /* YouTubeService.swift */; };
+		73B070091923497CB3952DFC /* LyricsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD6F688F778644989DDD769B /* LyricsService.swift */; };
+		B0B25F26EFF24E26967F5FE3 /* LocalMusicService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 478BC8B0A2F5497FBC2DD06A /* LocalMusicService.swift */; };
+		12D0B6D1488F47C58D46B89D /* NowPlayingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F583ACE38CD34438AAFCC6B1 /* NowPlayingManager.swift */; };
+		B511B9B4E30D4E289FC20F07 /* PlayerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3EEA74595224783A9F66011 /* PlayerManager.swift */; };
+		9DA625206B2F499C9C88B119 /* YouTubePlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7CC89F94D447449817D94E /* YouTubePlayerView.swift */; };
+		B22C1046467945998835D78B /* MusicViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 660D409AAFC2466498ED62AC /* MusicViewModel.swift */; };
+		A7EAB1CB67904270B4880C43 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715A1355F7B8479B885A3AF5 /* HomeView.swift */; };
+		38DA5F28D88A475598A3F33E /* FullPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125560644FDE4D648FFF05D4 /* FullPlayerView.swift */; };
+		1B1E017E61B74C0787A43421 /* MiniPlayerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = D796B2F93F6C42C28FC648FD /* MiniPlayerBar.swift */; };
+		1EC05F8D197447A5B5C0D9A0 /* StreamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 597930E7F40B4F2BBA369B56 /* StreamView.swift */; };
+		9AD339C607B74969A9E888DA /* LocalTracksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B41561077A954E7AB9F7387D /* LocalTracksView.swift */; };
+		C79258C87ADD45879FA0F978 /* PlaylistsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4C3B2E893DD449E84E6FD4D /* PlaylistsView.swift */; };
+		D7BC945F907341F793984992 /* ArtistDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C04B82EF5214747A7CC1FD1 /* ArtistDetailView.swift */; };
+		080B548A3B4F40DFA9C5C00F /* AlbumDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A9EDB62F574B1A86477CD4 /* AlbumDetailView.swift */; };
+		50138759821A40E09932E42D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB1469D9438C4037BFD18F3F /* SettingsView.swift */; };
+		ACB6A8D03A524FA0B0EE7D17 /* Assets.xcassets in Sources */ = {isa = PBXBuildFile; fileRef = 25B563B0C46F437AB0716B68 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		C82A7D693917482EAA64B00D /* Musesick.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Musesick.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9082E0C8BDB64239AFCF3B12 /* MusesickApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusesickApp.swift; sourceTree = "<group>"; };
+		8A504102D9EA4921BC9CFDFA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		9D4371EAAEDF488B8CB59C74 /* Track.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Track.swift; sourceTree = "<group>"; };
+		4CF40B8B66B74100AC513F3E /* Artist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artist.swift; sourceTree = "<group>"; };
+		8444F29D19094755A3CD245E /* Album.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Album.swift; sourceTree = "<group>"; };
+		CCA1352E479E4F60BF4F29F1 /* Playlist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Playlist.swift; sourceTree = "<group>"; };
+		22157A241090496E821BEC04 /* Lyrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lyrics.swift; sourceTree = "<group>"; };
+		BCDE9A3415044EADB62AA3A3 /* PlaybackState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackState.swift; sourceTree = "<group>"; };
+		6E163B9FA7AA4C3885BA42D3 /* YouTubeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeService.swift; sourceTree = "<group>"; };
+		CD6F688F778644989DDD769B /* LyricsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricsService.swift; sourceTree = "<group>"; };
+		478BC8B0A2F5497FBC2DD06A /* LocalMusicService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalMusicService.swift; sourceTree = "<group>"; };
+		F583ACE38CD34438AAFCC6B1 /* NowPlayingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingManager.swift; sourceTree = "<group>"; };
+		F3EEA74595224783A9F66011 /* PlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerManager.swift; sourceTree = "<group>"; };
+		0F7CC89F94D447449817D94E /* YouTubePlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubePlayerView.swift; sourceTree = "<group>"; };
+		660D409AAFC2466498ED62AC /* MusicViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicViewModel.swift; sourceTree = "<group>"; };
+		715A1355F7B8479B885A3AF5 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		125560644FDE4D648FFF05D4 /* FullPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullPlayerView.swift; sourceTree = "<group>"; };
+		D796B2F93F6C42C28FC648FD /* MiniPlayerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniPlayerBar.swift; sourceTree = "<group>"; };
+		597930E7F40B4F2BBA369B56 /* StreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamView.swift; sourceTree = "<group>"; };
+		B41561077A954E7AB9F7387D /* LocalTracksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTracksView.swift; sourceTree = "<group>"; };
+		B4C3B2E893DD449E84E6FD4D /* PlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsView.swift; sourceTree = "<group>"; };
+		5C04B82EF5214747A7CC1FD1 /* ArtistDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtistDetailView.swift; sourceTree = "<group>"; };
+		C1A9EDB62F574B1A86477CD4 /* AlbumDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumDetailView.swift; sourceTree = "<group>"; };
+		DB1469D9438C4037BFD18F3F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		25B563B0C46F437AB0716B68 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		007045FC8D454F4AB0530EDD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		FA5AD908D7EA408987503B20 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		DE8FF255625A4AB4B3FC65D4 = {
+			isa = PBXGroup;
+			children = (
+				68FEEC7E6F5A43E4BEEE7A00 /* Musesick */,
+				F4A12581C03D4FDF93ED57B2 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F4A12581C03D4FDF93ED57B2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				C82A7D693917482EAA64B00D /* Musesick.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		68FEEC7E6F5A43E4BEEE7A00 /* Musesick */ = {
+			isa = PBXGroup;
+			children = (
+				C0F302FBD095417C9813A553 /* App */,
+				09879F79539B404392F0E15D /* Models */,
+				4594806D23614B75A72CA37F /* Services */,
+				D6BE8DB57CF34C0B9935FDBB /* Player */,
+				78DE00B17913431BB141FCB9 /* ViewModels */,
+				0D634EFEF16F4BD6B1119426 /* Views */,
+				7CCBCA8E07B74095AA4C17B9 /* Resources */,
+			);
+			path = Musesick;
+			sourceTree = "<group>";
+		};
+		C0F302FBD095417C9813A553 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				9082E0C8BDB64239AFCF3B12 /* MusesickApp.swift */,
+				8A504102D9EA4921BC9CFDFA /* ContentView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		09879F79539B404392F0E15D /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				9D4371EAAEDF488B8CB59C74 /* Track.swift */,
+				4CF40B8B66B74100AC513F3E /* Artist.swift */,
+				8444F29D19094755A3CD245E /* Album.swift */,
+				CCA1352E479E4F60BF4F29F1 /* Playlist.swift */,
+				22157A241090496E821BEC04 /* Lyrics.swift */,
+				BCDE9A3415044EADB62AA3A3 /* PlaybackState.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		4594806D23614B75A72CA37F /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				6E163B9FA7AA4C3885BA42D3 /* YouTubeService.swift */,
+				CD6F688F778644989DDD769B /* LyricsService.swift */,
+				478BC8B0A2F5497FBC2DD06A /* LocalMusicService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		D6BE8DB57CF34C0B9935FDBB /* Player */ = {
+			isa = PBXGroup;
+			children = (
+				F583ACE38CD34438AAFCC6B1 /* NowPlayingManager.swift */,
+				F3EEA74595224783A9F66011 /* PlayerManager.swift */,
+				0F7CC89F94D447449817D94E /* YouTubePlayerView.swift */,
+			);
+			path = Player;
+			sourceTree = "<group>";
+		};
+		78DE00B17913431BB141FCB9 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				660D409AAFC2466498ED62AC /* MusicViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		0D634EFEF16F4BD6B1119426 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				715A1355F7B8479B885A3AF5 /* HomeView.swift */,
+				125560644FDE4D648FFF05D4 /* FullPlayerView.swift */,
+				D796B2F93F6C42C28FC648FD /* MiniPlayerBar.swift */,
+				597930E7F40B4F2BBA369B56 /* StreamView.swift */,
+				B41561077A954E7AB9F7387D /* LocalTracksView.swift */,
+				B4C3B2E893DD449E84E6FD4D /* PlaylistsView.swift */,
+				5C04B82EF5214747A7CC1FD1 /* ArtistDetailView.swift */,
+				C1A9EDB62F574B1A86477CD4 /* AlbumDetailView.swift */,
+				DB1469D9438C4037BFD18F3F /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		7CCBCA8E07B74095AA4C17B9 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				25B563B0C46F437AB0716B68 /* Assets.xcassets */,
+				007045FC8D454F4AB0530EDD /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		993DA1C122D94CA2A90A47F7 /* Musesick */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8B93B175467E4DD8B2C66DF2 /* Build configuration list for PBXNativeTarget "Musesick" */;
+			buildPhases = (
+				CF8065101DEE441DB5A456DC /* Sources */,
+				FA5AD908D7EA408987503B20 /* Frameworks */,
+				3D94592B22DB4C2B80D52BD5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Musesick;
+			productName = Musesick;
+			productReference = C82A7D693917482EAA64B00D /* Musesick.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		50B4E5EE0ED44229B4C3EB3C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					993DA1C122D94CA2A90A47F7 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = D4390BA9088A44969CEC9DF4 /* Build configuration list for PBXProject "Musesick" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = DE8FF255625A4AB4B3FC65D4;
+			productRefGroup = F4A12581C03D4FDF93ED57B2 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				993DA1C122D94CA2A90A47F7 /* Musesick */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3D94592B22DB4C2B80D52BD5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ACB6A8D03A524FA0B0EE7D17 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CF8065101DEE441DB5A456DC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ADAEF666049448518A3DC9A0 /* MusesickApp.swift in Sources */,
+				020C06F9B596463A95A5A9EA /* ContentView.swift in Sources */,
+				795F73E1E1D54750AC1C319B /* Track.swift in Sources */,
+				C9679345257E40EF8EB6B9C2 /* Artist.swift in Sources */,
+				C2572446D8B24CB8A30213E2 /* Album.swift in Sources */,
+				91D310E6270D446BB198F817 /* Playlist.swift in Sources */,
+				A25AA21DDDDE47F2AD53C5F8 /* Lyrics.swift in Sources */,
+				FA00960DB3C341A2BD99A38C /* PlaybackState.swift in Sources */,
+				FA11CD6865524497B13411ED /* YouTubeService.swift in Sources */,
+				73B070091923497CB3952DFC /* LyricsService.swift in Sources */,
+				B0B25F26EFF24E26967F5FE3 /* LocalMusicService.swift in Sources */,
+				12D0B6D1488F47C58D46B89D /* NowPlayingManager.swift in Sources */,
+				B511B9B4E30D4E289FC20F07 /* PlayerManager.swift in Sources */,
+				9DA625206B2F499C9C88B119 /* YouTubePlayerView.swift in Sources */,
+				B22C1046467945998835D78B /* MusicViewModel.swift in Sources */,
+				A7EAB1CB67904270B4880C43 /* HomeView.swift in Sources */,
+				38DA5F28D88A475598A3F33E /* FullPlayerView.swift in Sources */,
+				1B1E017E61B74C0787A43421 /* MiniPlayerBar.swift in Sources */,
+				1EC05F8D197447A5B5C0D9A0 /* StreamView.swift in Sources */,
+				9AD339C607B74969A9E888DA /* LocalTracksView.swift in Sources */,
+				C79258C87ADD45879FA0F978 /* PlaylistsView.swift in Sources */,
+				D7BC945F907341F793984992 /* ArtistDetailView.swift in Sources */,
+				080B548A3B4F40DFA9C5C00F /* AlbumDetailView.swift in Sources */,
+				50138759821A40E09932E42D /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A0D7472A48794327B88CA14A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		4B8E04237A3F4C29AC4FD612 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		8A4DCC99600B4FACAADFBEEE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGNING_ALLOWED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Musesick/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wally.musesick;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		2993CCCF11A64AB3B24340E4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGNING_ALLOWED = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Musesick/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wally.musesick;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		D4390BA9088A44969CEC9DF4 /* Build configuration list for PBXProject "Musesick" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0D7472A48794327B88CA14A /* Debug */,
+				4B8E04237A3F4C29AC4FD612 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8B93B175467E4DD8B2C66DF2 /* Build configuration list for PBXNativeTarget "Musesick" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8A4DCC99600B4FACAADFBEEE /* Debug */,
+				2993CCCF11A64AB3B24340E4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = 50B4E5EE0ED44229B4C3EB3C /* Project object */;
+}
