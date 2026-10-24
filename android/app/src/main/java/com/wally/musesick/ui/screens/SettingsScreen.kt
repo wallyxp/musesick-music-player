@@ -1,8 +1,18 @@
 package com.wally.musesick.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.res.painterResource
+import com.wally.musesick.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,9 +54,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.Gradient
 import androidx.compose.material.icons.filled.Wallpaper
-import com.wally.musesick.ui.theme.AmbientPalettes
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -542,42 +551,34 @@ fun SettingsAppThemeScreen(
                                 }
                             }
                         }
-                        theme == AppTheme.AMBIENT && isThemeSelected -> {
+                        theme == AppTheme.AQUA -> {
                             {
-                                Spacer(modifier = Modifier.height(14.dp))
-                                val currentSlot = AmbientPalettes.getCurrentSlot()
-                                val palette = AmbientPalettes.getPalette(currentSlot)
-                                val hourFormatted = String.format("%02d:00 - %02d:59", currentSlot * 2, currentSlot * 2 + 1)
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(54.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(
-                                                androidx.compose.ui.graphics.Brush.verticalGradient(palette.colors)
-                                            )
-                                    )
-
-                                    Spacer(modifier = Modifier.width(14.dp))
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Active: ${palette.name} ($hourFormatted)",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                AnimatedVisibility(
+                                    visible = isThemeSelected,
+                                    enter = slideInVertically(
+                                        initialOffsetY = { it },
+                                        animationSpec = spring(
+                                            dampingRatio = 0.65f,
+                                            stiffness = 500f
                                         )
-                                        Text(
-                                            text = "${palette.description} • Refreshes every 2 hours",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ) + fadeIn(animationSpec = tween(250)),
+                                    exit = slideOutVertically(
+                                        targetOffsetY = { it },
+                                        animationSpec = tween(200)
+                                    ) + fadeOut(animationSpec = tween(150))
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalAlignment = Alignment.End
+                                    ) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Image(
+                                            painter = painterResource(id = R.drawable.aquacry),
+                                            contentDescription = "Aqua Crying",
+                                            modifier = Modifier
+                                                .height(84.dp)
+                                                .padding(end = 4.dp)
+                                                .clip(RoundedCornerShape(10.dp))
                                         )
                                     }
                                 }
@@ -660,16 +661,29 @@ private fun ThemeCardWithVariants(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = if (isSelected) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        modifier = Modifier.size(22.dp)
-                    )
+                    if (theme == AppTheme.AQUA) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_theme_aqua),
+                            contentDescription = null,
+                            tint = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(14.dp))
@@ -737,6 +751,7 @@ private fun ThemeCardWithVariants(
 private fun getThemeIcon(theme: AppTheme): ImageVector {
     return when (theme) {
         AppTheme.MATERIAL_YOU -> Icons.Default.Android
+        AppTheme.AQUA -> Icons.Default.WaterDrop
         AppTheme.GRUVBOX -> Icons.Default.Coffee
         AppTheme.EVERFOREST -> Icons.Default.Park
         AppTheme.TOKYO_NIGHT -> Icons.Default.NightsStay
@@ -746,7 +761,6 @@ private fun getThemeIcon(theme: AppTheme): ImageVector {
         AppTheme.NORD -> Icons.Default.AcUnit
         AppTheme.CUSTOM_COLOR -> Icons.Default.Palette
         AppTheme.CUSTOM_IMAGE -> Icons.Default.Wallpaper
-        AppTheme.AMBIENT -> Icons.Default.Gradient
     }
 }
 

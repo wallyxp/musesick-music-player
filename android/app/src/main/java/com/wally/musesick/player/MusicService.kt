@@ -86,7 +86,13 @@ class MusicService : Service() {
     }
 
     private fun updateNotification(state: PlaybackState) {
-        val track = state.currentTrack ?: return
+        val track = state.currentTrack
+        if (track == null || state.status == PlaybackStatus.IDLE) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.cancel(NOTIFICATION_ID)
+            return
+        }
 
         // Upgrade to highest available resolution URL
         val rawUrl = track.thumbnailUrl

@@ -23,6 +23,7 @@ class MusesickApplication : Application(), ImageLoaderFactory {
             }
             .crossfade(true)
             .respectCacheHeaders(false)
+            .allowHardware(true)
             .build()
     }
 }

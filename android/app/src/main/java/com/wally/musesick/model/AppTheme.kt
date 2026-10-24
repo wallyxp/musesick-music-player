@@ -17,6 +17,15 @@ enum class AppTheme(
         displayName = "Material You",
         description = "Retains the classic app interface with dynamic Material 3 color harmonies"
     ),
+    AQUA(
+        displayName = "Aqua",
+        description = "Vibrant dual-tone palette inspired by the water goddess with stylish contrasts",
+        defaultVariant = "darugami",
+        availableVariants = listOf(
+            ThemeVariantOption("darugami", "Darugami"),
+            ThemeVariantOption("damegami", "Damegami")
+        )
+    ),
     GRUVBOX(
         displayName = "Gruvbox",
         description = "Retro groove color scheme with rich earth tones and high contrast",
@@ -95,20 +104,18 @@ enum class AppTheme(
         description = "Keeps the clean Material You interface styled with your selected accent color"
     ),
     CUSTOM_IMAGE(
-        displayName = "Add custom image",
-        description = "Uses your custom photo as a darkened and blurred wallpaper background for the app"
-    ),
-    AMBIENT(
-        displayName = "Ambient",
-        description = "Dynamic atmospheric gradient background that refreshes based on the hour of the day"
+        displayName = "Custom Image",
+        description = "Uses your custom photo as a darkened and blurred wallpaper background with floating glassmorphism"
     );
 
     companion object {
         fun fromString(value: String?): AppTheme {
             return try {
-                if (value == null) AMBIENT else valueOf(value)
+                if (value == null) AQUA
+                else if (value == "AMBIENT") CUSTOM_IMAGE
+                else valueOf(value)
             } catch (e: Exception) {
-                AMBIENT
+                AQUA
             }
         }
     }

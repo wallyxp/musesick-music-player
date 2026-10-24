@@ -553,6 +553,11 @@ class YouTubeRepository {
                             if (cont.isNotEmpty()) {
                                 nextContinuation = cont
                             }
+                        } else if (obj.has("continuationCommand")) {
+                            val cont = obj.getJSONObject("continuationCommand").optString("token", "")
+                            if (cont.isNotEmpty()) {
+                                nextContinuation = cont
+                            }
                         }
 
                         val keys = obj.keys()
@@ -579,8 +584,8 @@ class YouTubeRepository {
                 val contJson = executeInnerTubeRequest(
                     "https://music.youtube.com/youtubei/v1/browse?continuation=$cToken&ctoken=$cToken",
                     JSONObject().apply {
-                        put("context", createClientContext())
                         put("context", if (!accessToken.isNullOrBlank()) createAndroidMusicContext() else createClientContext())
+                        put("continuation", cToken)
                     }
                 ) ?: break
 
@@ -1071,12 +1076,40 @@ class YouTubeRepository {
         return pattern.find(rawCookies)?.groupValues?.getOrNull(1)?.trim()?.takeIf { it.isNotEmpty() }
     }
 
+    private fun buildAuthorizationHeader(cookieStr: String, origin: String = "https://music.youtube.com"): String? {
+        val timestamp = System.currentTimeMillis() / 1000
+        val schemes = mutableListOf<String>()
+
+        fun computeHash(cookieValue: String): String {
+            val input = "$timestamp $cookieValue $origin"
+            val digest = MessageDigest.getInstance("SHA-1").digest(input.toByteArray(Charsets.UTF_8))
+            return digest.joinToString("") { "%02x".format(it) }
+        }
+
+        val sapisid = extractCookieValue(cookieStr, "SAPISID")
+        if (!sapisid.isNullOrBlank()) {
+            schemes.add("SAPISIDHASH ${timestamp}_${computeHash(sapisid)}")
+        }
+
+        val sapisid1p = extractCookieValue(cookieStr, "__Secure-1PAPISID")
+        if (!sapisid1p.isNullOrBlank()) {
+            schemes.add("SAPISID1PHASH ${timestamp}_${computeHash(sapisid1p)}")
+        }
+
+        val sapisid3p = extractCookieValue(cookieStr, "__Secure-3PAPISID")
+        if (!sapisid3p.isNullOrBlank()) {
+            schemes.add("SAPISID3PHASH ${timestamp}_${computeHash(sapisid3p)}")
+        }
+
+        return schemes.takeIf { it.isNotEmpty() }?.joinToString(" ")
+    }
+
     private fun buildSapisidAuthorization(sapisid: String, origin: String = "https://music.youtube.com"): String {
         val timestamp = System.currentTimeMillis() / 1000
         val input = "$timestamp $sapisid $origin"
         val digest = MessageDigest.getInstance("SHA-1").digest(input.toByteArray(Charsets.UTF_8))
         val hash = digest.joinToString("") { "%02x".format(it) }
-        return "SAPISIDHASH ${timestamp}_${hash} SAPISID1PHASH ${timestamp}_${hash} SAPISID3PHASH ${timestamp}_${hash}"
+        return "SAPISIDHASH ${timestamp}_${hash}"
     }
 
     private fun executeGetWithBearer(urlStr: String, token: String): String? {
@@ -1193,8 +1226,28 @@ class YouTubeRepository {
             }
         }
 
-        // 1. Query InnerTube account_menu with ANDROID and ANDROID_MUSIC clients (primary method used by microG / ReVanced)
-        if (tokens.isNotEmpty() || activeCookie != null) {
+        // 1. Query InnerTube account_menu:
+        // When using Web Cookie, query with WEB and WEB_REMIX client contexts
+        if (activeCookie != null) {
+            executeInnerTubeRequest(
+                "https://www.youtube.com/youtubei/v1/account/account_menu",
+                JSONObject().apply {
+                    put("context", createWebContext())
+                }
+            )?.let { parseAccountMenuResponse(it) }
+
+            if (bestName == null || bestAvatarUrl == null) {
+                executeInnerTubeRequest(
+                    "https://music.youtube.com/youtubei/v1/account/account_menu",
+                    JSONObject().apply {
+                        put("context", createClientContext())
+                    }
+                )?.let { parseAccountMenuResponse(it) }
+            }
+        }
+
+        // When using OAuth2 Bearer token (microG / ReVanced), query with ANDROID clients
+        if (tokens.isNotEmpty() && (bestName == null || bestAvatarUrl == null)) {
             executeInnerTubeRequest(
                 "https://www.youtube.com/youtubei/v1/account/account_menu",
                 JSONObject().apply {
@@ -1207,15 +1260,6 @@ class YouTubeRepository {
                     "https://music.youtube.com/youtubei/v1/account/account_menu",
                     JSONObject().apply {
                         put("context", createAndroidMusicContext())
-                    }
-                )?.let { parseAccountMenuResponse(it) }
-            }
-
-            if (bestName == null || bestAvatarUrl == null) {
-                executeInnerTubeRequest(
-                    "https://music.youtube.com/youtubei/v1/account/account_menu",
-                    JSONObject().apply {
-                        put("context", createClientContext())
                     }
                 )?.let { parseAccountMenuResponse(it) }
             }
@@ -1574,7 +1618,7 @@ class YouTubeRepository {
             )?.let { scanLibraryJson(it) }
         }
 
-        // Also query WEB_REMIX client
+        // Also query WEB_REMIX & WEB clients
         executeInnerTubeRequest(
             "https://music.youtube.com/youtubei/v1/browse",
             JSONObject().apply {
@@ -1590,6 +1634,16 @@ class YouTubeRepository {
                 put("browseId", "FEmusic_library_landing")
             }
         )?.let { scanLibraryJson(it) }
+
+        if (activeCookie != null) {
+            executeInnerTubeRequest(
+                "https://www.youtube.com/youtubei/v1/browse",
+                JSONObject().apply {
+                    put("context", createWebContext())
+                    put("browseId", "FEplaylist_aggregation")
+                }
+            )?.let { scanLibraryJson(it) }
+        }
 
         for ((browseId, meta) in discovered) {
             try {
@@ -1844,60 +1898,43 @@ class YouTubeRepository {
             connectTimeout = 8000
             readTimeout = 8000
             setRequestProperty("Content-Type", "application/json")
-            setRequestProperty(
-                "User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
-            setRequestProperty("Origin", origin)
-            setRequestProperty("Referer", "$origin/")
-            setRequestProperty("X-Origin", origin)
             setRequestProperty("X-Goog-Api-Format-Version", "2")
 
-            when {
-                clientName == "ANDROID_MUSIC" -> {
-                    setRequestProperty(
-                        "User-Agent",
-                        "com.google.android.apps.youtube.music/6.42.52 (Linux; U; Android 14) gzip"
-                    )
-                }
-                clientName == "ANDROID" -> {
-                    setRequestProperty(
-                        "User-Agent",
-                        "com.google.android.youtube/19.09.37 (Linux; U; Android 14) gzip"
-                    )
-                }
-                else -> {
-                    setRequestProperty(
-                        "User-Agent",
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                    )
+            if (!isAndroidClient) {
+                setRequestProperty("Origin", origin)
+                setRequestProperty("Referer", "$origin/")
+                setRequestProperty("X-Origin", origin)
+                setRequestProperty(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                )
+            } else {
+                when (clientName) {
+                    "ANDROID_MUSIC" -> {
+                        setRequestProperty(
+                            "User-Agent",
+                            "com.google.android.apps.youtube.music/6.42.52 (Linux; U; Android 14) gzip"
+                        )
+                    }
+                    else -> {
+                        setRequestProperty(
+                            "User-Agent",
+                            "com.google.android.youtube/19.09.37 (Linux; U; Android 14) gzip"
+                        )
+                    }
                 }
             }
 
             if (token != null) {
                 setRequestProperty("Authorization", "Bearer $token")
                 setRequestProperty("X-Goog-AuthUser", "0")
-                if (!isAndroidClient && activeCookie != null) {
-                    setRequestProperty("Origin", origin)
-                    setRequestProperty("Referer", "$origin/")
-                    setRequestProperty("X-Origin", origin)
-                }
             } else if (activeCookie != null) {
-                setRequestProperty("Origin", origin)
-                setRequestProperty("Referer", "$origin/")
-                setRequestProperty("X-Origin", origin)
                 setRequestProperty("Cookie", activeCookie)
                 setRequestProperty("X-Goog-AuthUser", "0")
-                val sapisid = extractCookieValue(activeCookie, "SAPISID")
-                    ?: extractCookieValue(activeCookie, "__Secure-3PAPISID")
-                    ?: extractCookieValue(activeCookie, "__Secure-1PAPISID")
-                if (sapisid != null) {
-                    setRequestProperty("Authorization", buildSapisidAuthorization(sapisid, origin))
+                val authHeader = buildAuthorizationHeader(activeCookie, origin)
+                if (authHeader != null) {
+                    setRequestProperty("Authorization", authHeader)
                 }
-            } else if (!isAndroidClient) {
-                setRequestProperty("Origin", origin)
-                setRequestProperty("Referer", "$origin/")
-                setRequestProperty("X-Origin", origin)
             }
         }
 
@@ -1918,6 +1955,17 @@ class YouTubeRepository {
             put("client", JSONObject().apply {
                 put("clientName", "WEB_REMIX")
                 put("clientVersion", "1.20240101.01.00")
+                put("hl", "en")
+                put("gl", "US")
+            })
+        }
+    }
+
+    private fun createWebContext(): JSONObject {
+        return JSONObject().apply {
+            put("client", JSONObject().apply {
+                put("clientName", "WEB")
+                put("clientVersion", "2.20240101.01.00")
                 put("hl", "en")
                 put("gl", "US")
             })

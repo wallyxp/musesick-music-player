@@ -55,7 +55,8 @@ fun AlbumDetailScreen(
     album: Album,
     tracks: List<Track>,
     isLoading: Boolean,
-    playbackState: PlaybackState,
+    playingTrackId: String? = null,
+    isPlaying: Boolean = false,
     onBack: () -> Unit,
     onTrackClick: (Track, List<Track>) -> Unit,
     onTrackLongClick: ((Track) -> Unit)? = null,
@@ -230,13 +231,17 @@ fun AlbumDetailScreen(
                         )
                     }
                 } else {
-                    itemsIndexed(tracks) { index, track ->
-                        val isCurrent = playbackState.currentTrack?.id == track.id
+                    itemsIndexed(
+                        items = tracks,
+                        key = { index, track -> "${track.id}_$index" },
+                        contentType = { _, _ -> "album_track" }
+                    ) { index, track ->
+                        val isCurrent = playingTrackId == track.id
                         SongListItem(
                             track = track,
                             index = index + 1,
                             isCurrent = isCurrent,
-                            isPlaying = isCurrent && playbackState.isPlaying,
+                            isPlaying = isCurrent && isPlaying,
                             onClick = { onTrackClick(track, tracks) },
                             onLongClick = { onTrackLongClick?.invoke(track) }
                         )

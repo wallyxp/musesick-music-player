@@ -501,7 +501,66 @@ object ThemePalettes {
         onError = Color.White
     )
 
+    // AQUA PALETTES
+    private val AQUA_DARUGAMI = ThemePalette(
+        id = "darugami",
+        displayName = "Darugami",
+        isDark = true,
+        background = Color(0xFF0E1320),
+        surface = Color(0xFF151B2E),
+        surfaceVariant = Color(0xFF1F2640),
+        onBackground = Color(0xFFE6EEF8),
+        onSurface = Color(0xFFF0F5FC),
+        onSurfaceVariant = Color(0xFFBAC2DC),
+        primary = Color(0xFFBFEBF8),
+        onPrimary = Color(0xFF0F2636),
+        primaryContainer = Color(0xFF3D4171),
+        onPrimaryContainer = Color(0xFFBFEBF8),
+        secondary = Color(0xFF4D5596),
+        onSecondary = Color(0xFFFFFFFF),
+        secondaryContainer = Color(0xFF353C6F),
+        onSecondaryContainer = Color(0xFFDDE2FF),
+        tertiary = Color(0xFF84E4B6),
+        onTertiary = Color(0xFF003822),
+        tertiaryContainer = Color(0xFF005133),
+        onTertiaryContainer = Color(0xFFA0F2CD),
+        outline = Color(0xFF3E4770),
+        error = Color(0xFFFF5449),
+        onError = Color.White
+    )
+
+    private val AQUA_DAMEGAMI = ThemePalette(
+        id = "damegami",
+        displayName = "Damegami",
+        isDark = true,
+        background = Color(0xFF131320),
+        surface = Color(0xFF1C1C2C),
+        surfaceVariant = Color(0xFF28283E),
+        onBackground = Color(0xFFF5F2EA),
+        onSurface = Color(0xFFFBF8F2),
+        onSurfaceVariant = Color(0xFFCBC6B8),
+        primary = Color(0xFFFCCC7A),
+        onPrimary = Color(0xFF3E2D00),
+        primaryContainer = Color(0xFF5B4300),
+        onPrimaryContainer = Color(0xFFFFDF9E),
+        secondary = Color(0xFF3D4171),
+        onSecondary = Color(0xFFFFFFFF),
+        secondaryContainer = Color(0xFF282B4E),
+        onSecondaryContainer = Color(0xFFDDE2FF),
+        tertiary = Color(0xFF84E4B6),
+        onTertiary = Color(0xFF003822),
+        tertiaryContainer = Color(0xFF005133),
+        onTertiaryContainer = Color(0xFFA0F2CD),
+        outline = Color(0xFF6B5838),
+        error = Color(0xFFFF5449),
+        onError = Color.White
+    )
+
     private val PALETTES: Map<AppTheme, Map<String, ThemePalette>> = mapOf(
+        AppTheme.AQUA to mapOf(
+            "darugami" to AQUA_DARUGAMI,
+            "damegami" to AQUA_DAMEGAMI
+        ),
         AppTheme.GRUVBOX to mapOf(
             "dark" to GRUVBOX_DARK,
             "light" to GRUVBOX_LIGHT

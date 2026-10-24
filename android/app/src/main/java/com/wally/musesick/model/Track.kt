@@ -1,5 +1,7 @@
 package com.wally.musesick.model
 
+import androidx.compose.runtime.Immutable
+
 enum class AudioFormat(val label: String) {
     MP3("MP3"),
     M4A("M4A"),
@@ -7,6 +9,7 @@ enum class AudioFormat(val label: String) {
     YOUTUBE("YT STREAM")
 }
 
+@Immutable
 data class Track(
     val id: String,
     val title: String,
@@ -36,6 +39,7 @@ data class Track(
         get() = com.wally.musesick.repository.YouTubeRepository.toHighResThumbnailUrl(thumbnailUrl)
 }
 
+@Immutable
 data class Artist(
     val id: String,
     val name: String,
@@ -46,6 +50,7 @@ data class Artist(
     val isVisible: Boolean = true
 )
 
+@Immutable
 data class Album(
     val id: String,
     val title: String,
@@ -55,6 +60,7 @@ data class Album(
     val browseId: String? = null
 )
 
+@Immutable
 data class SearchResult(
     val songs: List<Track> = emptyList(),
     val artists: List<Artist> = emptyList(),

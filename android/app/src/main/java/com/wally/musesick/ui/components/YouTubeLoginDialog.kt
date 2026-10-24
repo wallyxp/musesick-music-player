@@ -104,18 +104,26 @@ fun YouTubeLoginDialog(
         return hasSapisid && hasSid
     }
 
+    fun hasValidYouTubeDomainCookie(): Boolean {
+        val cm = CookieManager.getInstance()
+        val cYt = cm.getCookie("https://www.youtube.com").orEmpty()
+        val cMusic = cm.getCookie("https://music.youtube.com").orEmpty()
+        val cAccYt = cm.getCookie("https://accounts.youtube.com").orEmpty()
+        return hasValidAuthCookie(cYt) || hasValidAuthCookie(cMusic) || hasValidAuthCookie(cAccYt)
+    }
+
     fun tryCompleteIfAuthenticated(url: String? = lastUrl, forceIfCookiePresent: Boolean = false): Boolean {
         if (hasCompleted) return true
         val combined = getCombinedYouTubeCookie()
         if (hasValidAuthCookie(combined)) {
             latestDetectedCookie = combined
-            val isOnYouTubeOrCheckCookie = url != null && (
+            val hasYtCookie = hasValidYouTubeDomainCookie()
+            val isOnYouTubeLanding = url != null && (
                 (url.contains("youtube.com") && !url.contains("accounts.google.com")) ||
-                url.contains("accounts.google.com/CheckCookie") ||
                 url.contains("accounts.youtube.com/accounts/SetSID") ||
                 url.contains("myaccount.google.com")
             )
-            if (forceIfCookiePresent || isOnYouTubeOrCheckCookie) {
+            if (forceIfCookiePresent || (hasYtCookie && isOnYouTubeLanding)) {
                 hasCompleted = true
                 CookieManager.getInstance().flush()
                 onLoginSuccess(combined!!, null, null)

@@ -1,7 +1,9 @@
 package com.wally.musesick.model
 
+import androidx.compose.runtime.Immutable
 import java.util.UUID
 
+@Immutable
 data class Playlist(
     val id: String = UUID.randomUUID().toString(),
     val title: String,
@@ -10,6 +12,7 @@ data class Playlist(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Immutable
 data class YouTubePlaylistData(
     val id: String,
     val title: String,

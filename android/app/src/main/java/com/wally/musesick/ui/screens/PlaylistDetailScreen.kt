@@ -45,6 +45,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -55,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -74,7 +76,7 @@ import com.wally.musesick.ui.components.NothingFormatBadge
 @Composable
 fun PlaylistDetailScreen(
     playlist: Playlist,
-    playbackState: PlaybackState,
+    playingTrackId: String? = null,
     onBack: () -> Unit,
     onTrackClick: (Track, List<Track>) -> Unit,
     onTrackLongClick: (Track) -> Unit,
@@ -348,8 +350,12 @@ fun PlaylistDetailScreen(
                     }
                 }
             } else {
-                itemsIndexed(playlist.tracks, key = { index, item -> "${item.id}_$index" }) { index, track ->
-                    val isCurrent = playbackState.currentTrack?.id == track.id
+                itemsIndexed(
+                    items = playlist.tracks,
+                    key = { index, item -> "${item.id}_$index" },
+                    contentType = { _, _ -> "playlist_track" }
+                ) { index, track ->
+                    val isCurrent = playingTrackId == track.id
                     val isDragging = draggingIndex == index
                     val isTargeted = isDragging || (heldIndex == index)
 
@@ -359,10 +365,10 @@ fun PlaylistDetailScreen(
                         label = "card_zoom"
                     )
 
-                    ElevatedCard(
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .padding(horizontal = if (isTargeted) 8.dp else 0.dp, vertical = 2.dp)
                             .zIndex(if (isTargeted) 15f else 1f)
                             .graphicsLayer {
                                 translationY = if (isDragging) dragOffsetY else 0f
@@ -370,12 +376,15 @@ fun PlaylistDetailScreen(
                                 scaleY = zoomScale
                             }
                             .clickable { onTrackClick(track, playlist.tracks) },
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isTargeted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f) else Color.Transparent,
+                        tonalElevation = if (isTargeted) 6.dp else 0.dp,
+                        shadowElevation = if (isTargeted) 8.dp else 0.dp
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = if (isUserCreated) 4.dp else 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                                .padding(start = if (isUserCreated) 8.dp else 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (isUserCreated) {

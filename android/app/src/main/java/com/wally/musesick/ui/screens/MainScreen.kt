@@ -70,11 +70,13 @@ import coil.compose.AsyncImage
 import java.io.File
 import kotlinx.coroutines.launch
 import com.wally.musesick.ui.MusicViewModel
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import com.wally.musesick.model.AppTheme
 import com.wally.musesick.model.Playlist
 import com.wally.musesick.ui.ScreenState
 import com.wally.musesick.ui.components.AddFavoriteArtistSheet
+import com.wally.musesick.ui.components.BottomNavigationControlBar
 import com.wally.musesick.ui.components.EditPlaylistSheet
 import com.wally.musesick.ui.components.ExistingPlaylistSheet
 import com.wally.musesick.ui.components.MiniPlayerBar
@@ -86,7 +88,6 @@ import com.wally.musesick.ui.components.YouTubeLoginDialog
 import com.wally.musesick.ui.screens.ArtistOnboardingScreen
 import com.wally.musesick.ui.screens.SettingsAppThemeScreen
 import com.wally.musesick.ui.screens.SettingsScreen
-import com.wally.musesick.ui.theme.rememberAmbientBrush
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,7 +129,9 @@ fun MainScreen(
 
     val currentScreen by viewModel.currentScreen.collectAsState()
     val selectedTab by viewModel.selectedTab.collectAsState()
-    val playbackState by viewModel.playbackState.collectAsState()
+    val currentPlayingTrackId by viewModel.currentPlayingTrackId.collectAsState()
+    val isCurrentTrackPlaying by viewModel.isCurrentTrackPlaying.collectAsState()
+    val hasActiveTrack by viewModel.hasActiveTrack.collectAsState()
     val queue by viewModel.queue.collectAsState()
     val isQueueReorderable by viewModel.isQueueReorderable.collectAsState()
     val isFullPlayerOpen by viewModel.isFullPlayerOpen.collectAsState()
@@ -250,13 +253,12 @@ fun MainScreen(
         }
     }
 
-    val isPhotoOrAmbient = (appTheme == AppTheme.CUSTOM_IMAGE || appTheme == AppTheme.AMBIENT)
-    val ambientBrush = rememberAmbientBrush()
+    val isCustomImage = (appTheme == AppTheme.CUSTOM_IMAGE)
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isPhotoOrAmbient) Color(0xFF121212) else MaterialTheme.colorScheme.background)
+            .background(if (isCustomImage) Color(0xFF121212) else MaterialTheme.colorScheme.background)
     ) {
         if (appTheme == AppTheme.CUSTOM_IMAGE && !customThemeImagePath.isNullOrEmpty()) {
             AsyncImage(
@@ -275,29 +277,35 @@ fun MainScreen(
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.78f))
             )
-        } else if (appTheme == AppTheme.AMBIENT) {
-            // Ambient gradient based on the hour of the day
+        }
+
+        // Custom Image mode: rich expansive gradient in the bottom section of the app
+        if (isCustomImage) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .scale(1.08f)
-                    .background(ambientBrush)
-                    .blur(28.dp)
-                    .clipToBounds()
-            )
-            // Very darkened layer on top of it
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.78f))
+                    .fillMaxWidth()
+                    .height(380.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color(0x18000000),
+                                Color(0x45000000),
+                                Color(0x8A000000),
+                                Color(0xCE000000),
+                                Color(0xFA000000)
+                            )
+                        )
+                    )
             )
         }
 
         Scaffold(
             modifier = Modifier
                 .fillMaxSize()
-                .background(if (isPhotoOrAmbient) Color.Transparent else MaterialTheme.colorScheme.background),
-            containerColor = if (isPhotoOrAmbient) Color.Transparent else MaterialTheme.colorScheme.background,
+                .background(if (isCustomImage) Color.Transparent else MaterialTheme.colorScheme.background),
+            containerColor = if (isCustomImage) Color.Transparent else MaterialTheme.colorScheme.background,
             contentWindowInsets = WindowInsets(0.dp),
         topBar = {
                 if (currentScreen == ScreenState.HOME) {
@@ -381,25 +389,60 @@ fun MainScreen(
                 }
             },
         bottomBar = {
-            if (playbackState.currentTrack != null) {
-                AnimatedVisibility(
-                    visible = !isFullPlayerOpen,
-                    enter = slideInVertically(
-                        initialOffsetY = { it },
-                        animationSpec = spring(dampingRatio = 0.84f, stiffness = 380f)
-                    ) + fadeIn(animationSpec = tween(220)),
-                    exit = slideOutVertically(
-                        targetOffsetY = { it },
-                        animationSpec = spring(dampingRatio = 0.88f, stiffness = 420f)
-                    ) + fadeOut(animationSpec = tween(180))
+            val isAccountsOrSettings = currentScreen == ScreenState.SETTINGS ||
+                    currentScreen == ScreenState.SETTINGS_APP_THEME ||
+                    currentScreen == ScreenState.SETTINGS_AUTO_SYNC
+            val showBottomBar = currentScreen != ScreenState.SEARCH && !isFullPlayerOpen && !isAccountsOrSettings
+            AnimatedVisibility(
+                visible = showBottomBar,
+                enter = slideInVertically(
+                    initialOffsetY = { it },
+                    animationSpec = spring(dampingRatio = 0.84f, stiffness = 420f)
+                ) + fadeIn(animationSpec = tween(160)),
+                exit = slideOutVertically(
+                    targetOffsetY = { it },
+                    animationSpec = spring(dampingRatio = 0.88f, stiffness = 420f)
+                ) + fadeOut(animationSpec = tween(140))
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.BottomCenter
                 ) {
+                    val isGlassmorphism = appTheme == AppTheme.CUSTOM_IMAGE
+                    // Custom Image mode: smooth gradient overlay in the bottom section
+                    if (isGlassmorphism) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(230.dp)
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            Color(0x1F000000),
+                                            Color(0x59000000),
+                                            Color(0x9E000000),
+                                            Color(0xDE050505)
+                                        )
+                                    )
+                                )
+                        )
+                    }
+
                     Box(modifier = Modifier.navigationBarsPadding()) {
-                        MiniPlayerBar(
-                            state = playbackState,
+                        val miniPlayerState by viewModel.playbackState.collectAsState()
+                        BottomNavigationControlBar(
+                            hasActiveTrack = hasActiveTrack,
+                            onSearchClick = { viewModel.openSearch() },
+                            miniPlayerState = miniPlayerState,
                             onTogglePlayPause = { viewModel.togglePlayPause() },
                             onNext = { viewModel.nextTrack() },
-                            onClick = { viewModel.openFullPlayer() },
-                            onSwipeUp = { viewModel.openFullPlayer() }
+                            onOpenFullPlayer = { viewModel.openFullPlayer() },
+                            onDoubleTapNowPlaying = {
+                                viewModel.closeFullPlayer()
+                                viewModel.stopSong()
+                            },
+                            isGlassmorphism = isGlassmorphism
                         )
                     }
                 }
@@ -409,12 +452,22 @@ fun MainScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(top = paddingValues.calculateTopPadding())
         ) {
             AnimatedContent(
                 targetState = currentScreen,
                 transitionSpec = {
-                    if (targetState.ordinal > initialState.ordinal) {
+                    if (targetState == ScreenState.SEARCH) {
+                        (slideInVertically(
+                            initialOffsetY = { (it * 0.25f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.82f, stiffness = 1000f)
+                        ) + fadeIn(tween(120))) togetherWith (fadeOut(tween(80)))
+                    } else if (initialState == ScreenState.SEARCH) {
+                        (fadeIn(tween(80))) togetherWith (slideOutVertically(
+                            targetOffsetY = { (it * 0.25f).toInt() },
+                            animationSpec = spring(dampingRatio = 0.85f, stiffness = 1000f)
+                        ) + fadeOut(tween(100)))
+                    } else if (targetState.ordinal > initialState.ordinal) {
                         slideInHorizontally { it } togetherWith slideOutHorizontally { -it }
                     } else {
                         slideInHorizontally { -it } togetherWith slideOutHorizontally { it }
@@ -437,7 +490,8 @@ fun MainScreen(
                                     playlists = playlists,
                                     suggestedPlaylists = suggestedPlaylists,
                                     isSuggestedPlaylistsLoading = isSuggestedPlaylistsLoading,
-                                    playbackState = playbackState,
+                                    playingTrackId = currentPlayingTrackId,
+                                    isPlaying = isCurrentTrackPlaying,
                                     onSearchClick = { viewModel.openSearch() },
                                     onSeeAllRecentlyPlayed = { viewModel.openRecentlyPlayed() },
                                     onManageFavoriteArtists = { isAddFavoriteArtistSheetOpen = true },
@@ -459,7 +513,8 @@ fun MainScreen(
                                     filteredTracks = viewModel.getFilteredLocalTracks(),
                                     isLoading = isLocalLoading,
                                     selectedFilter = localFilter,
-                                    playbackState = playbackState,
+                                    playingTrackId = currentPlayingTrackId,
+                                    isPlaying = isCurrentTrackPlaying,
                                     onFilterSelect = { viewModel.setLocalFormatFilter(it) },
                                     onRefresh = { viewModel.loadLocalTracks() },
                                     onFilesPicked = { viewModel.onFilesPicked(it) },
@@ -476,7 +531,8 @@ fun MainScreen(
                                 albums = artistAlbums,
                                 songs = artistSongs,
                                 isLoading = isArtistLoading,
-                                playbackState = playbackState,
+                                playingTrackId = currentPlayingTrackId,
+                                isPlaying = isCurrentTrackPlaying,
                                 onBack = { viewModel.navigateBack() },
                                 onAlbumClick = { viewModel.selectAlbum(it) },
                                 onSongClick = { track, list -> viewModel.playTrack(track, list) },
@@ -495,7 +551,8 @@ fun MainScreen(
                                 album = album,
                                 tracks = albumTracks,
                                 isLoading = isAlbumLoading,
-                                playbackState = playbackState,
+                                playingTrackId = currentPlayingTrackId,
+                                isPlaying = isCurrentTrackPlaying,
                                 onBack = { viewModel.navigateBack() },
                                 onTrackClick = { track, list -> viewModel.playTrack(track, list) },
                                 onTrackLongClick = { viewModel.openSongMenu(it) }
@@ -506,7 +563,7 @@ fun MainScreen(
                         selectedPlaylist?.let { playlist ->
                             PlaylistDetailScreen(
                                 playlist = playlist,
-                                playbackState = playbackState,
+                                playingTrackId = currentPlayingTrackId,
                                 onBack = { viewModel.navigateBack() },
                                 onTrackClick = { track, _ -> viewModel.playPlaylistTrack(playlist, track) },
                                 onTrackLongClick = { viewModel.openSongMenu(it) },
@@ -568,7 +625,8 @@ fun MainScreen(
                                 trackListType = artistTrackListType,
                                 tracks = allArtistTracks,
                                 isLoading = isAllTracksLoading,
-                                playbackState = playbackState,
+                                playingTrackId = currentPlayingTrackId,
+                                isPlaying = isCurrentTrackPlaying,
                                 onBack = { viewModel.navigateBack() },
                                 onTrackClick = { track, list -> viewModel.playTrack(track, list) },
                                 onTrackLongClick = { viewModel.openSongMenu(it) },
@@ -583,7 +641,8 @@ fun MainScreen(
                             searchResult = searchResult,
                             recentSearches = recentSearches,
                             isLoading = isSearchLoading,
-                            playbackState = playbackState,
+                            playingTrackId = currentPlayingTrackId,
+                            isPlaying = isCurrentTrackPlaying,
                             onSearchQueryChange = { viewModel.onSearchQueryChanged(it) },
                             onAddRecentSearch = { viewModel.addRecentSearch(it) },
                             onRemoveRecentSearch = { viewModel.removeRecentSearch(it) },
@@ -592,13 +651,15 @@ fun MainScreen(
                             onAlbumClick = { viewModel.selectAlbum(it) },
                             onSongClick = { track, list -> viewModel.playTrack(track, list) },
                             onSongLongClick = { viewModel.openSongMenu(it) },
-                            onBack = { viewModel.navigateBack() }
+                            onBack = { viewModel.navigateBack() },
+                            appTheme = appTheme
                         )
                     }
                     ScreenState.RECENTLY_PLAYED -> {
                         RecentlyPlayedScreen(
                             tracks = recentlyPlayed,
-                            playbackState = playbackState,
+                            playingTrackId = currentPlayingTrackId,
+                            isPlaying = isCurrentTrackPlaying,
                             onBack = { viewModel.navigateBack() },
                             onTrackClick = { track, list -> viewModel.playTrack(track, list) },
                             onTrackLongClick = { viewModel.openSongMenu(it) },
@@ -607,7 +668,8 @@ fun MainScreen(
                             onClearAll = {
                                 viewModel.clearRecentlyPlayed()
                                 Toast.makeText(context, "Recently played cleared", Toast.LENGTH_SHORT).show()
-                            }
+                            },
+                            appTheme = appTheme
                         )
                     }
                     ScreenState.SETTINGS -> {
@@ -689,9 +751,9 @@ fun MainScreen(
                 viewModel.openNewPlaylistSheet(track)
             },
             onDismiss = { viewModel.closeSongMenu() },
-            isCustomImageTheme = isPhotoOrAmbient,
+            isCustomImageTheme = isCustomImage,
             customThemeImagePath = customThemeImagePath,
-            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null
+            ambientBrush = null
         )
     }
 
@@ -709,9 +771,9 @@ fun MainScreen(
                 viewModel.openNewPlaylistSheet(targetTrackForPlaylist)
             },
             onDismiss = { viewModel.closeExistingPlaylistSheet() },
-            isCustomImageTheme = isPhotoOrAmbient,
+            isCustomImageTheme = isCustomImage,
             customThemeImagePath = customThemeImagePath,
-            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null
+            ambientBrush = null
         )
     }
 
@@ -740,9 +802,9 @@ fun MainScreen(
             },
             onClearYtPreview = { viewModel.clearYouTubePlaylistPreview() },
             onDismiss = { viewModel.closeNewPlaylistSheet() },
-            isCustomImageTheme = isPhotoOrAmbient,
+            isCustomImageTheme = isCustomImage,
             customThemeImagePath = customThemeImagePath,
-            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null
+            ambientBrush = null
         )
     }
 
@@ -757,9 +819,9 @@ fun MainScreen(
                 editingPlaylist = null
             },
             onDismiss = { editingPlaylist = null },
-            isCustomImageTheme = isPhotoOrAmbient,
+            isCustomImageTheme = isCustomImage,
             customThemeImagePath = customThemeImagePath,
-            ambientBrush = if (appTheme == AppTheme.AMBIENT) ambientBrush else null
+            ambientBrush = null
         )
     }
 
@@ -767,16 +829,17 @@ fun MainScreen(
     AnimatedVisibility(
         visible = isFullPlayerOpen,
         enter = slideInVertically(
-            initialOffsetY = { it },
-            animationSpec = spring(dampingRatio = 0.82f, stiffness = 380f)
-        ) + fadeIn(animationSpec = tween(220)),
+            initialOffsetY = { (it * 0.35f).toInt() },
+            animationSpec = spring(dampingRatio = 0.82f, stiffness = 1000f)
+        ) + fadeIn(animationSpec = tween(120)),
         exit = slideOutVertically(
-            targetOffsetY = { it },
-            animationSpec = spring(dampingRatio = 0.85f, stiffness = 400f)
-        ) + fadeOut(animationSpec = tween(180))
+            targetOffsetY = { (it * 0.35f).toInt() },
+            animationSpec = spring(dampingRatio = 0.85f, stiffness = 1000f)
+        ) + fadeOut(animationSpec = tween(100))
     ) {
+        val fullPlayerState by viewModel.playbackState.collectAsState()
         FullPlayerSheet(
-            state = playbackState,
+            state = fullPlayerState,
             queue = queue,
             onTogglePlayPause = { viewModel.togglePlayPause() },
             onNext = { viewModel.nextTrack() },
@@ -789,6 +852,7 @@ fun MainScreen(
             onRemoveFromQueue = { viewModel.removeFromQueue(it) },
             onTrackMenuClick = { viewModel.openSongMenu(it) },
             onClose = { viewModel.closeFullPlayer() },
+            appTheme = appTheme,
             isQueueReorderable = isQueueReorderable,
             lyricsState = lyricsState,
             onSeekToPosition = { viewModel.seekToPosition(it) },
@@ -849,7 +913,7 @@ fun MainScreen(
                 isAddFavoriteArtistSheetOpen = false
                 viewModel.onArtistSearchQueryChanged("")
             },
-            isCustomImageTheme = isPhotoOrAmbient
+            isCustomImageTheme = isCustomImage
         )
     }
 }

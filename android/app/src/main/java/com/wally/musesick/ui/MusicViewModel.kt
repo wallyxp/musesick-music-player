@@ -38,6 +38,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 enum class ScreenState {
@@ -153,6 +157,21 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
 
     val playbackState: StateFlow<PlaybackState> = playerManager.playbackState
+
+    val currentPlayingTrackId: StateFlow<String?> = playerManager.playbackState
+        .map { it.currentTrack?.id }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val isCurrentTrackPlaying: StateFlow<Boolean> = playerManager.playbackState
+        .map { it.isPlaying }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val hasActiveTrack: StateFlow<Boolean> = playerManager.playbackState
+        .map { it.currentTrack != null }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val queue: StateFlow<List<Track>> = playerManager.queue
 
     private val _isQueueReorderable = MutableStateFlow(true)
@@ -1121,6 +1140,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     fun togglePlayPause() {
         playerManager.togglePlayPause()
+    }
+
+    fun stopSong() {
+        _isFullPlayerOpen.value = false
+        playerManager.stop()
     }
 
     fun nextTrack() {

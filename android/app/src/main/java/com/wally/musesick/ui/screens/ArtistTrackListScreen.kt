@@ -63,7 +63,8 @@ fun ArtistTrackListScreen(
     trackListType: ArtistTrackListType,
     tracks: List<Track>,
     isLoading: Boolean,
-    playbackState: PlaybackState,
+    playingTrackId: String? = null,
+    isPlaying: Boolean = false,
     onBack: () -> Unit,
     onTrackClick: (Track, List<Track>) -> Unit,
     onTrackLongClick: ((Track) -> Unit)? = null,
@@ -212,13 +213,17 @@ fun ArtistTrackListScreen(
                 }
 
                 // Track items
-                itemsIndexed(displayedTracks, key = { index, item -> "${item.id}_$index" }) { index, track ->
-                    val isCurrent = playbackState.currentTrack?.id == track.id
+                itemsIndexed(
+                    items = displayedTracks,
+                    key = { index, item -> "${item.id}_$index" },
+                    contentType = { _, _ -> "artist_track" }
+                ) { index, track ->
+                    val isCurrent = playingTrackId == track.id
                     TrackListRow(
                         track = track,
                         index = index + 1,
                         isCurrent = isCurrent,
-                        isPlaying = isCurrent && playbackState.isPlaying,
+                        isPlaying = isCurrent && isPlaying,
                         onClick = { onTrackClick(track, tracks) },
                         onOptionsClick = { onTrackLongClick?.invoke(track) }
                     )

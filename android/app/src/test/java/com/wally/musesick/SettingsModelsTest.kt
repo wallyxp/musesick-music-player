@@ -27,6 +27,8 @@ class SettingsModelsTest {
     @Test
     fun testAppTheme_fromString() {
         assertEquals(AppTheme.MATERIAL_YOU, AppTheme.fromString("MATERIAL_YOU"))
+        assertEquals(AppTheme.AQUA, AppTheme.fromString("AQUA"))
+        assertEquals("Aqua", AppTheme.AQUA.displayName)
         assertEquals(AppTheme.GRUVBOX, AppTheme.fromString("GRUVBOX"))
         assertEquals(AppTheme.EVERFOREST, AppTheme.fromString("EVERFOREST"))
         assertEquals(AppTheme.TOKYO_NIGHT, AppTheme.fromString("TOKYO_NIGHT"))
@@ -36,20 +38,22 @@ class SettingsModelsTest {
         assertEquals(AppTheme.NORD, AppTheme.fromString("NORD"))
         assertEquals(AppTheme.CUSTOM_COLOR, AppTheme.fromString("CUSTOM_COLOR"))
         assertEquals(AppTheme.CUSTOM_IMAGE, AppTheme.fromString("CUSTOM_IMAGE"))
-        assertEquals("Add custom image", AppTheme.CUSTOM_IMAGE.displayName)
-        assertEquals(AppTheme.AMBIENT, AppTheme.fromString("AMBIENT"))
-        assertEquals("Ambient", AppTheme.AMBIENT.displayName)
+        assertEquals("Custom Image", AppTheme.CUSTOM_IMAGE.displayName)
 
-        // Fallbacks default to AMBIENT
-        assertEquals(AppTheme.AMBIENT, AppTheme.fromString("LIQUID_GLASS"))
-        assertEquals(AppTheme.AMBIENT, AppTheme.fromString("UNKNOWN_THEME"))
-        assertEquals(AppTheme.AMBIENT, AppTheme.fromString(null))
+        // AMBIENT maps to CUSTOM_IMAGE
+        assertEquals(AppTheme.CUSTOM_IMAGE, AppTheme.fromString("AMBIENT"))
+
+        // Fallbacks default to AQUA
+        assertEquals(AppTheme.AQUA, AppTheme.fromString("LIQUID_GLASS"))
+        assertEquals(AppTheme.AQUA, AppTheme.fromString("UNKNOWN_THEME"))
+        assertEquals(AppTheme.AQUA, AppTheme.fromString(null))
     }
 
     @Test
     fun testThemePalettes_variants() {
         // Test that every theme with variants returns valid palettes for all its defined variants
         val themesWithVariants = listOf(
+            AppTheme.AQUA,
             AppTheme.GRUVBOX,
             AppTheme.EVERFOREST,
             AppTheme.TOKYO_NIGHT,

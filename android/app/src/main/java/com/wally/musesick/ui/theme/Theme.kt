@@ -125,7 +125,7 @@ fun createCustomImageColorScheme(): ColorScheme {
 
 @Composable
 fun MusesickAppTheme(
-    appTheme: AppTheme = AppTheme.AMBIENT,
+    appTheme: AppTheme = AppTheme.AQUA,
     appThemeVariant: String = "",
     customAccentColor: Color = Color(0xFF6750A4),
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -141,7 +141,7 @@ fun MusesickAppTheme(
             }
         }
         AppTheme.CUSTOM_COLOR -> createCustomDarkColorScheme(customAccentColor)
-        AppTheme.CUSTOM_IMAGE, AppTheme.AMBIENT -> createCustomImageColorScheme()
+        AppTheme.CUSTOM_IMAGE -> createCustomImageColorScheme()
         else -> {
             val palette = ThemePalettes.getPalette(appTheme, appThemeVariant)
             palette?.toColorScheme() ?: DarkColorScheme
@@ -175,7 +175,7 @@ fun MusesickThemed(
         AppTheme.CUSTOM_COLOR -> {
             createCustomDarkColorScheme(customAccentColor ?: Color(0xFF6750A4))
         }
-        AppTheme.CUSTOM_IMAGE, AppTheme.AMBIENT -> createCustomImageColorScheme()
+        AppTheme.CUSTOM_IMAGE -> createCustomImageColorScheme()
         else -> {
             val palette = ThemePalettes.getPalette(theme, variant)
             palette?.toColorScheme() ?: DarkColorScheme

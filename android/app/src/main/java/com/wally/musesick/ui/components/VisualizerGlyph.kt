@@ -40,7 +40,7 @@ fun NothingDotVisualizer(
     spacing: Dp = 2.dp
 ) {
     val transition = rememberInfiniteTransition(label = "visualizer")
-    val phase by transition.animateFloat(
+    val phaseState = transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
@@ -55,6 +55,7 @@ fun NothingDotVisualizer(
             .fillMaxWidth()
             .height(((dotSize + spacing) * maxDotsPerBar).value.dp)
     ) {
+        val phase = phaseState.value
         val totalWidth = size.width
         val barWidth = dotSize.toPx()
         val stepX = totalWidth / (barCount + 1)
@@ -102,7 +103,7 @@ fun NothingDiscGlyph(
     sizeDp: Dp = 160.dp
 ) {
     val transition = rememberInfiniteTransition(label = "disc")
-    val rotation by transition.animateFloat(
+    val rotationState = transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
@@ -112,9 +113,8 @@ fun NothingDiscGlyph(
         label = "rotation"
     )
 
-    val currentAngle = if (isPlaying) rotation else 0f
-
     Canvas(modifier = modifier.size(sizeDp)) {
+        val currentAngle = if (isPlaying) rotationState.value else 0f
         val center = Offset(size.width / 2f, size.height / 2f)
         val radius = size.minDimension / 2f - 4.dp.toPx()
 

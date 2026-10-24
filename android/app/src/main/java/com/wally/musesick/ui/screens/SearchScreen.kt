@@ -46,6 +46,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.painterResource
+import com.wally.musesick.R
+import com.wally.musesick.model.AppTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -73,7 +76,8 @@ fun SearchScreen(
     searchResult: SearchResult,
     recentSearches: List<String>,
     isLoading: Boolean,
-    playbackState: PlaybackState,
+    playingTrackId: String? = null,
+    isPlaying: Boolean = false,
     onSearchQueryChange: (String) -> Unit,
     onAddRecentSearch: (String) -> Unit,
     onRemoveRecentSearch: (String) -> Unit,
@@ -83,6 +87,7 @@ fun SearchScreen(
     onSongClick: (Track, List<Track>) -> Unit,
     onSongLongClick: ((Track) -> Unit)? = null,
     onBack: () -> Unit,
+    appTheme: AppTheme = AppTheme.MATERIAL_YOU,
     modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
@@ -126,7 +131,7 @@ fun SearchScreen(
                         .focusRequester(focusRequester),
                     placeholder = { Text("Search songs, artists, albums...") },
                     singleLine = true,
-                    shape = RoundedCornerShape(24.dp),
+                    shape = RoundedCornerShape(28.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
@@ -203,13 +208,23 @@ fun SearchScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.History,
-                                contentDescription = null,
-                                modifier = Modifier.size(56.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            if (appTheme == AppTheme.AQUA) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_aquacry_outline),
+                                    contentDescription = "No recent searches",
+                                    modifier = Modifier.size(100.dp),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(56.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
                             Text(
                                 text = "No recent searches",
                                 style = MaterialTheme.typography.titleMedium,
@@ -322,7 +337,7 @@ fun SearchScreen(
                                     modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 6.dp)
                                 )
                             }
-                            items(searchResult.artists) { artist ->
+                            items(searchResult.artists, key = { it.id }, contentType = { "artist" }) { artist ->
                                 SearchArtistListItem(
                                     artist = artist,
                                     onClick = {
@@ -344,7 +359,7 @@ fun SearchScreen(
                                     modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 6.dp)
                                 )
                             }
-                            items(searchResult.albums) { album ->
+                            items(searchResult.albums, key = { it.id }, contentType = { "album" }) { album ->
                                 SearchAlbumListItem(
                                     album = album,
                                     onClick = {
@@ -366,13 +381,17 @@ fun SearchScreen(
                                     modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 6.dp)
                                 )
                             }
-                            itemsIndexed(searchResult.songs) { index, song ->
-                                val isCurrent = playbackState.currentTrack?.id == song.id
+                            itemsIndexed(
+                                items = searchResult.songs,
+                                key = { index, song -> "${song.id}_$index" },
+                                contentType = { _, _ -> "song" }
+                            ) { index, song ->
+                                val isCurrent = playingTrackId == song.id
                                 SongListItem(
                                     track = song,
                                     index = index + 1,
                                     isCurrent = isCurrent,
-                                    isPlaying = isCurrent && playbackState.isPlaying,
+                                    isPlaying = isCurrent && isPlaying,
                                     onClick = {
                                         onAddRecentSearch(searchQuery)
                                         onSongClick(song, searchResult.songs)

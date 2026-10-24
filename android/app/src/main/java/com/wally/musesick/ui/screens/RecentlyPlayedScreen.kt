@@ -50,6 +50,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
+import com.wally.musesick.R
+import com.wally.musesick.model.AppTheme
 import coil.compose.AsyncImage
 import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.Track
@@ -58,13 +61,15 @@ import com.wally.musesick.model.Track
 @Composable
 fun RecentlyPlayedScreen(
     tracks: List<Track>,
-    playbackState: PlaybackState,
+    playingTrackId: String? = null,
+    isPlaying: Boolean = false,
     onBack: () -> Unit,
     onTrackClick: (Track, List<Track>) -> Unit,
     onTrackLongClick: ((Track) -> Unit)? = null,
     onPlayAll: (List<Track>) -> Unit,
     onShuffleAll: (List<Track>) -> Unit,
     onClearAll: () -> Unit,
+    appTheme: AppTheme = AppTheme.MATERIAL_YOU,
     modifier: Modifier = Modifier
 ) {
     var showClearConfirmDialog by remember { mutableStateOf(false) }
@@ -148,13 +153,23 @@ fun RecentlyPlayedScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.MusicNote,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    if (appTheme == AppTheme.AQUA) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_aquacry_outline),
+                            contentDescription = "No recently played songs",
+                            modifier = Modifier.size(110.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.MusicNote,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                     Text(
                         text = "No recently played songs",
                         style = MaterialTheme.typography.titleMedium,
@@ -211,9 +226,13 @@ fun RecentlyPlayedScreen(
                     }
                 }
 
-                itemsIndexed(tracks, key = { index, track -> "${track.id}_$index" }) { index, track ->
-                    val isCurrent = playbackState.currentTrack?.id == track.id
-                    val isPlaying = isCurrent && playbackState.isPlaying
+                itemsIndexed(
+                    items = tracks,
+                    key = { index, track -> "${track.id}_$index" },
+                    contentType = { _, _ -> "recently_played_track" }
+                ) { index, track ->
+                    val isCurrent = playingTrackId == track.id
+                    val isPlaying = isCurrent && isPlaying
 
                     Row(
                         modifier = Modifier

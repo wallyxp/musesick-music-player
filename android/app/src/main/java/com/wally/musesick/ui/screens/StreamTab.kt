@@ -67,7 +67,8 @@ fun StreamTab(
     searchResult: SearchResult,
     isLoading: Boolean,
     searchQuery: String,
-    playbackState: PlaybackState,
+    playingTrackId: String? = null,
+    isPlaying: Boolean = false,
     onSearchQueryChange: (String) -> Unit,
     onArtistClick: (Artist) -> Unit,
     onAlbumClick: (Album) -> Unit,
@@ -179,7 +180,7 @@ fun StreamTab(
                                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 6.dp)
                             )
                         }
-                        items(searchResult.artists) { artist ->
+                        items(searchResult.artists, key = { it.id }, contentType = { "artist" }) { artist ->
                             SearchArtistListItem(artist = artist, onClick = { onArtistClick(artist) })
                         }
                     }
@@ -195,7 +196,7 @@ fun StreamTab(
                                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 6.dp)
                             )
                         }
-                        items(searchResult.albums) { album ->
+                        items(searchResult.albums, key = { it.id }, contentType = { "album" }) { album ->
                             SearchAlbumListItem(album = album, onClick = { onAlbumClick(album) })
                         }
                     }
@@ -211,13 +212,17 @@ fun StreamTab(
                                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 6.dp)
                             )
                         }
-                        itemsIndexed(searchResult.songs) { index, song ->
-                            val isCurrent = playbackState.currentTrack?.id == song.id
+                        itemsIndexed(
+                            items = searchResult.songs,
+                            key = { index, song -> "${song.id}_$index" },
+                            contentType = { _, _ -> "song" }
+                        ) { index, song ->
+                            val isCurrent = playingTrackId == song.id
                             SongListItem(
                                 track = song,
                                 index = index + 1,
                                 isCurrent = isCurrent,
-                                isPlaying = isCurrent && playbackState.isPlaying,
+                                isPlaying = isCurrent && isPlaying,
                                 onClick = { onSongClick(song, searchResult.songs) },
                                 onLongClick = { onSongLongClick?.invoke(song) }
                             )

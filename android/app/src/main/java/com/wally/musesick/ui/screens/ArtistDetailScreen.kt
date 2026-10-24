@@ -5,6 +5,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -78,7 +79,8 @@ fun ArtistDetailScreen(
     albums: List<Album>,
     songs: List<Track>,
     isLoading: Boolean,
-    playbackState: PlaybackState,
+    playingTrackId: String? = null,
+    isPlaying: Boolean = false,
     onBack: () -> Unit,
     onAlbumClick: (Album) -> Unit,
     onSongClick: (Track, List<Track>) -> Unit,
@@ -301,7 +303,7 @@ fun ArtistDetailScreen(
                         )
                     }
                 } else {
-                    items(displayedAlbums.chunked(2)) { pair ->
+                    items(displayedAlbums.chunked(2), key = { pair -> pair.joinToString("_") { it.id } }) { pair ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -392,13 +394,17 @@ fun ArtistDetailScreen(
                         )
                     }
                 } else {
-                    itemsIndexed(displayedSongs) { index, song ->
-                        val isCurrent = playbackState.currentTrack?.id == song.id
+                    itemsIndexed(
+                        items = displayedSongs,
+                        key = { index, song -> "${song.id}_$index" },
+                        contentType = { _, _ -> "song" }
+                    ) { index, song ->
+                        val isCurrent = playingTrackId == song.id
                         SongListItem(
                             track = song,
                             index = index + 1,
                             isCurrent = isCurrent,
-                            isPlaying = isCurrent && playbackState.isPlaying,
+                            isPlaying = isCurrent && isPlaying,
                             onClick = { onSongClick(song, songs) },
                             onLongClick = { onSongLongClick?.invoke(song) }
                         )
@@ -415,58 +421,57 @@ fun AlbumCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ElevatedCard(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(bottom = 6.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(10.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(130.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!album.thumbnailUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = com.wally.musesick.repository.YouTubeRepository.toLowResThumbnailUrl(album.thumbnailUrl) ?: album.thumbnailUrl,
-                        contentDescription = album.title,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Album,
-                        contentDescription = null,
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = album.title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            if (!album.year.isNullOrEmpty()) {
-                Text(
-                    text = album.year,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
+            if (!album.thumbnailUrl.isNullOrEmpty()) {
+                AsyncImage(
+                    model = com.wally.musesick.repository.YouTubeRepository.toLowResThumbnailUrl(album.thumbnailUrl) ?: album.thumbnailUrl,
+                    contentDescription = album.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Album,
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = album.title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (!album.year.isNullOrEmpty()) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = album.year,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
         }
     }
 }

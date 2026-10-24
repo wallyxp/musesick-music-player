@@ -68,7 +68,8 @@ fun ForYouTab(
     playlists: List<Playlist>,
     suggestedPlaylists: List<Playlist> = emptyList(),
     isSuggestedPlaylistsLoading: Boolean = false,
-    playbackState: PlaybackState,
+    playingTrackId: String? = null,
+    isPlaying: Boolean = false,
     onSearchClick: () -> Unit,
     onSeeAllRecentlyPlayed: () -> Unit,
     onManageFavoriteArtists: () -> Unit,
@@ -85,41 +86,6 @@ fun ForYouTab(
             .background(MaterialTheme.colorScheme.background),
         contentPadding = PaddingValues(top = 8.dp, bottom = 120.dp)
     ) {
-        // --- SEARCH TRIGGER BAR ---
-        item {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .clickable(onClick = onSearchClick),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                shape = RoundedCornerShape(24.dp),
-                tonalElevation = 1.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Text(
-                        text = "Search songs, artists, albums...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-        }
-
         // --- PART 1: RECENTLY PLAYED (5 SONGS + SEE ALL) ---
         // Crucial requirement: disabled / hidden when empty or cleared!
         if (recentlyPlayed.isNotEmpty()) {
@@ -156,9 +122,13 @@ fun ForYouTab(
             }
 
             val top5 = recentlyPlayed.take(5)
-            itemsIndexed(top5, key = { index, track -> "recent_${track.id}_$index" }) { index, track ->
-                val isCurrent = playbackState.currentTrack?.id == track.id
-                val isPlaying = isCurrent && playbackState.isPlaying
+            itemsIndexed(
+                items = top5,
+                key = { index, track -> "recent_${track.id}_$index" },
+                contentType = { _, _ -> "recent_track" }
+            ) { index, track ->
+                val isCurrent = playingTrackId == track.id
+                val isPlaying = isCurrent && isPlaying
 
                 Row(
                     modifier = Modifier

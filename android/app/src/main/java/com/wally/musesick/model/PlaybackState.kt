@@ -1,5 +1,7 @@
 package com.wally.musesick.model
 
+import androidx.compose.runtime.Immutable
+
 enum class PlaybackStatus {
     IDLE,
     BUFFERING,
@@ -8,6 +10,7 @@ enum class PlaybackStatus {
     ERROR
 }
 
+@Immutable
 data class PlaybackState(
     val status: PlaybackStatus = PlaybackStatus.IDLE,
     val currentTrack: Track? = null,

@@ -4,10 +4,27 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.IntOffset
+import com.wally.musesick.R
+import com.wally.musesick.model.AppTheme
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -68,6 +85,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -129,6 +147,7 @@ fun FullPlayerSheet(
     lyricsState: LyricsUiState = LyricsUiState.Idle,
     onSeekToPosition: (Long) -> Unit = {},
     onShareTrack: (Track) -> Unit = {},
+    appTheme: AppTheme = AppTheme.MATERIAL_YOU,
     modifier: Modifier = Modifier
 ) {
     val track = state.currentTrack ?: return
@@ -346,22 +365,36 @@ fun FullPlayerSheet(
             var sliderPosition by remember { mutableFloatStateOf(-1f) }
             val currentProgress = if (sliderPosition >= 0f) sliderPosition else state.progressFraction
 
-            Slider(
-                value = currentProgress,
-                onValueChange = { sliderPosition = it },
-                onValueChangeFinished = {
-                    if (sliderPosition >= 0f) {
-                        onSeek(sliderPosition)
-                        sliderPosition = -1f
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = SliderDefaults.colors(
-                    thumbColor = Color.White,
-                    activeTrackColor = Color.White,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.35f)
+            if (appTheme == AppTheme.AQUA) {
+                AquaPlayerSeekbar(
+                    progress = currentProgress,
+                    onSeek = { sliderPosition = it },
+                    onSeekFinished = {
+                        if (sliderPosition >= 0f) {
+                            onSeek(sliderPosition)
+                            sliderPosition = -1f
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 )
-            )
+            } else {
+                Slider(
+                    value = currentProgress,
+                    onValueChange = { sliderPosition = it },
+                    onValueChangeFinished = {
+                        if (sliderPosition >= 0f) {
+                            onSeek(sliderPosition)
+                            sliderPosition = -1f
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = Color.White,
+                        activeTrackColor = Color.White,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.35f)
+                    )
+                )
+            }
 
             // Timestamp Row
             Row(
@@ -666,7 +699,7 @@ fun FullPlayerSheet(
                                     label = "queue_card_zoom"
                                 )
 
-                                ElevatedCard(
+                                Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .zIndex(if (isTargeted) 20f else 1f)
@@ -675,15 +708,17 @@ fun FullPlayerSheet(
                                             scaleX = zoomScale
                                             scaleY = zoomScale
                                         }
-                                        .border(
-                                            border = if (isTargeted) BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)) else BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-                                            shape = RoundedCornerShape(12.dp)
+                                        .then(
+                                            if (isTargeted) Modifier.border(
+                                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.4f)),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) else Modifier
                                         )
                                         .clickable { onTrackSelect(item) },
                                     shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.elevatedCardColors(
-                                        containerColor = if (isTargeted) Color(0xFF262626) else Color(0xFF141414)
-                                    )
+                                    color = if (isTargeted) Color(0xFF262626) else Color.Transparent,
+                                    tonalElevation = if (isTargeted) 6.dp else 0.dp,
+                                    shadowElevation = if (isTargeted) 8.dp else 0.dp
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -930,3 +965,143 @@ fun FullPlayerSheet(
             }
         }
     }
+
+@Composable
+private fun AquaPlayerSeekbar(
+    progress: Float,
+    onSeek: (Float) -> Unit,
+    onSeekFinished: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isInteracting by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    val bounceScale by animateFloatAsState(
+        targetValue = if (isInteracting) 1.22f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = 0.42f,
+            stiffness = 500f
+        ),
+        label = "AquaThumbBounce"
+    )
+
+    // Subtle gentle wobble while dragging
+    val infiniteTransition = rememberInfiniteTransition(label = "AquaWobble")
+    val dragWobble by infiniteTransition.animateFloat(
+        initialValue = -3.5f,
+        targetValue = 3.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(260, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "WobbleAngle"
+    )
+    val rotationAngle = if (isDragging) dragWobble else 0f
+
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val trackBgColor = Color.White.copy(alpha = 0.28f)
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    down.consume()
+                    isInteracting = true
+
+                    val thumbRadiusPx = 18.dp.toPx()
+                    val usablePx = (size.width - thumbRadiusPx * 2f).coerceAtLeast(1f)
+                    val initialFraction = ((down.position.x - thumbRadiusPx) / usablePx).coerceIn(0f, 1f)
+                    onSeek(initialFraction)
+
+                    val pointerId = down.id
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == pointerId } ?: break
+                        if (!change.pressed) {
+                            change.consume()
+                            break
+                        }
+                        if (change.positionChange() != Offset.Zero) {
+                            change.consume()
+                            isDragging = true
+                            val fraction = ((change.position.x - thumbRadiusPx) / usablePx).coerceIn(0f, 1f)
+                            onSeek(fraction)
+                        }
+                    }
+
+                    isInteracting = false
+                    isDragging = false
+                    onSeekFinished()
+                }
+            },
+        contentAlignment = Alignment.CenterStart
+    ) {
+        val widthPx = constraints.maxWidth.toFloat()
+        val thumbRadiusDp = 18.dp
+        val thumbSizeDp = 36.dp
+
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val thumbRadiusPx = with(density) { thumbRadiusDp.toPx() }
+        val usablePx = (widthPx - thumbRadiusPx * 2f).coerceAtLeast(1f)
+        val activeWidthPx = usablePx * progress.coerceIn(0f, 1f)
+        val thumbOffsetPx = activeWidthPx.toInt()
+
+        // Seekbar track reverted to standard thickness (4.dp)
+        Canvas(modifier = Modifier.fillMaxWidth().height(40.dp)) {
+            val centerY = size.height / 2f
+            val trackThickness = 4.dp.toPx()
+
+            // Inactive track
+            drawLine(
+                color = trackBgColor,
+                start = Offset(thumbRadiusPx, centerY),
+                end = Offset(size.width - thumbRadiusPx, centerY),
+                strokeWidth = trackThickness,
+                cap = StrokeCap.Round
+            )
+
+            // Active track
+            if (activeWidthPx > 0f) {
+                drawLine(
+                    color = primaryColor,
+                    start = Offset(thumbRadiusPx, centerY),
+                    end = Offset(thumbRadiusPx + activeWidthPx, centerY),
+                    strokeWidth = trackThickness,
+                    cap = StrokeCap.Round
+                )
+            }
+        }
+
+        // Timestamp Indicator: larger white circle with playseekbar.png and bounce animation
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(thumbOffsetPx, 0) }
+                .size(thumbSizeDp)
+                .graphicsLayer {
+                    scaleX = bounceScale
+                    scaleY = bounceScale
+                    this.rotationZ = rotationAngle
+                    if (isInteracting) {
+                        shadowElevation = 10f
+                    }
+                }
+                .clip(CircleShape)
+                .background(Color.White)
+                .border(1.5.dp, primaryColor, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.playseekbar2),
+                contentDescription = "Playback Position",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(CircleShape)
+            )
+        }
+    }
+}

@@ -61,7 +61,8 @@ fun LocalTab(
     filteredTracks: List<Track>,
     isLoading: Boolean,
     selectedFilter: String,
-    playbackState: PlaybackState,
+    playingTrackId: String? = null,
+    isPlaying: Boolean = false,
     onFilterSelect: (String) -> Unit,
     onRefresh: () -> Unit,
     onFilesPicked: (List<Uri>) -> Unit,
@@ -233,14 +234,18 @@ fun LocalTab(
                     .fillMaxWidth()
                     .weight(1f),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 90.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(filteredTracks) { track ->
-                    val isCurrent = playbackState.currentTrack?.id == track.id
+                items(
+                    items = filteredTracks,
+                    key = { track -> track.id.ifEmpty { track.contentUri ?: track.title } },
+                    contentType = { "local_track" }
+                ) { track ->
+                    val isCurrent = playingTrackId == track.id
                     LocalTrackCard(
                         track = track,
                         isCurrent = isCurrent,
-                        isPlaying = isCurrent && playbackState.isPlaying,
+                        isPlaying = isCurrent && isPlaying,
                         onClick = { onTrackSelect(track, filteredTracks) },
                         onLongClick = { onTrackLongClick?.invoke(track) }
                     )
@@ -259,77 +264,72 @@ fun LocalTrackCard(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
-    ElevatedCard(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
-            ),
-        shape = RoundedCornerShape(14.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Audio Format Badge
-            NothingFormatBadge(
-                label = track.audioFormat.label,
-                isHighlighted = track.audioFormat == AudioFormat.FLAC || isCurrent,
-                modifier = Modifier.width(44.dp)
             )
+            .padding(horizontal = 4.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Audio Format Badge
+        NothingFormatBadge(
+            label = track.audioFormat.label,
+            isHighlighted = track.audioFormat == AudioFormat.FLAC || isCurrent,
+            modifier = Modifier.width(44.dp)
+        )
 
-            Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(12.dp))
 
-            // Details
-            Column(modifier = Modifier.weight(1f)) {
+        // Details
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = track.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    text = track.artist,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!track.sizeFormatted.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = track.artist,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        text = "• ${track.sizeFormatted}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (!track.sizeFormatted.isNullOrEmpty()) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "• ${track.sizeFormatted}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(8.dp))
 
-            if (isCurrent) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Playing",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-            } else {
-                Text(
-                    text = track.formattedDuration,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        if (isCurrent) {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = "Playing",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+        } else {
+            Text(
+                text = track.formattedDuration,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

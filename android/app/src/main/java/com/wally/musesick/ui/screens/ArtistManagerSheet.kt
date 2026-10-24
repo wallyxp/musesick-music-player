@@ -136,7 +136,11 @@ fun ArtistManagerSheet(
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(artists) { artist ->
+                items(
+                    items = artists,
+                    key = { it.id },
+                    contentType = { "artist" }
+                ) { artist ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

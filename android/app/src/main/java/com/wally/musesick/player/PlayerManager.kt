@@ -542,10 +542,13 @@ class PlayerManager private constructor(private val context: Context) {
                 // ignore
             }
         }
-        _playbackState.value = _playbackState.value.copy(
+        _playbackState.value = PlaybackState(
             status = PlaybackStatus.IDLE,
-            currentPositionMs = 0L
+            currentTrack = null,
+            currentPositionMs = 0L,
+            durationMs = 0L
         )
+        notifyService()
     }
 
     fun release() {
