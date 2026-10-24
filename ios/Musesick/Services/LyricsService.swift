@@ -4,7 +4,7 @@ public actor LyricsService {
     public static let shared = LyricsService()
 
     private let baseUrl = "https://lrclib.net"
-    private let userAgent = "Musesick/1.1.5 (https://github.com/wallyxp/musesick-music-player)"
+    private let userAgent = "Musesick/1.2 (https://github.com/wallyxp/musesick-music-player)"
 
     public func fetchLyrics(trackName: String, artistName: String, durationSeconds: Int64 = 0) async -> LyricsUiState {
         let cleanTitle = cleanTrackTitle(trackName)

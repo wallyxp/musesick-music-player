@@ -28,7 +28,7 @@ public final class MusicViewModel: ObservableObject {
     @Published public var searchedArtists: [Artist] = []
 
     public let playerManager = PlayerManager.shared
-    public let appVersion = "1.1.5"
+    public let appVersion = "1.2"
 
     public init() {
         loadFavoriteArtists()
