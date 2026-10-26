@@ -25,6 +25,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import com.wally.musesick.R
 import com.wally.musesick.model.AppTheme
+import com.wally.musesick.model.AudioFormat
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -61,10 +62,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Share
@@ -147,6 +152,9 @@ fun FullPlayerSheet(
     lyricsState: LyricsUiState = LyricsUiState.Idle,
     onSeekToPosition: (Long) -> Unit = {},
     onShareTrack: (Track) -> Unit = {},
+    isDownloaded: Boolean = false,
+    downloadProgress: Float? = null,
+    onToggleDownload: (Track) -> Unit = {},
     appTheme: AppTheme = AppTheme.MATERIAL_YOU,
     modifier: Modifier = Modifier
 ) {
@@ -292,34 +300,97 @@ fun FullPlayerSheet(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Top Bar
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(48.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .height(48.dp)
             ) {
-                IconButton(onClick = onClose) {
+                // Circular glassmorphism Close button
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .align(Alignment.CenterStart)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(
+                            1.dp,
+                            Brush.linearGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.40f),
+                                    Color.White.copy(alpha = 0.10f),
+                                    Color.White.copy(alpha = 0.25f)
+                                )
+                            ),
+                            CircleShape
+                        )
+                        .clickable(onClick = onClose),
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowDown,
                         contentDescription = "Close",
-                        modifier = Modifier.size(28.dp),
+                        modifier = Modifier.size(26.dp),
                         tint = Color.White
                     )
                 }
 
-                Text(
-                    text = "NOW PLAYING",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    color = Color.White
-                )
+                // NOW PLAYING circular rectangular (capsule/pill) glassmorphic background - Center
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(
+                            1.dp,
+                            Brush.linearGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.40f),
+                                    Color.White.copy(alpha = 0.10f),
+                                    Color.White.copy(alpha = 0.25f)
+                                )
+                            ),
+                            RoundedCornerShape(24.dp)
+                        )
+                        .padding(horizontal = 18.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "NOW PLAYING",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp,
+                        color = Color.White
+                    )
+                }
 
-                NothingFormatBadge(
-                    label = track.audioFormat.label,
-                    isHighlighted = true
-                )
+                // Source indicator: Cloud icon for YT stream, Phone icon for local song
+                val isStream = !track.isLocal && track.audioFormat == AudioFormat.YOUTUBE
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .align(Alignment.CenterEnd)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(
+                            1.dp,
+                            Brush.linearGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.40f),
+                                    Color.White.copy(alpha = 0.10f),
+                                    Color.White.copy(alpha = 0.25f)
+                                )
+                            ),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isStream) Icons.Default.Cloud else Icons.Default.PhoneAndroid,
+                        contentDescription = if (isStream) "YouTube Stream" else "Local On Device",
+                        modifier = Modifier.size(22.dp),
+                        tint = Color.White
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -432,22 +503,32 @@ fun FullPlayerSheet(
                     )
                 }
 
-                // Previous
-                FilledTonalIconButton(
-                    onClick = {
-                        prevClickTrigger++
-                        onPrevious()
-                    },
+                // Previous (Circular Glassmorphism)
+                Box(
                     modifier = Modifier
-                        .size(54.dp)
+                        .size(56.dp)
                         .graphicsLayer {
                             scaleX = prevButtonScale
                             scaleY = prevButtonScale
+                        }
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(
+                            1.dp,
+                            Brush.linearGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.40f),
+                                    Color.White.copy(alpha = 0.10f),
+                                    Color.White.copy(alpha = 0.25f)
+                                )
+                            ),
+                            CircleShape
+                        )
+                        .clickable {
+                            prevClickTrigger++
+                            onPrevious()
                         },
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = Color.White.copy(alpha = 0.22f),
-                        contentColor = Color.White
-                    )
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipPrevious,
@@ -491,22 +572,32 @@ fun FullPlayerSheet(
                     }
                 }
 
-                // Next
-                FilledTonalIconButton(
-                    onClick = {
-                        nextClickTrigger++
-                        onNext()
-                    },
+                // Next (Circular Glassmorphism)
+                Box(
                     modifier = Modifier
-                        .size(54.dp)
+                        .size(56.dp)
                         .graphicsLayer {
                             scaleX = nextButtonScale
                             scaleY = nextButtonScale
+                        }
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(
+                            1.dp,
+                            Brush.linearGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.40f),
+                                    Color.White.copy(alpha = 0.10f),
+                                    Color.White.copy(alpha = 0.25f)
+                                )
+                            ),
+                            CircleShape
+                        )
+                        .clickable {
+                            nextClickTrigger++
+                            onNext()
                         },
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = Color.White.copy(alpha = 0.22f),
-                        contentColor = Color.White
-                    )
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.SkipNext,
@@ -526,70 +617,123 @@ fun FullPlayerSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
+            // 4 Circular Glassmorphism Action Buttons at bottom (Lyrics, Queue, Share, Download)
             Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Lyrics toggle button
-                FilledTonalButton(
-                    onClick = { showLyrics = true },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = Color.White.copy(alpha = 0.2f),
-                        contentColor = Color.White
+                val glassBorder = Brush.linearGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.40f),
+                        Color.White.copy(alpha = 0.10f),
+                        Color.White.copy(alpha = 0.25f)
                     )
+                )
+
+                // 1. Lyrics toggle (Circular Glassmorphism)
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(1.dp, glassBorder, CircleShape)
+                        .clickable { showLyrics = true },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Lyrics,
                         contentDescription = "Lyrics",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Lyrics",
-                        color = Color.White
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
-                // Queue toggle button
-                FilledTonalButton(
-                    onClick = { showQueue = true },
-                    shape = RoundedCornerShape(20.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = Color.White.copy(alpha = 0.2f),
-                        contentColor = Color.White
-                    )
+                // 2. Queue toggle (Circular Glassmorphism)
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(1.dp, glassBorder, CircleShape)
+                        .clickable { showQueue = true },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                        contentDescription = "Queue",
+                        contentDescription = "Queue (${queue.size})",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Queue (${queue.size})",
-                        color = Color.White
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
-                // Share button (Icon only)
-                FilledTonalIconButton(
-                    onClick = { onShareTrack(track) },
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = Color.White.copy(alpha = 0.2f),
-                        contentColor = Color.White
-                    )
+                // 3. Share button (Circular Glassmorphism)
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.16f))
+                        .border(1.dp, glassBorder, CircleShape)
+                        .clickable { onShareTrack(track) },
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
                         contentDescription = "Share",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
+                }
+
+                // 4. Download offline toggle (Circular Glassmorphism)
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isDownloaded) Color(0xFFD71921).copy(alpha = 0.28f)
+                            else Color.White.copy(alpha = 0.16f)
+                        )
+                        .border(
+                            1.dp,
+                            if (isDownloaded) Brush.linearGradient(
+                                listOf(
+                                    Color(0xFFFF5252).copy(alpha = 0.6f),
+                                    Color(0xFFD71921).copy(alpha = 0.3f),
+                                    Color(0xFFFF5252).copy(alpha = 0.5f)
+                                )
+                            ) else glassBorder,
+                            CircleShape
+                        )
+                        .clickable { onToggleDownload(track) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (downloadProgress != null) {
+                        CircularProgressIndicator(
+                            progress = { downloadProgress },
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.5.dp
+                        )
+                    } else if (isDownloaded) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Downloaded for offline listening",
+                            tint = Color(0xFFFF5252),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Download for offline listening",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
             }
         }

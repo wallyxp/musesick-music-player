@@ -1,5 +1,6 @@
 package com.wally.musesick.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +20,9 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Downloading
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -39,6 +43,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,8 +61,13 @@ fun SongActionMenuSheet(
     onAddToExistingPlaylist: () -> Unit,
     onAddToNewPlaylist: () -> Unit,
     onDismiss: () -> Unit,
+    isDownloaded: Boolean = false,
+    downloadProgress: Float? = null,
+    onDownload: () -> Unit = {},
+    onRemoveDownload: () -> Unit = {},
     isCustomImageTheme: Boolean = false,
     customThemeImagePath: String? = null,
+    customThemeImageRes: Int? = null,
     ambientBrush: Brush? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
@@ -72,22 +82,40 @@ fun SongActionMenuSheet(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
         ) {
-            if (isCustomImageTheme && !customThemeImagePath.isNullOrEmpty()) {
-                AsyncImage(
-                    model = File(customThemeImagePath),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .matchParentSize()
-                        .scale(1.1f)
-                        .blur(28.dp)
-                        .clipToBounds(),
-                    contentScale = ContentScale.Crop
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(Color.Black.copy(alpha = 0.98f))
-                )
+            if (isCustomImageTheme) {
+                if (customThemeImageRes != null) {
+                    Image(
+                        painter = painterResource(id = customThemeImageRes),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .scale(1.1f)
+                            .blur(28.dp)
+                            .clipToBounds(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.98f))
+                    )
+                } else if (!customThemeImagePath.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = File(customThemeImagePath),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .scale(1.1f)
+                            .blur(28.dp)
+                            .clipToBounds(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.98f))
+                    )
+                }
             } else if (ambientBrush != null) {
                 Box(
                     modifier = Modifier
@@ -218,6 +246,40 @@ fun SongActionMenuSheet(
                     onAddToNewPlaylist()
                 }
             )
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 6.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+            )
+
+            if (isDownloaded) {
+                ActionMenuItem(
+                    icon = Icons.Default.CheckCircle,
+                    title = "Downloaded",
+                    subtitle = "Saved for offline listening • Tap to remove",
+                    onClick = {
+                        onRemoveDownload()
+                        onDismiss()
+                    }
+                )
+            } else if (downloadProgress != null) {
+                ActionMenuItem(
+                    icon = Icons.Default.Downloading,
+                    title = "Downloading (${(downloadProgress * 100).toInt()}%)",
+                    subtitle = "Saving audio for offline playback...",
+                    onClick = { }
+                )
+            } else {
+                ActionMenuItem(
+                    icon = Icons.Default.Download,
+                    title = "Download song",
+                    subtitle = "Listen offline without internet",
+                    onClick = {
+                        onDownload()
+                        onDismiss()
+                    }
+                )
+            }
         }
         } // end Box
     }

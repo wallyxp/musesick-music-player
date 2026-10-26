@@ -18,15 +18,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import com.wally.musesick.ui.theme.NothingRed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,6 +55,8 @@ import com.wally.musesick.model.AudioFormat
 import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.Track
 import com.wally.musesick.ui.components.NothingFormatBadge
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -63,11 +70,14 @@ fun LocalTab(
     selectedFilter: String,
     playingTrackId: String? = null,
     isPlaying: Boolean = false,
+    isTrackDownloaded: (String) -> Boolean = { false },
+    totalDownloadStorage: String = "0 MB",
     onFilterSelect: (String) -> Unit,
     onRefresh: () -> Unit,
     onFilesPicked: (List<Uri>) -> Unit,
     onTrackSelect: (Track, List<Track>) -> Unit,
     onTrackLongClick: ((Track) -> Unit)? = null,
+    listState: LazyListState = rememberLazyListState(),
     modifier: Modifier = Modifier
 ) {
     val filePicker = rememberLauncherForActivityResult(
@@ -78,174 +88,114 @@ fun LocalTab(
         }
     }
 
-    Column(
+    LazyColumn(
+        state = listState,
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(top = 112.dp, bottom = 180.dp)
     ) {
-        // Action Bar: Pick Files & Rescan
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            FilledTonalButton(
-                onClick = {
-                    filePicker.launch(arrayOf("audio/*", "audio/mpeg", "audio/mp4", "audio/flac"))
-                },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.FileOpen,
-                    contentDescription = "Pick Files",
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Open Audio Files")
-            }
-
-            IconButton(
-                onClick = onRefresh,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Rescan",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        // Format Filter Chips: ALL, FLAC, M4A, MP3
-        val filters = listOf("ALL", "FLAC", "M4A", "MP3")
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(filters) { filter ->
-                val count = when (filter) {
-                    "FLAC" -> allTracks.count { it.audioFormat == AudioFormat.FLAC }
-                    "M4A" -> allTracks.count { it.audioFormat == AudioFormat.M4A }
-                    "MP3" -> allTracks.count { it.audioFormat == AudioFormat.MP3 }
-                    else -> allTracks.size
-                }
-                val isSelected = selectedFilter == filter
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { onFilterSelect(filter) },
-                    label = { Text("$filter ($count)") },
-                    shape = RoundedCornerShape(16.dp)
-                )
-            }
-        }
-
         // Status Line
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "${filteredTracks.size} audio tracks found",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = ".mp3 • .m4a • .flac",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary
-            )
+        item {
+            val isDownloadedFilter = selectedFilter == "DOWNLOADED"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isDownloadedFilter) "${filteredTracks.size} songs downloaded" else "${filteredTracks.size} audio tracks on device",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = if (isDownloadedFilter) "$totalDownloadStorage used" else "Device Storage",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
 
         // Local Track List or Empty State
         if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "Scanning device storage...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Scanning device storage...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         } else if (filteredTracks.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(350.dp)
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(60.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.FileOpen,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(28.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (selectedFilter == "DOWNLOADED") Icons.Default.Download else Icons.Default.FileOpen,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = if (selectedFilter == "DOWNLOADED") "No downloaded songs yet" else "No on-device audio files found",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (selectedFilter == "DOWNLOADED") "Save songs from player or playlist menus to listen offline anytime." else "Tap the '+' button below to select audio files from your device storage",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = 24.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "No $selectedFilter files found",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "Tap 'Open Audio Files' to select .mp3, .m4a or .flac audios from your device storage",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
                 }
             }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 90.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(
-                    items = filteredTracks,
-                    key = { track -> track.id.ifEmpty { track.contentUri ?: track.title } },
-                    contentType = { "local_track" }
-                ) { track ->
-                    val isCurrent = playingTrackId == track.id
+            items(
+                items = filteredTracks,
+                key = { track -> track.id.ifEmpty { track.contentUri ?: track.title } },
+                contentType = { "local_track" }
+            ) { track ->
+                val isCurrent = playingTrackId == track.id
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
                     LocalTrackCard(
                         track = track,
                         isCurrent = isCurrent,
                         isPlaying = isCurrent && isPlaying,
+                        isDownloaded = isTrackDownloaded(track.id),
                         onClick = { onTrackSelect(track, filteredTracks) },
                         onLongClick = { onTrackLongClick?.invoke(track) }
                     )
@@ -261,6 +211,7 @@ fun LocalTrackCard(
     track: Track,
     isCurrent: Boolean,
     isPlaying: Boolean,
+    isDownloaded: Boolean = false,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
@@ -275,25 +226,53 @@ fun LocalTrackCard(
             .padding(horizontal = 4.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Audio Format Badge
-        NothingFormatBadge(
-            label = track.audioFormat.label,
-            isHighlighted = track.audioFormat == AudioFormat.FLAC || isCurrent,
-            modifier = Modifier.width(44.dp)
-        )
+        if (!track.thumbnailUrl.isNullOrEmpty()) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = track.thumbnailUrl,
+                    contentDescription = track.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        } else {
+            NothingFormatBadge(
+                label = if (isDownloaded) "OFFLINE" else track.audioFormat.label,
+                isHighlighted = isDownloaded || track.audioFormat == AudioFormat.FLAC || isCurrent,
+                modifier = Modifier.width(44.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.width(12.dp))
 
         // Details
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = track.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = track.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (isDownloaded) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = "Downloaded",
+                        tint = NothingRed,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

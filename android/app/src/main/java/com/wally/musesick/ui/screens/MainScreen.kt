@@ -12,13 +12,27 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,6 +61,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -64,11 +79,13 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import java.io.File
 import kotlinx.coroutines.launch
+import com.wally.musesick.R
 import com.wally.musesick.ui.MusicViewModel
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -82,6 +99,7 @@ import com.wally.musesick.ui.components.ExistingPlaylistSheet
 import com.wally.musesick.ui.components.MiniPlayerBar
 import com.wally.musesick.ui.components.NewPlaylistSheet
 import com.wally.musesick.ui.components.SongActionMenuSheet
+import com.wally.musesick.ui.components.NothingFormatBadge
 import androidx.compose.material.icons.filled.Person
 import com.wally.musesick.ui.components.UpdateDialog
 import com.wally.musesick.ui.components.YouTubeLoginDialog
@@ -200,6 +218,10 @@ fun MainScreen(
     val autoSyncInterval by viewModel.autoSyncInterval.collectAsState()
     var isYtLoginDialogOpen by remember { mutableStateOf(false) }
 
+    // Offline & Downloads State
+    val isOffline by viewModel.isOffline.collectAsState()
+    val totalDownloadStorage by viewModel.totalDownloadStorage.collectAsState()
+
     LaunchedEffect(updateToastMessage) {
         updateToastMessage?.let { msg ->
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
@@ -207,9 +229,32 @@ fun MainScreen(
         }
     }
 
-    // Swipeable pages: For You (0), Playlist (1), Local (2)
-    val pageTitles = remember { listOf("For You", "Playlist", "Local") }
+    // Swipeable pages: For You (0), Playlists (1), Local (2)
+    val pageTitles = remember { listOf("For You", "Playlists", "Local") }
     val pagerState = rememberPagerState(initialPage = selectedTab.coerceIn(0, 2), pageCount = { 3 })
+
+    val forYouListState = rememberLazyListState()
+    val playlistsGridState = rememberLazyGridState()
+    val localListState = rememberLazyListState()
+
+    val isTopScrolled by remember(pagerState.currentPage) {
+        derivedStateOf {
+            when (pagerState.currentPage) {
+                0 -> forYouListState.firstVisibleItemIndex > 0 || forYouListState.firstVisibleItemScrollOffset > 0
+                1 -> playlistsGridState.firstVisibleItemIndex > 0 || playlistsGridState.firstVisibleItemScrollOffset > 0
+                2 -> localListState.firstVisibleItemIndex > 0 || localListState.firstVisibleItemScrollOffset > 0
+                else -> false
+            }
+        }
+    }
+
+    val localFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            viewModel.onFilesPicked(uris)
+        }
+    }
 
     LaunchedEffect(pagerState.currentPage) {
         if (viewModel.selectedTab.value != pagerState.currentPage) {
@@ -253,24 +298,50 @@ fun MainScreen(
         }
     }
 
-    val isCustomImage = (appTheme == AppTheme.CUSTOM_IMAGE)
+    val aquaBackgroundDrawableRes = when (appThemeVariant) {
+        "damegami" -> R.drawable.damegami
+        else -> R.drawable.darugami
+    }
+
+    val themeBackgroundImage: Any? = when {
+        appTheme == AppTheme.CUSTOM_IMAGE && !customThemeImagePath.isNullOrEmpty() -> File(customThemeImagePath!!)
+        appTheme == AppTheme.AQUA -> aquaBackgroundDrawableRes
+        else -> null
+    }
+
+    val isImageBackground = themeBackgroundImage != null
+    val isGlassmorphism = isImageBackground
+    val isCustomImage = isImageBackground
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isCustomImage) Color(0xFF121212) else MaterialTheme.colorScheme.background)
+            .background(if (isImageBackground) Color(0xFF121212) else MaterialTheme.colorScheme.background)
     ) {
-        if (appTheme == AppTheme.CUSTOM_IMAGE && !customThemeImagePath.isNullOrEmpty()) {
-            AsyncImage(
-                model = File(customThemeImagePath!!),
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .scale(1.08f)
-                    .blur(28.dp)
-                    .clipToBounds(),
-                contentScale = ContentScale.Crop
-            )
+        if (isImageBackground) {
+            if (appTheme == AppTheme.AQUA) {
+                Image(
+                    painter = painterResource(id = aquaBackgroundDrawableRes),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .scale(1.08f)
+                        .blur(28.dp)
+                        .clipToBounds(),
+                    contentScale = ContentScale.Crop
+                )
+            } else if (themeBackgroundImage != null) {
+                AsyncImage(
+                    model = themeBackgroundImage,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .scale(1.08f)
+                        .blur(28.dp)
+                        .clipToBounds(),
+                    contentScale = ContentScale.Crop
+                )
+            }
             // Very darkened layer on top of it
             Box(
                 modifier = Modifier
@@ -279,8 +350,8 @@ fun MainScreen(
             )
         }
 
-        // Custom Image mode: rich expansive gradient in the bottom section of the app
-        if (isCustomImage) {
+        // Image background mode: rich expansive gradient in the bottom section of the app
+        if (isImageBackground) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -304,95 +375,14 @@ fun MainScreen(
         Scaffold(
             modifier = Modifier
                 .fillMaxSize()
-                .background(if (isCustomImage) Color.Transparent else MaterialTheme.colorScheme.background),
-            containerColor = if (isCustomImage) Color.Transparent else MaterialTheme.colorScheme.background,
+                .background(if (isImageBackground) Color.Transparent else MaterialTheme.colorScheme.background),
+            containerColor = if (isImageBackground) Color.Transparent else MaterialTheme.colorScheme.background,
             contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-                if (currentScreen == ScreenState.HOME) {
-                    // Header displaying the name of the active window on the top-left
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AnimatedContent(
-                            targetState = pageTitles.getOrElse(pagerState.currentPage) { "Stream" },
-                            transitionSpec = {
-                                (fadeIn() + slideInVertically { -it / 2 }) togetherWith
-                                        (fadeOut() + slideOutVertically { it / 2 })
-                            },
-                            label = "active_screen_title"
-                        ) { title ->
-                            Text(
-                                text = title,
-                                style = MaterialTheme.typography.headlineMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                        }
-
-                        // Minimalist Nothing-style page indicator dots & Settings Icon
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            pageTitles.indices.forEach { index ->
-                                val isSelected = pagerState.currentPage == index
-                                Box(
-                                    modifier = Modifier
-                                        .height(5.dp)
-                                        .width(if (isSelected) 18.dp else 6.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (isSelected) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                                        )
-                                        .clickable {
-                                            coroutineScope.launch {
-                                                pagerState.animateScrollToPage(index)
-                                            }
-                                        }
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(4.dp))
-
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .clickable { viewModel.openSettings() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (!ytAccountInfo?.avatarUrl.isNullOrEmpty()) {
-                                    AsyncImage(
-                                        model = ytAccountInfo!!.avatarUrl,
-                                        contentDescription = ytAccountInfo?.name ?: "Profile",
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = "Profile",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-        bottomBar = {
+            bottomBar = {
             val isAccountsOrSettings = currentScreen == ScreenState.SETTINGS ||
                     currentScreen == ScreenState.SETTINGS_APP_THEME ||
                     currentScreen == ScreenState.SETTINGS_AUTO_SYNC
-            val showBottomBar = currentScreen != ScreenState.SEARCH && !isFullPlayerOpen && !isAccountsOrSettings
+            val showBottomBar = currentScreen != ScreenState.SEARCH && !isFullPlayerOpen && !isAccountsOrSettings && !isNewPlaylistSheetOpen
             AnimatedVisibility(
                 visible = showBottomBar,
                 enter = slideInVertically(
@@ -408,28 +398,214 @@ fun MainScreen(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.BottomCenter
                 ) {
-                    val isGlassmorphism = appTheme == AppTheme.CUSTOM_IMAGE
-                    // Custom Image mode: smooth gradient overlay in the bottom section
-                    if (isGlassmorphism) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(230.dp)
-                                .background(
-                                    Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color.Transparent,
-                                            Color(0x1F000000),
-                                            Color(0x59000000),
-                                            Color(0x9E000000),
-                                            Color(0xDE050505)
-                                        )
-                                    )
-                                )
-                        )
-                    }
+                    // Smooth gradient overlay in the bottom section
+                    val bg = if (isGlassmorphism) Color(0xDE050505) else MaterialTheme.colorScheme.background
+                    val bottomGradientBrush = Brush.verticalGradient(
+                        0.0f to Color.Transparent,
+                        0.25f to bg.copy(alpha = 0.40f),
+                        0.55f to bg.copy(alpha = 0.85f),
+                        0.78f to bg,
+                        1.0f to bg
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(240.dp)
+                            .background(bottomGradientBrush)
+                    )
 
-                    Box(modifier = Modifier.navigationBarsPadding()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Playlists Tab (Page 1): Floating Plus Button above bottom bar on the bottom right
+                        AnimatedVisibility(
+                            visible = currentScreen == ScreenState.HOME && pagerState.currentPage == 1,
+                            enter = fadeIn(tween(160)) + slideInVertically { it / 2 },
+                            exit = fadeOut(tween(140)) + slideOutVertically { it / 2 }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(end = 20.dp, bottom = 10.dp),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(50.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isGlassmorphism) Color.White.copy(alpha = 0.20f)
+                                            else MaterialTheme.colorScheme.primaryContainer
+                                        )
+                                        .border(
+                                            width = 1.dp,
+                                            brush = if (isGlassmorphism) Brush.linearGradient(
+                                                listOf(
+                                                    Color.White.copy(alpha = 0.50f),
+                                                    Color.White.copy(alpha = 0.15f),
+                                                    Color.White.copy(alpha = 0.35f)
+                                                )
+                                            ) else SolidColor(MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+                                            shape = CircleShape
+                                        )
+                                        .clickable {
+                                            viewModel.openNewPlaylistSheet()
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "New Playlist",
+                                        tint = if (isGlassmorphism) Color.White else MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Local Tab (Page 2): 4 Glassmorphism Circular Buttons (Downloaded, Device, Open, Refresh)
+                        AnimatedVisibility(
+                            visible = currentScreen == ScreenState.HOME && pagerState.currentPage == 2,
+                            enter = fadeIn(tween(160)) + slideInVertically { it / 2 },
+                            exit = fadeOut(tween(140)) + slideOutVertically { it / 2 }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val isDownloadedActive = localFilter == "DOWNLOADED"
+                                val isDeviceActive = localFilter != "DOWNLOADED"
+
+                                // 1. Downloaded
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isDownloadedActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                                            else if (isGlassmorphism) Color.White.copy(alpha = 0.18f)
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                        .border(
+                                            width = if (isDownloadedActive) 1.5.dp else 1.dp,
+                                            color = if (isDownloadedActive) MaterialTheme.colorScheme.primary
+                                            else if (isGlassmorphism) Color.White.copy(alpha = 0.35f)
+                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                            shape = CircleShape
+                                        )
+                                        .clickable {
+                                            viewModel.setLocalFormatFilter("DOWNLOADED")
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Download,
+                                        contentDescription = "Downloaded",
+                                        tint = if (isDownloadedActive) MaterialTheme.colorScheme.primary
+                                               else if (isGlassmorphism) Color.White.copy(alpha = 0.9f)
+                                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+
+                                // 2. Device (Phone icon)
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isDeviceActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                                            else if (isGlassmorphism) Color.White.copy(alpha = 0.18f)
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                        .border(
+                                            width = if (isDeviceActive) 1.5.dp else 1.dp,
+                                            color = if (isDeviceActive) MaterialTheme.colorScheme.primary
+                                            else if (isGlassmorphism) Color.White.copy(alpha = 0.35f)
+                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                            shape = CircleShape
+                                        )
+                                        .clickable {
+                                            viewModel.setLocalFormatFilter("DEVICE")
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PhoneAndroid,
+                                        contentDescription = "Device",
+                                        tint = if (isDeviceActive) MaterialTheme.colorScheme.primary
+                                               else if (isGlassmorphism) Color.White.copy(alpha = 0.9f)
+                                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+
+                                // 3. Open (Plus icon)
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isGlassmorphism) Color.White.copy(alpha = 0.18f)
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isGlassmorphism) Color.White.copy(alpha = 0.35f)
+                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                            shape = CircleShape
+                                        )
+                                        .clickable {
+                                            localFilePicker.launch(arrayOf("audio/*", "audio/mpeg", "audio/mp4", "audio/flac"))
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Open Audio Files",
+                                        tint = if (isGlassmorphism) Color.White.copy(alpha = 0.9f)
+                                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
+                                // 4. Refresh (Refresh icon)
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isGlassmorphism) Color.White.copy(alpha = 0.18f)
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isGlassmorphism) Color.White.copy(alpha = 0.35f)
+                                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                            shape = CircleShape
+                                        )
+                                        .clickable {
+                                            viewModel.loadLocalTracks()
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Refresh",
+                                        tint = if (isGlassmorphism) Color.White.copy(alpha = 0.9f)
+                                               else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                        }
+
                         val miniPlayerState by viewModel.playbackState.collectAsState()
                         BottomNavigationControlBar(
                             hasActiveTrack = hasActiveTrack,
@@ -448,11 +624,9 @@ fun MainScreen(
                 }
             }
         }
-    ) { paddingValues ->
+    ) { _ ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = paddingValues.calculateTopPadding())
+            modifier = Modifier.fillMaxSize()
         ) {
             AnimatedContent(
                 targetState = currentScreen,
@@ -477,50 +651,244 @@ fun MainScreen(
             ) { screen ->
                 when (screen) {
                     ScreenState.HOME -> {
-                        // Swipeable windows: Stream (0), Playlist (1), Local (2)
-                        HorizontalPager(
-                            state = pagerState,
-                            modifier = Modifier.fillMaxSize(),
-                            beyondViewportPageCount = 1
-                        ) { page ->
-                            when (page) {
-                                0 -> ForYouTab(
-                                    recentlyPlayed = recentlyPlayed,
-                                    favoriteArtists = favoriteArtists,
-                                    playlists = playlists,
-                                    suggestedPlaylists = suggestedPlaylists,
-                                    isSuggestedPlaylistsLoading = isSuggestedPlaylistsLoading,
-                                    playingTrackId = currentPlayingTrackId,
-                                    isPlaying = isCurrentTrackPlaying,
-                                    onSearchClick = { viewModel.openSearch() },
-                                    onSeeAllRecentlyPlayed = { viewModel.openRecentlyPlayed() },
-                                    onManageFavoriteArtists = { isAddFavoriteArtistSheetOpen = true },
-                                    onCreatePlaylistClick = { viewModel.openNewPlaylistSheet() },
-                                    onArtistClick = { viewModel.selectArtist(it) },
-                                    onPlaylistClick = { viewModel.selectPlaylist(it) },
-                                    onSongClick = { track, list -> viewModel.playTrack(track, list) },
-                                    onSongLongClick = { viewModel.openSongMenu(it) }
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            // Swipeable windows: Stream (0), Playlist (1), Local (2)
+                            HorizontalPager(
+                                state = pagerState,
+                                modifier = Modifier.fillMaxSize(),
+                                beyondViewportPageCount = 1
+                            ) { page ->
+                                when (page) {
+                                    0 -> ForYouTab(
+                                        listState = forYouListState,
+                                        recentlyPlayed = recentlyPlayed,
+                                        favoriteArtists = favoriteArtists,
+                                        playlists = playlists,
+                                        suggestedPlaylists = suggestedPlaylists,
+                                        isSuggestedPlaylistsLoading = isSuggestedPlaylistsLoading,
+                                        playingTrackId = currentPlayingTrackId,
+                                        isPlaying = isCurrentTrackPlaying,
+                                        isOffline = isOffline,
+                                        isTrackDownloaded = { viewModel.isSongDownloaded(it) },
+                                        onGoToDownloads = {
+                                            coroutineScope.launch { pagerState.animateScrollToPage(2) }
+                                            viewModel.setLocalFormatFilter("DOWNLOADED")
+                                        },
+                                        onSearchClick = { viewModel.openSearch() },
+                                        onSeeAllRecentlyPlayed = { viewModel.openRecentlyPlayed() },
+                                        onManageFavoriteArtists = { isAddFavoriteArtistSheetOpen = true },
+                                        onCreatePlaylistClick = { viewModel.openNewPlaylistSheet() },
+                                        onArtistClick = { viewModel.selectArtist(it) },
+                                        onPlaylistClick = { viewModel.selectPlaylist(it) },
+                                        onSongClick = { track, list -> viewModel.playTrack(track, list) },
+                                        onSongLongClick = { viewModel.openSongMenu(it) }
+                                    )
+                                    1 -> PlaylistsTab(
+                                        gridState = playlistsGridState,
+                                        playlists = playlists,
+                                        onCreatePlaylistClick = { viewModel.openNewPlaylistSheet() },
+                                        onPlaylistClick = { viewModel.selectPlaylist(it) },
+                                        onEditPlaylistClick = { editingPlaylist = it },
+                                        onDeletePlaylistClick = { viewModel.deletePlaylist(it.id) }
+                                    )
+                                    2 -> LocalTab(
+                                        listState = localListState,
+                                        allTracks = localTracks,
+                                        filteredTracks = viewModel.getFilteredLocalTracks(),
+                                        isLoading = isLocalLoading,
+                                        selectedFilter = localFilter,
+                                        playingTrackId = currentPlayingTrackId,
+                                        isPlaying = isCurrentTrackPlaying,
+                                        isTrackDownloaded = { viewModel.isSongDownloaded(it) },
+                                        totalDownloadStorage = totalDownloadStorage,
+                                        onFilterSelect = { viewModel.setLocalFormatFilter(it) },
+                                        onRefresh = { viewModel.loadLocalTracks() },
+                                        onFilesPicked = { viewModel.onFilesPicked(it) },
+                                        onTrackSelect = { track, list -> viewModel.playTrack(track, list) },
+                                        onTrackLongClick = { viewModel.openSongMenu(it) }
+                                    )
+                                }
+                            }
+
+                            // Smooth gradient overlay in the top section (appears only when user starts scrolling)
+                            val bg = if (isGlassmorphism) Color.Black else MaterialTheme.colorScheme.background
+                            val topGradientBrush = Brush.verticalGradient(
+                                0.0f to bg,
+                                0.35f to bg,
+                                0.58f to bg.copy(alpha = 0.92f),
+                                0.80f to bg.copy(alpha = 0.52f),
+                                1.0f to Color.Transparent
+                            )
+                            AnimatedVisibility(
+                                visible = isTopScrolled,
+                                enter = fadeIn(tween(250)),
+                                exit = fadeOut(tween(200)),
+                                modifier = Modifier.align(Alignment.TopCenter)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(160.dp)
+                                        .background(topGradientBrush)
                                 )
-                                1 -> PlaylistsTab(
-                                    playlists = playlists,
-                                    onCreatePlaylistClick = { viewModel.openNewPlaylistSheet() },
-                                    onPlaylistClick = { viewModel.selectPlaylist(it) },
-                                    onEditPlaylistClick = { editingPlaylist = it },
-                                    onDeletePlaylistClick = { viewModel.deletePlaylist(it.id) }
+                            }
+
+                            // Top Floating Header: Title Pill on the left, Offline Cloud Icon in the center, Dots & Profile Pill on the right
+                            val glassBorder = BorderStroke(
+                                1.dp,
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.45f),
+                                        Color.White.copy(alpha = 0.12f),
+                                        Color.White.copy(alpha = 0.32f)
+                                    )
                                 )
-                                2 -> LocalTab(
-                                    allTracks = localTracks,
-                                    filteredTracks = viewModel.getFilteredLocalTracks(),
-                                    isLoading = isLocalLoading,
-                                    selectedFilter = localFilter,
-                                    playingTrackId = currentPlayingTrackId,
-                                    isPlaying = isCurrentTrackPlaying,
-                                    onFilterSelect = { viewModel.setLocalFormatFilter(it) },
-                                    onRefresh = { viewModel.loadLocalTracks() },
-                                    onFilesPicked = { viewModel.onFilesPicked(it) },
-                                    onTrackSelect = { track, list -> viewModel.playTrack(track, list) },
-                                    onTrackLongClick = { viewModel.openSongMenu(it) }
-                                )
+                            )
+
+                            val surfaceColor = if (isGlassmorphism) {
+                                Color(0x3D1A1A1A)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f)
+                            }
+
+                            val borderStroke = if (isGlassmorphism) {
+                                glassBorder
+                            } else {
+                                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.TopCenter)
+                                    .statusBarsPadding()
+                                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                            ) {
+                                // Title Pill: "For You", "Playlists", "Local" (with glassmorphism and matching search pill styling)
+                                Surface(
+                                    shape = RoundedCornerShape(28.dp),
+                                    color = surfaceColor,
+                                    border = borderStroke,
+                                    tonalElevation = if (isGlassmorphism) 0.dp else 3.dp,
+                                    shadowElevation = if (isGlassmorphism) 8.dp else 4.dp,
+                                    modifier = Modifier
+                                        .height(48.dp)
+                                        .align(Alignment.CenterStart)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(horizontal = 18.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        AnimatedContent(
+                                            targetState = pageTitles.getOrElse(pagerState.currentPage) { "Stream" },
+                                            transitionSpec = {
+                                                (fadeIn() + slideInVertically { -it / 2 }) togetherWith
+                                                        (fadeOut() + slideOutVertically { it / 2 })
+                                            },
+                                            label = "active_screen_title"
+                                        ) { title ->
+                                            Text(
+                                                text = title,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isGlassmorphism) Color.White.copy(alpha = 0.95f) else MaterialTheme.colorScheme.onBackground
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Offline Indicator Icon in the top center between the page indicator text and the page indicator pill
+                                AnimatedVisibility(
+                                    visible = isOffline,
+                                    enter = fadeIn(tween(200)) + scaleIn(initialScale = 0.8f),
+                                    exit = fadeOut(tween(150)) + scaleOut(targetScale = 0.8f),
+                                    modifier = Modifier.align(Alignment.Center)
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = surfaceColor,
+                                        border = borderStroke,
+                                        tonalElevation = if (isGlassmorphism) 0.dp else 3.dp,
+                                        shadowElevation = if (isGlassmorphism) 8.dp else 4.dp,
+                                        modifier = Modifier.size(44.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CloudOff,
+                                                contentDescription = "Device is offline",
+                                                tint = if (isGlassmorphism) Color.White.copy(alpha = 0.95f) else MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Page indicator dots & Profile pill (with glassmorphism and matching search pill styling)
+                                Surface(
+                                    shape = RoundedCornerShape(28.dp),
+                                    color = surfaceColor,
+                                    border = borderStroke,
+                                    tonalElevation = if (isGlassmorphism) 0.dp else 3.dp,
+                                    shadowElevation = if (isGlassmorphism) 8.dp else 4.dp,
+                                    modifier = Modifier
+                                        .height(48.dp)
+                                        .align(Alignment.CenterEnd)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(start = 14.dp, end = 6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        pageTitles.indices.forEach { index ->
+                                            val isSelected = pagerState.currentPage == index
+                                            Box(
+                                                modifier = Modifier
+                                                    .height(5.dp)
+                                                    .width(if (isSelected) 18.dp else 6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(
+                                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                                        else (if (isGlassmorphism) Color.White.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                                    )
+                                                    .clickable {
+                                                        coroutineScope.launch {
+                                                            pagerState.animateScrollToPage(index)
+                                                        }
+                                                    }
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(4.dp))
+
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isGlassmorphism) Color(0x33FFFFFF) else MaterialTheme.colorScheme.surfaceVariant)
+                                                .clickable { viewModel.openSettings() },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (!ytAccountInfo?.avatarUrl.isNullOrEmpty()) {
+                                                AsyncImage(
+                                                    model = ytAccountInfo!!.avatarUrl,
+                                                    contentDescription = ytAccountInfo?.name ?: "Profile",
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            } else {
+                                                Icon(
+                                                    imageVector = Icons.Default.Person,
+                                                    contentDescription = "Profile",
+                                                    tint = if (isGlassmorphism) Color.White.copy(alpha = 0.9f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -589,6 +957,7 @@ fun MainScreen(
                                 onReorderTracks = { from, to ->
                                     viewModel.reorderTracksInPlaylist(playlist.id, from, to)
                                 },
+                                isTrackDownloaded = { viewModel.isSongDownloaded(it) },
                                 onEditPlaylist = {
                                     editingPlaylist = playlist
                                 }
@@ -631,7 +1000,8 @@ fun MainScreen(
                                 onTrackClick = { track, list -> viewModel.playTrack(track, list) },
                                 onTrackLongClick = { viewModel.openSongMenu(it) },
                                 onPlayAll = { tracks -> viewModel.playAll(tracks) },
-                                onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) }
+                                onShuffleAll = { tracks -> viewModel.shuffleAll(tracks) },
+                                isTrackDownloaded = { viewModel.isSongDownloaded(it) }
                             )
                         }
                     }
@@ -652,6 +1022,7 @@ fun MainScreen(
                             onSongClick = { track, list -> viewModel.playTrack(track, list) },
                             onSongLongClick = { viewModel.openSongMenu(it) },
                             onBack = { viewModel.navigateBack() },
+                            isTrackDownloaded = { viewModel.isSongDownloaded(it) },
                             appTheme = appTheme
                         )
                     }
@@ -728,6 +1099,8 @@ fun MainScreen(
 
     // Song Action Context Menu Sheet (Long press)
     contextMenuTrack?.let { track ->
+        val isDownloaded = viewModel.isSongDownloaded(track.id)
+        val downloadProgress = viewModel.getSongDownloadProgress(track.id)
         SongActionMenuSheet(
             track = track,
             onPlayNow = {
@@ -750,9 +1123,14 @@ fun MainScreen(
             onAddToNewPlaylist = {
                 viewModel.openNewPlaylistSheet(track)
             },
+            isDownloaded = isDownloaded,
+            downloadProgress = downloadProgress,
+            onDownload = { viewModel.downloadSong(track) },
+            onRemoveDownload = { viewModel.removeDownloadedSong(track.id) },
             onDismiss = { viewModel.closeSongMenu() },
-            isCustomImageTheme = isCustomImage,
+            isCustomImageTheme = isImageBackground,
             customThemeImagePath = customThemeImagePath,
+            customThemeImageRes = if (appTheme == AppTheme.AQUA) aquaBackgroundDrawableRes else null,
             ambientBrush = null
         )
     }
@@ -771,8 +1149,9 @@ fun MainScreen(
                 viewModel.openNewPlaylistSheet(targetTrackForPlaylist)
             },
             onDismiss = { viewModel.closeExistingPlaylistSheet() },
-            isCustomImageTheme = isCustomImage,
+            isCustomImageTheme = isImageBackground,
             customThemeImagePath = customThemeImagePath,
+            customThemeImageRes = if (appTheme == AppTheme.AQUA) aquaBackgroundDrawableRes else null,
             ambientBrush = null
         )
     }
@@ -802,8 +1181,9 @@ fun MainScreen(
             },
             onClearYtPreview = { viewModel.clearYouTubePlaylistPreview() },
             onDismiss = { viewModel.closeNewPlaylistSheet() },
-            isCustomImageTheme = isCustomImage,
+            isCustomImageTheme = isImageBackground,
             customThemeImagePath = customThemeImagePath,
+            customThemeImageRes = if (appTheme == AppTheme.AQUA) aquaBackgroundDrawableRes else null,
             ambientBrush = null
         )
     }
@@ -819,8 +1199,9 @@ fun MainScreen(
                 editingPlaylist = null
             },
             onDismiss = { editingPlaylist = null },
-            isCustomImageTheme = isCustomImage,
+            isCustomImageTheme = isImageBackground,
             customThemeImagePath = customThemeImagePath,
+            customThemeImageRes = if (appTheme == AppTheme.AQUA) aquaBackgroundDrawableRes else null,
             ambientBrush = null
         )
     }
@@ -838,6 +1219,10 @@ fun MainScreen(
         ) + fadeOut(animationSpec = tween(100))
     ) {
         val fullPlayerState by viewModel.playbackState.collectAsState()
+        val currentTrack = fullPlayerState.currentTrack
+        val isCurDownloaded = currentTrack?.let { viewModel.isSongDownloaded(it.id) } ?: false
+        val curDownloadProgress = currentTrack?.let { viewModel.getSongDownloadProgress(it.id) }
+
         FullPlayerSheet(
             state = fullPlayerState,
             queue = queue,
@@ -856,6 +1241,15 @@ fun MainScreen(
             isQueueReorderable = isQueueReorderable,
             lyricsState = lyricsState,
             onSeekToPosition = { viewModel.seekToPosition(it) },
+            isDownloaded = isCurDownloaded,
+            downloadProgress = curDownloadProgress,
+            onToggleDownload = { track ->
+                if (viewModel.isSongDownloaded(track.id)) {
+                    viewModel.removeDownloadedSong(track.id)
+                } else {
+                    viewModel.downloadSong(track)
+                }
+            },
             onShareTrack = { track ->
                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"

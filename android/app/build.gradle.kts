@@ -12,8 +12,8 @@ android {
         applicationId = "com.wally.musesick"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.2"
+        versionCode = 12
+        versionName = "1.2.5"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -24,6 +24,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -72,4 +73,5 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

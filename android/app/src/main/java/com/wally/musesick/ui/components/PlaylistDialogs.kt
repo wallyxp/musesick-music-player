@@ -3,6 +3,7 @@ package com.wally.musesick.ui.components
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import java.io.File
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -88,6 +90,7 @@ fun NewPlaylistSheet(
     onDismiss: () -> Unit,
     isCustomImageTheme: Boolean = false,
     customThemeImagePath: String? = null,
+    customThemeImageRes: Int? = null,
     ambientBrush: Brush? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
@@ -303,22 +306,40 @@ fun NewPlaylistSheet(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
         ) {
-            if (isCustomImageTheme && !customThemeImagePath.isNullOrEmpty()) {
-                AsyncImage(
-                    model = File(customThemeImagePath),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .matchParentSize()
-                        .scale(1.1f)
-                        .blur(28.dp)
-                        .clipToBounds(),
-                    contentScale = ContentScale.Crop
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(Color.Black.copy(alpha = 0.98f))
-                )
+            if (isCustomImageTheme) {
+                if (customThemeImageRes != null) {
+                    Image(
+                        painter = painterResource(id = customThemeImageRes),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .scale(1.1f)
+                            .blur(28.dp)
+                            .clipToBounds(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.98f))
+                    )
+                } else if (!customThemeImagePath.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = File(customThemeImagePath),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .scale(1.1f)
+                            .blur(28.dp)
+                            .clipToBounds(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.98f))
+                    )
+                }
             } else if (ambientBrush != null) {
                 Box(
                     modifier = Modifier
@@ -514,6 +535,7 @@ fun ExistingPlaylistSheet(
     onDismiss: () -> Unit,
     isCustomImageTheme: Boolean = false,
     customThemeImagePath: String? = null,
+    customThemeImageRes: Int? = null,
     ambientBrush: Brush? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
@@ -528,22 +550,40 @@ fun ExistingPlaylistSheet(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
         ) {
-            if (isCustomImageTheme && !customThemeImagePath.isNullOrEmpty()) {
-                AsyncImage(
-                    model = File(customThemeImagePath),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .matchParentSize()
-                        .scale(1.1f)
-                        .blur(28.dp)
-                        .clipToBounds(),
-                    contentScale = ContentScale.Crop
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(Color.Black.copy(alpha = 0.98f))
-                )
+            if (isCustomImageTheme) {
+                if (customThemeImageRes != null) {
+                    Image(
+                        painter = painterResource(id = customThemeImageRes),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .scale(1.1f)
+                            .blur(28.dp)
+                            .clipToBounds(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.98f))
+                    )
+                } else if (!customThemeImagePath.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = File(customThemeImagePath),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .scale(1.1f)
+                            .blur(28.dp)
+                            .clipToBounds(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.98f))
+                    )
+                }
             } else if (ambientBrush != null) {
                 Box(
                     modifier = Modifier
@@ -730,6 +770,7 @@ fun EditPlaylistSheet(
     onDismiss: () -> Unit,
     isCustomImageTheme: Boolean = false,
     customThemeImagePath: String? = null,
+    customThemeImageRes: Int? = null,
     ambientBrush: Brush? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
@@ -761,22 +802,40 @@ fun EditPlaylistSheet(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
         ) {
-            if (isCustomImageTheme && !customThemeImagePath.isNullOrEmpty()) {
-                AsyncImage(
-                    model = File(customThemeImagePath),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .matchParentSize()
-                        .scale(1.1f)
-                        .blur(28.dp)
-                        .clipToBounds(),
-                    contentScale = ContentScale.Crop
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(Color.Black.copy(alpha = 0.98f))
-                )
+            if (isCustomImageTheme) {
+                if (customThemeImageRes != null) {
+                    Image(
+                        painter = painterResource(id = customThemeImageRes),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .scale(1.1f)
+                            .blur(28.dp)
+                            .clipToBounds(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.98f))
+                    )
+                } else if (!customThemeImagePath.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = File(customThemeImagePath),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .scale(1.1f)
+                            .blur(28.dp)
+                            .clipToBounds(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.98f))
+                    )
+                }
             } else if (ambientBrush != null) {
                 Box(
                     modifier = Modifier

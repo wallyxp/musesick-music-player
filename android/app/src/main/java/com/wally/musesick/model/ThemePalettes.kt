@@ -31,6 +31,7 @@ data class ThemePalette(
     val tertiaryContainer: Color,
     val onTertiaryContainer: Color,
     val outline: Color,
+    val outlineVariant: Color = outline.copy(alpha = 0.35f),
     val error: Color = Color(0xFFBA1A1A),
     val onError: Color = Color.White
 ) {
@@ -56,6 +57,7 @@ data class ThemePalette(
                 surfaceVariant = surfaceVariant,
                 onSurfaceVariant = onSurfaceVariant,
                 outline = outline,
+                outlineVariant = outlineVariant,
                 error = error,
                 onError = onError
             )
@@ -80,6 +82,7 @@ data class ThemePalette(
                 surfaceVariant = surfaceVariant,
                 onSurfaceVariant = onSurfaceVariant,
                 outline = outline,
+                outlineVariant = outlineVariant,
                 error = error,
                 onError = onError
             )
@@ -501,14 +504,14 @@ object ThemePalettes {
         onError = Color.White
     )
 
-    // AQUA PALETTES
+    // AQUA PALETTES (Darugami & Damegami replicating Custom Image theme with signature accents)
     private val AQUA_DARUGAMI = ThemePalette(
         id = "darugami",
         displayName = "Darugami",
         isDark = true,
-        background = Color(0xFF0E1320),
-        surface = Color(0xFF151B2E),
-        surfaceVariant = Color(0xFF1F2640),
+        background = Color.Transparent,
+        surface = Color(0xB3151B2E),
+        surfaceVariant = Color(0x4D1F2640),
         onBackground = Color(0xFFE6EEF8),
         onSurface = Color(0xFFF0F5FC),
         onSurfaceVariant = Color(0xFFBAC2DC),
@@ -525,6 +528,7 @@ object ThemePalettes {
         tertiaryContainer = Color(0xFF005133),
         onTertiaryContainer = Color(0xFFA0F2CD),
         outline = Color(0xFF3E4770),
+        outlineVariant = Color(0x33BFEBF8),
         error = Color(0xFFFF5449),
         onError = Color.White
     )
@@ -533,9 +537,9 @@ object ThemePalettes {
         id = "damegami",
         displayName = "Damegami",
         isDark = true,
-        background = Color(0xFF131320),
-        surface = Color(0xFF1C1C2C),
-        surfaceVariant = Color(0xFF28283E),
+        background = Color.Transparent,
+        surface = Color(0xB31C1C2C),
+        surfaceVariant = Color(0x4D28283E),
         onBackground = Color(0xFFF5F2EA),
         onSurface = Color(0xFFFBF8F2),
         onSurfaceVariant = Color(0xFFCBC6B8),
@@ -552,6 +556,7 @@ object ThemePalettes {
         tertiaryContainer = Color(0xFF005133),
         onTertiaryContainer = Color(0xFFA0F2CD),
         outline = Color(0xFF6B5838),
+        outlineVariant = Color(0x33FCCC7A),
         error = Color(0xFFFF5449),
         onError = Color.White
     )

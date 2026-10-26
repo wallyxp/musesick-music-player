@@ -250,7 +250,7 @@ fun SearchPillOrIcon(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Search",
-                        tint = if (isGlassmorphism) Color.White else MaterialTheme.colorScheme.onSurface,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(22.dp)
                     )
                 } else {
@@ -263,7 +263,7 @@ fun SearchPillOrIcon(
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
-                            tint = if (isGlassmorphism) Color.White else MaterialTheme.colorScheme.primary,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -271,7 +271,7 @@ fun SearchPillOrIcon(
                             text = "Search",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
-                            color = if (isGlassmorphism) Color.White.copy(alpha = 0.95f) else MaterialTheme.colorScheme.onSurface,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1
                         )
                     }
@@ -418,7 +418,7 @@ fun NowPlayingPillBar(
                         text = track.title,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
-                        color = if (isGlassmorphism) Color.White else MaterialTheme.colorScheme.onSurface,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -426,7 +426,7 @@ fun NowPlayingPillBar(
                     Text(
                         text = "${track.artist} • ${track.audioFormat.label}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isGlassmorphism) Color.White.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -438,8 +438,8 @@ fun NowPlayingPillBar(
                     modifier = Modifier.size(36.dp),
                     colors = if (isGlassmorphism) {
                         IconButtonDefaults.filledIconButtonColors(
-                            containerColor = Color.White.copy(alpha = 0.22f),
-                            contentColor = Color.White
+                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
+                            contentColor = MaterialTheme.colorScheme.primary
                         )
                     } else {
                         IconButtonDefaults.filledIconButtonColors(
@@ -451,7 +451,7 @@ fun NowPlayingPillBar(
                     if (state.isBuffering) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
-                            color = if (isGlassmorphism) Color.White else MaterialTheme.colorScheme.primary,
+                            color = MaterialTheme.colorScheme.primary,
                             strokeWidth = 2.dp
                         )
                     } else {
@@ -481,7 +481,7 @@ fun NowPlayingPillBar(
                     Icon(
                         imageVector = Icons.Default.SkipNext,
                         contentDescription = "Next",
-                        tint = if (isGlassmorphism) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -499,7 +499,7 @@ fun NowPlayingPillBar(
                     modifier = Modifier
                         .fillMaxWidth(state.progressFraction)
                         .height(2.5.dp)
-                        .background(if (isGlassmorphism) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.primary)
+                        .background(MaterialTheme.colorScheme.primary)
                 )
             }
         }

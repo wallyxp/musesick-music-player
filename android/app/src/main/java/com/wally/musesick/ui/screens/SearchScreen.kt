@@ -87,6 +87,7 @@ fun SearchScreen(
     onSongClick: (Track, List<Track>) -> Unit,
     onSongLongClick: ((Track) -> Unit)? = null,
     onBack: () -> Unit,
+    isTrackDownloaded: (String) -> Boolean = { false },
     appTheme: AppTheme = AppTheme.MATERIAL_YOU,
     modifier: Modifier = Modifier
 ) {
@@ -392,6 +393,7 @@ fun SearchScreen(
                                     index = index + 1,
                                     isCurrent = isCurrent,
                                     isPlaying = isCurrent && isPlaying,
+                                    isDownloaded = isTrackDownloaded(song.id),
                                     onClick = {
                                         onAddRecentSearch(searchQuery)
                                         onSongClick(song, searchResult.songs)

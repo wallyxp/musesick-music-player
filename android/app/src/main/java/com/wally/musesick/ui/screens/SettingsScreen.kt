@@ -567,18 +567,21 @@ fun SettingsAppThemeScreen(
                                         animationSpec = tween(200)
                                     ) + fadeOut(animationSpec = tween(150))
                                 ) {
+                                    val previewRes = if (currentVariant == "damegami") R.drawable.damegami else R.drawable.darugami
                                     Column(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalAlignment = Alignment.End
                                     ) {
                                         Spacer(modifier = Modifier.height(10.dp))
                                         Image(
-                                            painter = painterResource(id = R.drawable.aquacry),
-                                            contentDescription = "Aqua Crying",
+                                            painter = painterResource(id = previewRes),
+                                            contentDescription = if (currentVariant == "damegami") "Damegami" else "Darugami",
                                             modifier = Modifier
-                                                .height(84.dp)
+                                                .height(90.dp)
+                                                .width(55.dp)
                                                 .padding(end = 4.dp)
-                                                .clip(RoundedCornerShape(10.dp))
+                                                .clip(RoundedCornerShape(10.dp)),
+                                            contentScale = ContentScale.Crop
                                         )
                                     }
                                 }
@@ -593,7 +596,8 @@ fun SettingsAppThemeScreen(
 }
 
 private fun Color.isLight(): Boolean {
-    return (0.299f * red + 0.587f * green + 0.114f * blue) >= 0.5f
+    val effectiveLuminance = (0.299f * red + 0.587f * green + 0.114f * blue) * alpha
+    return effectiveLuminance >= 0.5f
 }
 
 private fun blendColors(base: Color, overlay: Color, amount: Float): Color {

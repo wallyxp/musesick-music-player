@@ -24,6 +24,15 @@ data class YtAccountInfo(
     val avatarUrl: String? = null
 )
 
+data class AudioStreamInfo(
+    val url: String,
+    val itag: Int,
+    val mimeType: String,
+    val bitrate: Long,
+    val durationMs: Long,
+    val contentLength: Long
+)
+
 class YouTubeRepository {
 
     @Volatile
@@ -1882,70 +1891,85 @@ class YouTubeRepository {
     }
 
     private fun executeInnerTubeRequest(urlStr: String, payload: JSONObject): String? {
-        val url = URL(urlStr)
-        val token = accessToken?.takeIf { it.isNotBlank() } ?: profileAccessToken?.takeIf { it.isNotBlank() }
-        val activeCookie = cookie?.takeIf { it.isNotBlank() }
-        val clientName = payload.optJSONObject("context")
-            ?.optJSONObject("client")
-            ?.optString("clientName", "WEB_REMIX")
-            ?: "WEB_REMIX"
-        val isAndroidClient = clientName.startsWith("ANDROID")
-        val origin = if (urlStr.contains("www.youtube.com")) "https://www.youtube.com" else "https://music.youtube.com"
+        return try {
+            val url = URL(urlStr)
+            val token = accessToken?.takeIf { it.isNotBlank() } ?: profileAccessToken?.takeIf { it.isNotBlank() }
+            val activeCookie = cookie?.takeIf { it.isNotBlank() }
+            val clientName = payload.optJSONObject("context")
+                ?.optJSONObject("client")
+                ?.optString("clientName", "WEB_REMIX")
+                ?: "WEB_REMIX"
+            val isAndroidClient = clientName.startsWith("ANDROID")
+            val origin = if (urlStr.contains("www.youtube.com")) "https://www.youtube.com" else "https://music.youtube.com"
 
-        val connection = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            doOutput = true
-            connectTimeout = 8000
-            readTimeout = 8000
-            setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("X-Goog-Api-Format-Version", "2")
+            val connection = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                doOutput = true
+                connectTimeout = 8000
+                readTimeout = 8000
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("X-Goog-Api-Format-Version", "2")
 
-            if (!isAndroidClient) {
-                setRequestProperty("Origin", origin)
-                setRequestProperty("Referer", "$origin/")
-                setRequestProperty("X-Origin", origin)
-                setRequestProperty(
-                    "User-Agent",
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                )
+                if (!isAndroidClient) {
+                    setRequestProperty("Origin", origin)
+                    setRequestProperty("Referer", "$origin/")
+                    setRequestProperty("X-Origin", origin)
+                    setRequestProperty(
+                        "User-Agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    )
+                } else {
+                    val clientVersion = payload.optJSONObject("context")
+                        ?.optJSONObject("client")
+                        ?.optString("clientVersion", "20.10.38")
+                        ?: "20.10.38"
+                    when (clientName) {
+                        "ANDROID_MUSIC" -> {
+                            setRequestProperty(
+                                "User-Agent",
+                                "com.google.android.apps.youtube.music/$clientVersion (Linux; U; Android 14) gzip"
+                            )
+                        }
+                        "ANDROID_VR" -> {
+                            setRequestProperty(
+                                "User-Agent",
+                                "com.google.android.apps.youtube.vr.oculus/$clientVersion (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip"
+                            )
+                        }
+                        else -> {
+                            setRequestProperty(
+                                "User-Agent",
+                                "com.google.android.youtube/$clientVersion (Linux; U; Android 11) gzip"
+                            )
+                        }
+                    }
+                }
+
+                if (token != null) {
+                    setRequestProperty("Authorization", "Bearer $token")
+                    setRequestProperty("X-Goog-AuthUser", "0")
+                } else if (activeCookie != null) {
+                    setRequestProperty("Cookie", activeCookie)
+                    setRequestProperty("X-Goog-AuthUser", "0")
+                    val authHeader = buildAuthorizationHeader(activeCookie, origin)
+                    if (authHeader != null) {
+                        setRequestProperty("Authorization", authHeader)
+                    }
+                }
+            }
+
+            OutputStreamWriter(connection.outputStream).use { writer ->
+                writer.write(payload.toString())
+                writer.flush()
+            }
+
+            if (connection.responseCode == 200) {
+                BufferedReader(InputStreamReader(connection.inputStream)).use { it.readText() }
             } else {
-                when (clientName) {
-                    "ANDROID_MUSIC" -> {
-                        setRequestProperty(
-                            "User-Agent",
-                            "com.google.android.apps.youtube.music/6.42.52 (Linux; U; Android 14) gzip"
-                        )
-                    }
-                    else -> {
-                        setRequestProperty(
-                            "User-Agent",
-                            "com.google.android.youtube/19.09.37 (Linux; U; Android 14) gzip"
-                        )
-                    }
-                }
+                null
             }
-
-            if (token != null) {
-                setRequestProperty("Authorization", "Bearer $token")
-                setRequestProperty("X-Goog-AuthUser", "0")
-            } else if (activeCookie != null) {
-                setRequestProperty("Cookie", activeCookie)
-                setRequestProperty("X-Goog-AuthUser", "0")
-                val authHeader = buildAuthorizationHeader(activeCookie, origin)
-                if (authHeader != null) {
-                    setRequestProperty("Authorization", authHeader)
-                }
-            }
-        }
-
-        OutputStreamWriter(connection.outputStream).use { writer ->
-            writer.write(payload.toString())
-            writer.flush()
-        }
-
-        return if (connection.responseCode == 200) {
-            BufferedReader(InputStreamReader(connection.inputStream)).use { it.readText() }
-        } else {
+        } catch (e: Exception) {
+            e.printStackTrace()
             null
         }
     }
@@ -1984,16 +2008,154 @@ class YouTubeRepository {
         }
     }
 
-    private fun createAndroidContext(): JSONObject {
+    private fun createAndroidContext(version: String = "20.10.38"): JSONObject {
         return JSONObject().apply {
             put("client", JSONObject().apply {
                 put("clientName", "ANDROID")
-                put("clientVersion", "19.09.37")
-                put("androidSdkVersion", 34)
+                put("clientVersion", version)
+                put("androidSdkVersion", 30)
                 put("hl", "en")
                 put("gl", "US")
             })
         }
+    }
+
+    private fun createAndroidVrContext(version: String = "1.65.10"): JSONObject {
+        return JSONObject().apply {
+            put("client", JSONObject().apply {
+                put("clientName", "ANDROID_VR")
+                put("clientVersion", version)
+                put("deviceMake", "Oculus")
+                put("deviceModel", "Quest 3")
+                put("androidSdkVersion", 32)
+                put("hl", "en")
+                put("gl", "US")
+            })
+        }
+    }
+
+    private fun extractStreamFromJson(json: JSONObject): AudioStreamInfo? {
+        val status = json.optJSONObject("playabilityStatus")?.optString("status")
+        if (status != "OK") {
+            return null
+        }
+
+        val streamingData = json.optJSONObject("streamingData") ?: return null
+
+        // 1. Prioritize progressive formats (e.g. itag 18 = 360p MP4 container with embedded AAC stereo audio).
+        // Progressive formats include 'ratebypass=yes', allowing continuous HTTP GET stream downloads of the entire track.
+        val formats = streamingData.optJSONArray("formats")
+        if (formats != null) {
+            var bestProg: JSONObject? = null
+            for (i in 0 until formats.length()) {
+                val format = formats.getJSONObject(i)
+                val url = format.optString("url", "")
+                val itag = format.optInt("itag")
+                if (url.isNotEmpty()) {
+                    if (itag == 18) {
+                        bestProg = format
+                        break
+                    }
+                    if (bestProg == null) {
+                        bestProg = format
+                    }
+                }
+            }
+
+            if (bestProg != null) {
+                return AudioStreamInfo(
+                    url = bestProg.getString("url"),
+                    itag = bestProg.optInt("itag", 18),
+                    mimeType = bestProg.optString("mimeType", "video/mp4"),
+                    bitrate = bestProg.optLong("bitrate", 128000L),
+                    durationMs = bestProg.optLong("approxDurationMs", 0L),
+                    contentLength = bestProg.optLong("contentLength", 0L)
+                )
+            }
+        }
+
+        // 2. Fallback to adaptiveFormats if available with direct url
+        val adaptiveFormats = streamingData.optJSONArray("adaptiveFormats")
+        if (adaptiveFormats != null) {
+            var bestAudio: JSONObject? = null
+            var bestBitrate: Long = 0L
+
+            for (i in 0 until adaptiveFormats.length()) {
+                val format = adaptiveFormats.getJSONObject(i)
+                val mimeType = format.optString("mimeType", "")
+                val url = format.optString("url", "")
+                if (mimeType.startsWith("audio/") && url.isNotEmpty()) {
+                    val itag = format.optInt("itag")
+                    val bitrate = format.optLong("bitrate", 0L)
+                    if (itag == 140) {
+                        bestAudio = format
+                        break
+                    }
+                    if (bitrate > bestBitrate) {
+                        bestBitrate = bitrate
+                        bestAudio = format
+                    }
+                }
+            }
+
+            if (bestAudio != null) {
+                return AudioStreamInfo(
+                    url = bestAudio.getString("url"),
+                    itag = bestAudio.optInt("itag", 140),
+                    mimeType = bestAudio.optString("mimeType", "audio/mp4"),
+                    bitrate = bestAudio.optLong("bitrate", 128000L),
+                    durationMs = bestAudio.optLong("approxDurationMs", 0L),
+                    contentLength = bestAudio.optLong("contentLength", 0L)
+                )
+            }
+        }
+
+        return null
+    }
+
+    suspend fun extractAudioStreamUrl(videoId: String): AudioStreamInfo? = withContext(Dispatchers.IO) {
+        val clientConfigs = listOf(
+            // Tier 1: Android v21.26.364 - returns progressive itag 18 stream with ratebypass=yes
+            Pair("https://www.youtube.com/youtubei/v1/player", createAndroidContext("21.26.364")),
+            // Tier 2: Android v20.10.38 - reliable fallback for music tracks
+            Pair("https://www.youtube.com/youtubei/v1/player", createAndroidContext("20.10.38")),
+            // Tier 3: Android VR v1.65.10 - fallback for standard YouTube videos
+            Pair("https://www.youtube.com/youtubei/v1/player", createAndroidVrContext("1.65.10")),
+            // Tier 4: Music endpoint fallback
+            Pair("https://music.youtube.com/youtubei/v1/player", createAndroidContext("21.26.364"))
+        )
+
+        for ((endpoint, clientContext) in clientConfigs) {
+            try {
+                val payload = JSONObject().apply {
+                    put("context", clientContext)
+                    put("videoId", videoId)
+                }
+
+                val jsonStr = executeInnerTubeRequest(endpoint, payload)
+                if (jsonStr != null) {
+                    val json = JSONObject(jsonStr)
+                    val status = json.optJSONObject("playabilityStatus")?.optString("status")
+                    if (status == "OK") {
+                        val streamInfo = extractStreamFromJson(json)
+                        if (streamInfo != null) {
+                            android.util.Log.d(
+                                "YouTubeRepository",
+                                "Resolved audio stream for $videoId (itag=${streamInfo.itag}, mime=${streamInfo.mimeType})"
+                            )
+                            return@withContext streamInfo
+                        }
+                    } else {
+                        android.util.Log.w("YouTubeRepository", "Client status for $videoId: $status")
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("YouTubeRepository", "Stream resolution attempt failed for $videoId: ${e.message}")
+            }
+        }
+
+        android.util.Log.e("YouTubeRepository", "Failed to extract audio stream for $videoId across all tiers")
+        null
     }
 
     private fun parseCardShelf(

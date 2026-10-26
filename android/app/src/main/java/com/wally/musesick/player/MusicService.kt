@@ -98,6 +98,7 @@ class MusicService : Service() {
         val rawUrl = track.thumbnailUrl
         val hdUrl: String? = when {
             rawUrl.isNullOrBlank() -> null
+            rawUrl.startsWith("/") || rawUrl.startsWith("file:") -> rawUrl
             rawUrl.contains("i.ytimg.com") || rawUrl.contains("img.youtube.com") -> {
                 // Replace any quality variant with maxresdefault, falling back to sddefault
                 rawUrl.replace(Regex("(default|mqdefault|hqdefault|sddefault|hq720|maxresdefault)\\.jpg"), "maxresdefault.jpg")
@@ -231,7 +232,15 @@ class MusicService : Service() {
             )
         mediaSession.setPlaybackState(playbackStateBuilder.build())
 
-        startForeground(NOTIFICATION_ID, builder.build())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                builder.build(),
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, builder.build())
+        }
     }
 
     private fun createActionIntent(action: String): PendingIntent {

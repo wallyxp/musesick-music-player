@@ -15,8 +15,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -56,43 +59,15 @@ fun PlaylistsTab(
     onPlaylistClick: (Playlist) -> Unit,
     onEditPlaylistClick: ((Playlist) -> Unit)? = null,
     onDeletePlaylistClick: ((Playlist) -> Unit)? = null,
+    gridState: LazyGridState = rememberLazyGridState(),
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-    ) {
-        // Actions row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    if (playlists.isEmpty()) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(start = 16.dp, end = 16.dp, top = 112.dp, bottom = 180.dp)
         ) {
-            Text(
-                text = "YOUR PLAYLISTS",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            FilledTonalButton(
-                onClick = onCreatePlaylistClick,
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("New Playlist")
-            }
-        }
-
-        if (playlists.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -123,22 +98,23 @@ fun PlaylistsTab(
                     )
                 }
             }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(bottom = 90.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(playlists, key = { it.id }) { playlist ->
-                    PlaylistItemCard(
-                        playlist = playlist,
-                        onClick = { onPlaylistClick(playlist) },
-                        onEditClick = onEditPlaylistClick?.let { editFn -> { editFn(playlist) } },
-                        onDeleteClick = onDeletePlaylistClick?.let { delFn -> { delFn(playlist) } }
-                    )
-                }
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            state = gridState,
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 112.dp, bottom = 180.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = modifier.fillMaxSize()
+        ) {
+            items(playlists, key = { it.id }) { playlist ->
+                PlaylistItemCard(
+                    playlist = playlist,
+                    onClick = { onPlaylistClick(playlist) },
+                    onEditClick = onEditPlaylistClick?.let { editFn -> { editFn(playlist) } },
+                    onDeleteClick = onDeletePlaylistClick?.let { delFn -> { delFn(playlist) } }
+                )
             }
         }
     }

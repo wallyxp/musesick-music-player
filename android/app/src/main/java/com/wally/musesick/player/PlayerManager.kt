@@ -12,9 +12,12 @@ import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.wally.musesick.model.AudioFormat
 import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.PlaybackStatus
 import com.wally.musesick.model.Track
+import com.wally.musesick.repository.DownloadRepository
+import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,6 +32,7 @@ class PlayerManager private constructor(private val context: Context) {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private val downloadRepository by lazy { DownloadRepository.getInstance(context) }
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
@@ -233,36 +237,75 @@ class PlayerManager private constructor(private val context: Context) {
         }
     }
 
+    private fun isNetworkAvailable(): Boolean {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            val network = cm?.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (_: Exception) {
+            true
+        }
+    }
+
     fun playTrack(track: Track, newQueue: List<Track>? = null) {
+        // Resolve if track is downloaded locally in offline storage
+        val downloaded = downloadRepository.getDownloadedTrack(track.id)
+        val effectiveTrack = if (downloaded != null) {
+            track.copy(
+                isLocal = true,
+                contentUri = downloaded.localAudioPath,
+                thumbnailUrl = downloaded.localThumbnailPath ?: track.thumbnailUrl,
+                audioFormat = AudioFormat.M4A,
+                sizeFormatted = downloaded.fileSizeFormatted
+            )
+        } else {
+            track
+        }
+
         if (newQueue != null) {
             _queue.value = newQueue
-            currentIndex = newQueue.indexOfFirst { it.id == track.id }
+            currentIndex = newQueue.indexOfFirst { it.id == effectiveTrack.id }
         } else {
             val q = _queue.value
-            val idx = q.indexOfFirst { it.id == track.id }
+            val idx = q.indexOfFirst { it.id == effectiveTrack.id }
             if (idx != -1) {
                 currentIndex = idx
             } else {
-                _queue.value = q + track
+                _queue.value = q + effectiveTrack
                 currentIndex = _queue.value.lastIndex
             }
         }
 
         _playbackState.value = _playbackState.value.copy(
             status = PlaybackStatus.BUFFERING,
-            currentTrack = track,
+            currentTrack = effectiveTrack,
             currentPositionMs = 0L,
-            durationMs = track.durationMs,
+            durationMs = effectiveTrack.durationMs,
             errorMessage = null
         )
 
         stopLocalPlayer()
         pauseYouTube()
 
-        if (track.isLocal) {
-            playLocalTrack(track)
+        if (effectiveTrack.isLocal) {
+            playLocalTrack(effectiveTrack)
         } else {
-            playYouTubeVideo(track.id)
+            if (!isNetworkAvailable()) {
+                _playbackState.value = _playbackState.value.copy(
+                    status = PlaybackStatus.ERROR,
+                    errorMessage = "You're offline. Connect to internet to stream or play downloaded songs."
+                )
+                mainHandler.post {
+                    android.widget.Toast.makeText(
+                        context,
+                        "You're offline. Connect to internet to stream or play downloaded songs.",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            } else {
+                playYouTubeVideo(effectiveTrack.id)
+            }
         }
 
         notifyService()
@@ -271,7 +314,8 @@ class PlayerManager private constructor(private val context: Context) {
     private fun playLocalTrack(track: Track) {
         stopProgressLoop()
         try {
-            val uri = Uri.parse(track.contentUri ?: return)
+            val pathOrUri = track.contentUri ?: return
+            val file = File(pathOrUri.removePrefix("file://"))
             val mp = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -279,7 +323,11 @@ class PlayerManager private constructor(private val context: Context) {
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
-                setDataSource(context, uri)
+                if (file.exists()) {
+                    setDataSource(file.absolutePath)
+                } else {
+                    setDataSource(context, Uri.parse(pathOrUri))
+                }
                 setOnPreparedListener { player ->
                     player.start()
                     _playbackState.value = _playbackState.value.copy(

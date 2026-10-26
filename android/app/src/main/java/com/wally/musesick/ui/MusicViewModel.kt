@@ -31,8 +31,14 @@ import com.wally.musesick.repository.SettingsRepository
 import com.wally.musesick.repository.PlayCountRepository
 import com.wally.musesick.repository.SuggestedPlaylistsRepository
 import com.wally.musesick.model.LyricsUiState
+import com.wally.musesick.repository.DownloadRepository
+import com.wally.musesick.repository.DownloadedTrack
 import com.wally.musesick.repository.LyricsRepository
 import com.wally.musesick.repository.LyricsResult
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,6 +83,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val lyricsRepository = LyricsRepository()
     private val updateManager = UpdateManager()
     val playerManager = PlayerManager.getInstance(application)
+    val downloadRepository = DownloadRepository.getInstance(application, ytRepository)
+
+    val downloadedTracks: StateFlow<Map<String, DownloadedTrack>> = downloadRepository.downloads
+    val activeDownloads: StateFlow<Map<String, Float>> = downloadRepository.activeDownloads
+    val totalDownloadStorage: StateFlow<String> = downloadRepository.totalStorageFormatted
+
+    private val _isOffline = MutableStateFlow(!isNetworkConnected())
+    val isOffline: StateFlow<Boolean> = _isOffline.asStateFlow()
+
+    private val coroutineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        android.util.Log.e("MusicViewModel", "Coroutine network/runtime exception ignored", throwable)
+    }
 
     // Lyrics State
     private val _lyricsState = MutableStateFlow<LyricsUiState>(LyricsUiState.Idle)
@@ -280,7 +298,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLocalLoading = MutableStateFlow(false)
     val isLocalLoading: StateFlow<Boolean> = _isLocalLoading.asStateFlow()
 
-    private val _localFormatFilter = MutableStateFlow("ALL")
+    private val _localFormatFilter = MutableStateFlow("DEVICE")
     val localFormatFilter: StateFlow<String> = _localFormatFilter.asStateFlow()
 
     private val _isFullPlayerOpen = MutableStateFlow(false)
@@ -309,7 +327,41 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private var searchJob: Job? = null
 
+    private fun isNetworkConnected(): Boolean {
+        return try {
+            val cm = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val network = cm?.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    private fun setupNetworkMonitoring() {
+        try {
+            val cm = getApplication<Application>().getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            cm?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    _isOffline.value = false
+                }
+
+                override fun onLost(network: Network) {
+                    _isOffline.value = !isNetworkConnected()
+                }
+
+                override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                    val hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    _isOffline.value = !hasInternet
+                }
+            })
+        } catch (e: Exception) {
+            android.util.Log.w("MusicViewModel", "Failed to register network callback", e)
+        }
+    }
+
     init {
+        setupNetworkMonitoring()
         ytRepository.cookie = settingsRepository.getYtMusicCookie()
         loadArtists()
         loadLocalTracks()
@@ -327,13 +379,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 refreshYtAccountAndPlaylists(silent = true)
             } else {
                 // Still refresh account metadata quietly if missing
-                viewModelScope.launch {
-                    val fetchedAccount = ytRepository.fetchAccountInfo(fallbackAccountName = settingsRepository.getYtUserName())
-                    if (fetchedAccount != null) {
-                        settingsRepository.setYtUserName(fetchedAccount.name)
-                        settingsRepository.setYtUserHandle(fetchedAccount.handle)
-                        settingsRepository.setYtUserAvatarUrl(fetchedAccount.avatarUrl)
-                        _ytAccountInfo.value = fetchedAccount
+                viewModelScope.launch(coroutineExceptionHandler) {
+                    try {
+                        val fetchedAccount = ytRepository.fetchAccountInfo(fallbackAccountName = settingsRepository.getYtUserName())
+                        if (fetchedAccount != null) {
+                            settingsRepository.setYtUserName(fetchedAccount.name)
+                            settingsRepository.setYtUserHandle(fetchedAccount.handle)
+                            settingsRepository.setYtUserAvatarUrl(fetchedAccount.avatarUrl)
+                            _ytAccountInfo.value = fetchedAccount
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
                 }
             }
@@ -1036,12 +1092,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         _artistSearchResults.value = emptyList()
     }
 
-    // --- Local Tracks ---
+    // --- Local & Downloaded Tracks ---
     fun loadLocalTracks() {
         viewModelScope.launch {
             _isLocalLoading.value = true
-            val tracks = localRepository.getLocalAudioTracks()
-            _localTracks.value = tracks
+            val downloadedList = downloadRepository.getAllDownloadedTracks()
+            val mediaStoreList = localRepository.getLocalAudioTracks()
+            _localTracks.value = (downloadedList + mediaStoreList).distinctBy { it.id }
             _isLocalLoading.value = false
         }
     }
@@ -1072,11 +1129,40 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun getFilteredLocalTracks(): List<Track> {
         val all = _localTracks.value
         return when (_localFormatFilter.value) {
-            "FLAC" -> all.filter { it.audioFormat == AudioFormat.FLAC }
-            "M4A" -> all.filter { it.audioFormat == AudioFormat.M4A }
-            "MP3" -> all.filter { it.audioFormat == AudioFormat.MP3 }
-            else -> all
+            "DOWNLOADED" -> all.filter { downloadRepository.isDownloaded(it.id) }
+            "DEVICE" -> all.filter { !downloadRepository.isDownloaded(it.id) }
+            else -> all.filter { !downloadRepository.isDownloaded(it.id) }
         }
+    }
+
+    // --- Offline Download Actions ---
+    fun downloadSong(track: Track) {
+        viewModelScope.launch(coroutineExceptionHandler) {
+            _updateToastMessage.value = "Starting download for '${track.title}'..."
+            val result = downloadRepository.downloadTrack(track)
+            if (result.isSuccess) {
+                loadLocalTracks()
+                _updateToastMessage.value = "Downloaded '${track.title}' for offline listening"
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "Stream unavailable"
+                _updateToastMessage.value = "Download failed: $err"
+            }
+        }
+    }
+
+    fun removeDownloadedSong(trackId: String) {
+        val title = downloadRepository.getDownloadedTrack(trackId)?.title ?: "Track"
+        downloadRepository.removeDownload(trackId)
+        loadLocalTracks()
+        _updateToastMessage.value = "Removed '$title' from offline downloads"
+    }
+
+    fun isSongDownloaded(trackId: String): Boolean {
+        return downloadRepository.isDownloaded(trackId)
+    }
+
+    fun getSongDownloadProgress(trackId: String): Float? {
+        return downloadRepository.activeDownloads.value[trackId]
     }
 
     // --- Playback Controls ---
