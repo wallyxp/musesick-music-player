@@ -87,6 +87,8 @@ import java.io.File
 import com.wally.musesick.model.AccentColorPresets
 import com.wally.musesick.model.AppTheme
 import com.wally.musesick.model.ColorPreset
+import com.wally.musesick.ui.components.CircularGlassBackButton
+import androidx.compose.material.icons.filled.AutoAwesome
 import com.wally.musesick.repository.SettingsRepository
 import com.wally.musesick.repository.YtAccountInfo
 import androidx.compose.material.icons.filled.AccountCircle
@@ -177,13 +179,7 @@ fun SettingsScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
+            CircularGlassBackButton(onClick = onBack)
             Spacer(modifier = Modifier.width(8.dp))
 
             // Profile Avatar (Google Profile Picture when logged in, Default Profile Logo when Guest)
@@ -381,13 +377,7 @@ fun SettingsAppThemeScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
+            CircularGlassBackButton(onClick = onBack)
             Spacer(modifier = Modifier.width(8.dp))
             Column {
                 Text(
@@ -547,6 +537,50 @@ fun SettingsAppThemeScreen(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text("Select Wallpaper Image")
+                                    }
+                                }
+                            }
+                        }
+                        theme == AppTheme.DEFAULT && isThemeSelected -> {
+                            {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.primarybg),
+                                            contentDescription = "Default Background",
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(14.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Default Background Active",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Frosted glass aesthetic with primarybg artwork",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                             }
@@ -754,17 +788,11 @@ private fun ThemeCardWithVariants(
 
 private fun getThemeIcon(theme: AppTheme): ImageVector {
     return when (theme) {
-        AppTheme.MATERIAL_YOU -> Icons.Default.Android
-        AppTheme.AQUA -> Icons.Default.WaterDrop
-        AppTheme.GRUVBOX -> Icons.Default.Coffee
-        AppTheme.EVERFOREST -> Icons.Default.Park
-        AppTheme.TOKYO_NIGHT -> Icons.Default.NightsStay
-        AppTheme.CATPPUCCIN -> Icons.Default.Pets
-        AppTheme.ROSE_PINE -> Icons.Default.Spa
-        AppTheme.KANAGAWA -> Icons.Default.Waves
-        AppTheme.NORD -> Icons.Default.AcUnit
-        AppTheme.CUSTOM_COLOR -> Icons.Default.Palette
+        AppTheme.DEFAULT -> Icons.Default.AutoAwesome
         AppTheme.CUSTOM_IMAGE -> Icons.Default.Wallpaper
+        AppTheme.CUSTOM_COLOR -> Icons.Default.Palette
+        AppTheme.AQUA -> Icons.Default.WaterDrop
+        AppTheme.MATERIAL_YOU -> Icons.Default.Android
     }
 }
 
@@ -1051,13 +1079,7 @@ fun SettingsAutoSyncScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
+                CircularGlassBackButton(onClick = onBack)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Automatic Sync",

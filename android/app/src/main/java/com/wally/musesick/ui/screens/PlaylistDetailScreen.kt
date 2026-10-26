@@ -38,6 +38,10 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.ui.graphics.Brush
+import com.wally.musesick.ui.components.CircularGlassBackButton
+import com.wally.musesick.ui.components.GlassmorphicActionButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -111,16 +115,10 @@ fun PlaylistDetailScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onBackground
-                )
-            }
+            CircularGlassBackButton(onClick = onBack)
             if (!playlist.imageUri.isNullOrEmpty()) {
                 AsyncImage(
                     model = playlist.imageUri,
@@ -156,7 +154,21 @@ fun PlaylistDetailScreen(
                 }
                 DropdownMenu(
                     expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
+                    onDismissRequest = { showMenu = false },
+                    shape = RoundedCornerShape(16.dp),
+                    containerColor = Color(0xEB16161A),
+                    border = BorderStroke(
+                        1.dp,
+                        Brush.linearGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.40f),
+                                Color.White.copy(alpha = 0.10f),
+                                Color.White.copy(alpha = 0.25f)
+                            )
+                        )
+                    ),
+                    shadowElevation = 10.dp,
+                    tonalElevation = 0.dp
                 ) {
                     if (isUserCreated) {
                         DropdownMenuItem(
@@ -310,27 +322,23 @@ fun PlaylistDetailScreen(
                         .padding(horizontal = 20.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    FilledTonalButton(
+                    GlassmorphicActionButton(
+                        text = "Play All",
+                        icon = Icons.Default.PlayArrow,
                         onClick = { onPlayAll(playlist.tracks) },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(20.dp),
-                        enabled = playlist.tracks.isNotEmpty()
-                    ) {
-                        Icon(imageVector = Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Play All")
-                    }
+                        enabled = playlist.tracks.isNotEmpty(),
+                        isPrimary = true
+                    )
 
-                    OutlinedButton(
+                    GlassmorphicActionButton(
+                        text = "Shuffle",
+                        icon = Icons.Default.Shuffle,
                         onClick = { onShuffleAll(playlist.tracks) },
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(20.dp),
-                        enabled = playlist.tracks.isNotEmpty()
-                    ) {
-                        Icon(imageVector = Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Shuffle")
-                    }
+                        enabled = playlist.tracks.isNotEmpty(),
+                        isPrimary = false
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -521,31 +529,62 @@ fun PlaylistDetailScreen(
                                 }
                                 DropdownMenu(
                                     expanded = showTrackMenu,
-                                    onDismissRequest = { showTrackMenu = false }
+                                    onDismissRequest = { showTrackMenu = false },
+                                    shape = RoundedCornerShape(16.dp),
+                                    containerColor = Color(0xEB16161A),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        Brush.linearGradient(
+                                            listOf(
+                                                Color.White.copy(alpha = 0.40f),
+                                                Color.White.copy(alpha = 0.10f),
+                                                Color.White.copy(alpha = 0.25f)
+                                            )
+                                        )
+                                    ),
+                                    shadowElevation = 10.dp,
+                                    tonalElevation = 0.dp
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Play Now") },
+                                        text = { Text("Play Now", fontWeight = FontWeight.Medium) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.PlayArrow,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        },
                                         onClick = {
                                             showTrackMenu = false
                                             onTrackClick(track, playlist.tracks)
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("More Options") },
+                                        text = { Text("More Options", fontWeight = FontWeight.Medium) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.MoreHoriz,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        },
                                         onClick = {
                                             showTrackMenu = false
                                             onTrackLongClick(track)
                                         }
                                     )
                                     if (isUserCreated) {
-                                        HorizontalDivider()
+                                        HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
                                         DropdownMenuItem(
-                                            text = { Text("Remove from Playlist", color = MaterialTheme.colorScheme.error) },
+                                            text = { Text("Remove from Playlist", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium) },
                                             leadingIcon = {
                                                 Icon(
                                                     imageVector = Icons.Default.Delete,
                                                     contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.error
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(20.dp)
                                                 )
                                             },
                                             onClick = {

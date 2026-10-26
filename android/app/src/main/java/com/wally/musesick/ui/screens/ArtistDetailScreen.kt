@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.wally.musesick.model.Album
 import com.wally.musesick.model.Artist
+import com.wally.musesick.ui.components.CircularGlassBackButton
+import com.wally.musesick.ui.components.GlassmorphicActionButton
 import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.Track
 
@@ -113,13 +115,7 @@ fun ArtistDetailScreen(
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
+                CircularGlassBackButton(onClick = onBack)
                 if (!artist.thumbnailUrl.isNullOrEmpty()) {
                     AsyncImage(
                         model = artist.thumbnailUrl,
@@ -243,33 +239,21 @@ fun ArtistDetailScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Button(
+                        GlassmorphicActionButton(
+                            text = "Play",
+                            icon = Icons.Default.PlayArrow,
                             onClick = onPlay,
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(24.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Play", fontWeight = FontWeight.SemiBold)
-                        }
+                            isPrimary = true
+                        )
 
-                        OutlinedButton(
+                        GlassmorphicActionButton(
+                            text = "Shuffle Play",
+                            icon = Icons.Default.Shuffle,
                             onClick = onShufflePlay,
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(24.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Shuffle,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Shuffle Play", fontWeight = FontWeight.SemiBold)
-                        }
+                            isPrimary = false
+                        )
                     }
                 }
 

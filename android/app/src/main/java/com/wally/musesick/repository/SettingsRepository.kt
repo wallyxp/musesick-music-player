@@ -121,7 +121,7 @@ class SettingsRepository(private val context: Context) {
     }
 
     fun getAppTheme(): AppTheme {
-        val themeName = prefs.getString(KEY_APP_THEME, AppTheme.AQUA.name)
+        val themeName = prefs.getString(KEY_APP_THEME, AppTheme.DEFAULT.name)
         return AppTheme.fromString(themeName)
     }
 

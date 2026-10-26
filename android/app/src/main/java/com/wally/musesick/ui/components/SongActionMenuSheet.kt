@@ -2,6 +2,7 @@ package com.wally.musesick.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -74,13 +75,24 @@ fun SongActionMenuSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = if (isCustomImageTheme || ambientBrush != null) Color.Black.copy(alpha = 0.98f) else MaterialTheme.colorScheme.surface,
-        tonalElevation = 6.dp
+        containerColor = if (isCustomImageTheme || ambientBrush != null) Color(0xEB16161A) else MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                .border(
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.35f),
+                            Color.White.copy(alpha = 0.08f),
+                            Color.White.copy(alpha = 0.20f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+                )
         ) {
             if (isCustomImageTheme) {
                 if (customThemeImageRes != null) {
@@ -97,7 +109,7 @@ fun SongActionMenuSheet(
                     Box(
                         modifier = Modifier
                             .matchParentSize()
-                            .background(Color.Black.copy(alpha = 0.98f))
+                            .background(Color.Black.copy(alpha = 0.72f))
                     )
                 } else if (!customThemeImagePath.isNullOrEmpty()) {
                     AsyncImage(
@@ -113,7 +125,7 @@ fun SongActionMenuSheet(
                     Box(
                         modifier = Modifier
                             .matchParentSize()
-                            .background(Color.Black.copy(alpha = 0.98f))
+                            .background(Color.Black.copy(alpha = 0.72f))
                     )
                 }
             } else if (ambientBrush != null) {

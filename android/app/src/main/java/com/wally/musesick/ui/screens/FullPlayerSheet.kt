@@ -155,7 +155,7 @@ fun FullPlayerSheet(
     isDownloaded: Boolean = false,
     downloadProgress: Float? = null,
     onToggleDownload: (Track) -> Unit = {},
-    appTheme: AppTheme = AppTheme.MATERIAL_YOU,
+    appTheme: AppTheme = AppTheme.DEFAULT,
     modifier: Modifier = Modifier
 ) {
     val track = state.currentTrack ?: return

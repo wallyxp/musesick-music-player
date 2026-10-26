@@ -26,16 +26,10 @@ class SettingsModelsTest {
 
     @Test
     fun testAppTheme_fromString() {
+        assertEquals(AppTheme.DEFAULT, AppTheme.fromString("DEFAULT"))
         assertEquals(AppTheme.MATERIAL_YOU, AppTheme.fromString("MATERIAL_YOU"))
         assertEquals(AppTheme.AQUA, AppTheme.fromString("AQUA"))
         assertEquals("Aqua", AppTheme.AQUA.displayName)
-        assertEquals(AppTheme.GRUVBOX, AppTheme.fromString("GRUVBOX"))
-        assertEquals(AppTheme.EVERFOREST, AppTheme.fromString("EVERFOREST"))
-        assertEquals(AppTheme.TOKYO_NIGHT, AppTheme.fromString("TOKYO_NIGHT"))
-        assertEquals(AppTheme.CATPPUCCIN, AppTheme.fromString("CATPPUCCIN"))
-        assertEquals(AppTheme.ROSE_PINE, AppTheme.fromString("ROSE_PINE"))
-        assertEquals(AppTheme.KANAGAWA, AppTheme.fromString("KANAGAWA"))
-        assertEquals(AppTheme.NORD, AppTheme.fromString("NORD"))
         assertEquals(AppTheme.CUSTOM_COLOR, AppTheme.fromString("CUSTOM_COLOR"))
         assertEquals(AppTheme.CUSTOM_IMAGE, AppTheme.fromString("CUSTOM_IMAGE"))
         assertEquals("Custom Image", AppTheme.CUSTOM_IMAGE.displayName)
@@ -43,24 +37,18 @@ class SettingsModelsTest {
         // AMBIENT maps to CUSTOM_IMAGE
         assertEquals(AppTheme.CUSTOM_IMAGE, AppTheme.fromString("AMBIENT"))
 
-        // Fallbacks default to AQUA
-        assertEquals(AppTheme.AQUA, AppTheme.fromString("LIQUID_GLASS"))
-        assertEquals(AppTheme.AQUA, AppTheme.fromString("UNKNOWN_THEME"))
-        assertEquals(AppTheme.AQUA, AppTheme.fromString(null))
+        // Removed themes & unknown fallbacks default to DEFAULT
+        assertEquals(AppTheme.DEFAULT, AppTheme.fromString("GRUVBOX"))
+        assertEquals(AppTheme.DEFAULT, AppTheme.fromString("LIQUID_GLASS"))
+        assertEquals(AppTheme.DEFAULT, AppTheme.fromString("UNKNOWN_THEME"))
+        assertEquals(AppTheme.DEFAULT, AppTheme.fromString(null))
     }
 
     @Test
     fun testThemePalettes_variants() {
-        // Test that every theme with variants returns valid palettes for all its defined variants
+        // Test that aqua theme with variants returns valid palettes for all its defined variants
         val themesWithVariants = listOf(
-            AppTheme.AQUA,
-            AppTheme.GRUVBOX,
-            AppTheme.EVERFOREST,
-            AppTheme.TOKYO_NIGHT,
-            AppTheme.CATPPUCCIN,
-            AppTheme.ROSE_PINE,
-            AppTheme.KANAGAWA,
-            AppTheme.NORD
+            AppTheme.AQUA
         )
 
         for (theme in themesWithVariants) {

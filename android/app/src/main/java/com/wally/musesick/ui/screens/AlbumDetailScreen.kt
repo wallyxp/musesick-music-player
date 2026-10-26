@@ -46,6 +46,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.wally.musesick.model.Album
+import com.wally.musesick.ui.components.CircularGlassBackButton
+import com.wally.musesick.ui.components.GlassmorphicActionButton
 import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.Track
 
@@ -78,13 +80,7 @@ fun AlbumDetailScreen(
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
+                CircularGlassBackButton(onClick = onBack)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = album.title,
@@ -179,33 +175,23 @@ fun AlbumDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Button(
+                            GlassmorphicActionButton(
+                                text = "Play All",
+                                icon = Icons.Default.PlayArrow,
                                 onClick = { if (tracks.isNotEmpty()) onPlayAll(tracks) },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(24.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Play All")
-                            }
+                                enabled = tracks.isNotEmpty(),
+                                isPrimary = true
+                            )
 
-                            OutlinedButton(
+                            GlassmorphicActionButton(
+                                text = "Shuffle",
+                                icon = Icons.Default.Shuffle,
                                 onClick = { if (tracks.isNotEmpty()) onShuffleAll(tracks) },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(24.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Shuffle,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Shuffle")
-                            }
+                                enabled = tracks.isNotEmpty(),
+                                isPrimary = false
+                            )
                         }
                     }
                 }

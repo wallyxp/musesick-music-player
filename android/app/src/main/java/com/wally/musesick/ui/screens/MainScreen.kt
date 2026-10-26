@@ -303,25 +303,33 @@ fun MainScreen(
         else -> R.drawable.darugami
     }
 
+    val themeDrawableRes: Int? = when (appTheme) {
+        AppTheme.DEFAULT -> R.drawable.primarybg
+        AppTheme.AQUA -> aquaBackgroundDrawableRes
+        else -> null
+    }
+
     val themeBackgroundImage: Any? = when {
+        appTheme == AppTheme.DEFAULT -> R.drawable.primarybg
         appTheme == AppTheme.CUSTOM_IMAGE && !customThemeImagePath.isNullOrEmpty() -> File(customThemeImagePath!!)
+        appTheme == AppTheme.CUSTOM_IMAGE -> R.drawable.primarybg
         appTheme == AppTheme.AQUA -> aquaBackgroundDrawableRes
         else -> null
     }
 
-    val isImageBackground = themeBackgroundImage != null
-    val isGlassmorphism = isImageBackground
+    val isGlassmorphism = appTheme in listOf(AppTheme.DEFAULT, AppTheme.CUSTOM_IMAGE, AppTheme.CUSTOM_COLOR, AppTheme.AQUA)
+    val isImageBackground = themeBackgroundImage != null || appTheme == AppTheme.CUSTOM_COLOR
     val isCustomImage = isImageBackground
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(if (isImageBackground) Color(0xFF121212) else MaterialTheme.colorScheme.background)
+            .background(if (isImageBackground) Color(0xFF000000) else MaterialTheme.colorScheme.background)
     ) {
-        if (isImageBackground) {
-            if (appTheme == AppTheme.AQUA) {
+        if (isImageBackground && appTheme != AppTheme.CUSTOM_COLOR) {
+            if (themeDrawableRes != null) {
                 Image(
-                    painter = painterResource(id = aquaBackgroundDrawableRes),
+                    painter = painterResource(id = themeDrawableRes),
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
@@ -420,65 +428,71 @@ fun MainScreen(
                             .navigationBarsPadding(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Playlists Tab (Page 1): Floating Plus Button above bottom bar on the bottom right
-                        AnimatedVisibility(
-                            visible = currentScreen == ScreenState.HOME && pagerState.currentPage == 1,
-                            enter = fadeIn(tween(160)) + slideInVertically { it / 2 },
-                            exit = fadeOut(tween(140)) + slideOutVertically { it / 2 }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(60.dp),
+                            contentAlignment = Alignment.BottomCenter
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(end = 20.dp, bottom = 10.dp),
-                                horizontalArrangement = Arrangement.End
+                            // Playlists Tab (Page 1): Floating Plus Button above bottom bar on the bottom right
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = currentScreen == ScreenState.HOME && pagerState.currentPage == 1,
+                                enter = fadeIn(tween(160)),
+                                exit = fadeOut(tween(140)),
+                                modifier = Modifier.align(Alignment.BottomEnd)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(50.dp)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (isGlassmorphism) Color.White.copy(alpha = 0.20f)
-                                            else MaterialTheme.colorScheme.primaryContainer
-                                        )
-                                        .border(
-                                            width = 1.dp,
-                                            brush = if (isGlassmorphism) Brush.linearGradient(
-                                                listOf(
-                                                    Color.White.copy(alpha = 0.50f),
-                                                    Color.White.copy(alpha = 0.15f),
-                                                    Color.White.copy(alpha = 0.35f)
-                                                )
-                                            ) else SolidColor(MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
-                                            shape = CircleShape
-                                        )
-                                        .clickable {
-                                            viewModel.openNewPlaylistSheet()
-                                        },
-                                    contentAlignment = Alignment.Center
+                                Row(
+                                    modifier = Modifier.padding(end = 20.dp, bottom = 10.dp),
+                                    horizontalArrangement = Arrangement.End
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "New Playlist",
-                                        tint = if (isGlassmorphism) Color.White else MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(26.dp)
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(50.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (isGlassmorphism) Color.White.copy(alpha = 0.20f)
+                                                else MaterialTheme.colorScheme.primaryContainer
+                                            )
+                                            .border(
+                                                width = 1.dp,
+                                                brush = if (isGlassmorphism) Brush.linearGradient(
+                                                    listOf(
+                                                        Color.White.copy(alpha = 0.50f),
+                                                        Color.White.copy(alpha = 0.15f),
+                                                        Color.White.copy(alpha = 0.35f)
+                                                    )
+                                                ) else SolidColor(MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+                                                shape = CircleShape
+                                            )
+                                            .clickable {
+                                                viewModel.openNewPlaylistSheet()
+                                            },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = "New Playlist",
+                                            tint = if (isGlassmorphism) Color.White else MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.size(26.dp)
+                                        )
+                                    }
                                 }
                             }
-                        }
 
-                        // Local Tab (Page 2): 4 Glassmorphism Circular Buttons (Downloaded, Device, Open, Refresh)
-                        AnimatedVisibility(
-                            visible = currentScreen == ScreenState.HOME && pagerState.currentPage == 2,
-                            enter = fadeIn(tween(160)) + slideInVertically { it / 2 },
-                            exit = fadeOut(tween(140)) + slideOutVertically { it / 2 }
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-                                verticalAlignment = Alignment.CenterVertically
+                            // Local Tab (Page 2): 4 Glassmorphism Circular Buttons (Downloaded, Device, Open, Refresh)
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = currentScreen == ScreenState.HOME && pagerState.currentPage == 2,
+                                enter = fadeIn(tween(160)),
+                                exit = fadeOut(tween(140)),
+                                modifier = Modifier.align(Alignment.BottomCenter)
                             ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                 val isDownloadedActive = localFilter == "DOWNLOADED"
                                 val isDeviceActive = localFilter != "DOWNLOADED"
 
@@ -605,6 +619,7 @@ fun MainScreen(
                                 }
                             }
                         }
+                    }
 
                         val miniPlayerState by viewModel.playbackState.collectAsState()
                         BottomNavigationControlBar(
@@ -1130,7 +1145,7 @@ fun MainScreen(
             onDismiss = { viewModel.closeSongMenu() },
             isCustomImageTheme = isImageBackground,
             customThemeImagePath = customThemeImagePath,
-            customThemeImageRes = if (appTheme == AppTheme.AQUA) aquaBackgroundDrawableRes else null,
+            customThemeImageRes = themeDrawableRes,
             ambientBrush = null
         )
     }
@@ -1151,7 +1166,7 @@ fun MainScreen(
             onDismiss = { viewModel.closeExistingPlaylistSheet() },
             isCustomImageTheme = isImageBackground,
             customThemeImagePath = customThemeImagePath,
-            customThemeImageRes = if (appTheme == AppTheme.AQUA) aquaBackgroundDrawableRes else null,
+            customThemeImageRes = themeDrawableRes,
             ambientBrush = null
         )
     }
@@ -1183,7 +1198,7 @@ fun MainScreen(
             onDismiss = { viewModel.closeNewPlaylistSheet() },
             isCustomImageTheme = isImageBackground,
             customThemeImagePath = customThemeImagePath,
-            customThemeImageRes = if (appTheme == AppTheme.AQUA) aquaBackgroundDrawableRes else null,
+            customThemeImageRes = themeDrawableRes,
             ambientBrush = null
         )
     }
@@ -1201,7 +1216,7 @@ fun MainScreen(
             onDismiss = { editingPlaylist = null },
             isCustomImageTheme = isImageBackground,
             customThemeImagePath = customThemeImagePath,
-            customThemeImageRes = if (appTheme == AppTheme.AQUA) aquaBackgroundDrawableRes else null,
+            customThemeImageRes = themeDrawableRes,
             ambientBrush = null
         )
     }

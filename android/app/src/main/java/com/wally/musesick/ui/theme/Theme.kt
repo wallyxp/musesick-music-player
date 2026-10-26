@@ -67,30 +67,39 @@ private val LightColorScheme = lightColorScheme(
 )
 
 fun createCustomDarkColorScheme(primaryColor: Color): ColorScheme {
+    return createCustomColorGlassColorScheme(primaryColor)
+}
+
+/**
+ * Creates glassmorphism color scheme for "Choose Color", matching Custom Image structure
+ * but with the user's selected accent color as the primary/highlight color.
+ */
+fun createCustomColorGlassColorScheme(primaryColor: Color): ColorScheme {
     return darkColorScheme(
         primary = primaryColor,
         onPrimary = Color.White,
-        primaryContainer = primaryColor.copy(alpha = 0.25f),
+        primaryContainer = primaryColor.copy(alpha = 0.35f),
         onPrimaryContainer = Color.White,
-        secondary = primaryColor.copy(alpha = 0.8f),
+        secondary = primaryColor.copy(alpha = 0.85f),
         onSecondary = Color.White,
-        secondaryContainer = primaryColor.copy(alpha = 0.20f),
+        secondaryContainer = primaryColor.copy(alpha = 0.25f),
         onSecondaryContainer = Color.White,
-        tertiary = md_theme_dark_tertiary,
-        onTertiary = md_theme_dark_onTertiary,
-        tertiaryContainer = md_theme_dark_tertiaryContainer,
-        onTertiaryContainer = md_theme_dark_onTertiaryContainer,
+        tertiary = primaryColor.copy(alpha = 0.65f),
+        onTertiary = Color.White,
+        tertiaryContainer = primaryColor.copy(alpha = 0.18f),
+        onTertiaryContainer = Color.White,
         error = md_theme_dark_error,
         onError = md_theme_dark_onError,
         errorContainer = md_theme_dark_errorContainer,
         onErrorContainer = md_theme_dark_onErrorContainer,
-        background = md_theme_dark_background,
-        onBackground = md_theme_dark_onBackground,
-        surface = md_theme_dark_surface,
-        onSurface = md_theme_dark_onSurface,
-        surfaceVariant = md_theme_dark_surfaceVariant,
-        onSurfaceVariant = md_theme_dark_onSurfaceVariant,
-        outline = md_theme_dark_outline
+        background = Color.Transparent,
+        onBackground = Color.White,
+        surface = Color(0xB3181818),
+        onSurface = Color.White,
+        surfaceVariant = Color(0x4D2A2A2A),
+        onSurfaceVariant = Color(0xFFDDDDDD),
+        outline = Color(0x40FFFFFF),
+        outlineVariant = Color(0x26FFFFFF)
     )
 }
 
@@ -125,13 +134,16 @@ fun createCustomImageColorScheme(): ColorScheme {
 
 @Composable
 fun MusesickAppTheme(
-    appTheme: AppTheme = AppTheme.AQUA,
+    appTheme: AppTheme = AppTheme.DEFAULT,
     appThemeVariant: String = "",
     customAccentColor: Color = Color(0xFF6750A4),
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
     val colorScheme = when (appTheme) {
+        AppTheme.DEFAULT -> createCustomImageColorScheme()
+        AppTheme.CUSTOM_IMAGE -> createCustomImageColorScheme()
+        AppTheme.CUSTOM_COLOR -> createCustomColorGlassColorScheme(customAccentColor)
         AppTheme.MATERIAL_YOU -> {
             val context = LocalContext.current
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -140,9 +152,7 @@ fun MusesickAppTheme(
                 if (darkTheme) DarkColorScheme else LightColorScheme
             }
         }
-        AppTheme.CUSTOM_COLOR -> createCustomDarkColorScheme(customAccentColor)
-        AppTheme.CUSTOM_IMAGE -> createCustomImageColorScheme()
-        else -> {
+        AppTheme.AQUA -> {
             val palette = ThemePalettes.getPalette(appTheme, appThemeVariant)
             palette?.toColorScheme() ?: DarkColorScheme
         }
@@ -164,6 +174,11 @@ fun MusesickThemed(
     content: @Composable () -> Unit
 ) {
     val colorScheme = when (theme) {
+        AppTheme.DEFAULT -> createCustomImageColorScheme()
+        AppTheme.CUSTOM_IMAGE -> createCustomImageColorScheme()
+        AppTheme.CUSTOM_COLOR -> {
+            createCustomColorGlassColorScheme(customAccentColor ?: Color(0xFF6750A4))
+        }
         AppTheme.MATERIAL_YOU -> {
             val context = LocalContext.current
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -172,11 +187,7 @@ fun MusesickThemed(
                 if (darkTheme) DarkColorScheme else LightColorScheme
             }
         }
-        AppTheme.CUSTOM_COLOR -> {
-            createCustomDarkColorScheme(customAccentColor ?: Color(0xFF6750A4))
-        }
-        AppTheme.CUSTOM_IMAGE -> createCustomImageColorScheme()
-        else -> {
+        AppTheme.AQUA -> {
             val palette = ThemePalettes.getPalette(theme, variant)
             palette?.toColorScheme() ?: DarkColorScheme
         }
@@ -201,4 +212,3 @@ fun MaterialYouMusicTheme(
         content = content
     )
 }
-

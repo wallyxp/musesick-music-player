@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.wally.musesick.model.Album
 import com.wally.musesick.model.Artist
+import com.wally.musesick.ui.components.CircularGlassBackButton
 import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.SearchResult
 import com.wally.musesick.model.Track
@@ -88,7 +89,7 @@ fun SearchScreen(
     onSongLongClick: ((Track) -> Unit)? = null,
     onBack: () -> Unit,
     isTrackDownloaded: (String) -> Boolean = { false },
-    appTheme: AppTheme = AppTheme.MATERIAL_YOU,
+    appTheme: AppTheme = AppTheme.DEFAULT,
     modifier: Modifier = Modifier
 ) {
     val focusManager = LocalFocusManager.current
@@ -115,13 +116,8 @@ fun SearchScreen(
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
+                CircularGlassBackButton(onClick = onBack)
+                Spacer(modifier = Modifier.width(8.dp))
 
                 OutlinedTextField(
                     value = searchQuery,

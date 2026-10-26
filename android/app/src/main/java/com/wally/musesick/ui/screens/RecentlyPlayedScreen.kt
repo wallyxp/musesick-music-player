@@ -56,6 +56,8 @@ import com.wally.musesick.model.AppTheme
 import coil.compose.AsyncImage
 import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.Track
+import com.wally.musesick.ui.components.CircularGlassBackButton
+import com.wally.musesick.ui.components.GlassmorphicActionButton
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -69,7 +71,7 @@ fun RecentlyPlayedScreen(
     onPlayAll: (List<Track>) -> Unit,
     onShuffleAll: (List<Track>) -> Unit,
     onClearAll: () -> Unit,
-    appTheme: AppTheme = AppTheme.MATERIAL_YOU,
+    appTheme: AppTheme = AppTheme.DEFAULT,
     modifier: Modifier = Modifier
 ) {
     var showClearConfirmDialog by remember { mutableStateOf(false) }
@@ -111,13 +113,8 @@ fun RecentlyPlayedScreen(
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
+                CircularGlassBackButton(onClick = onBack)
+                Spacer(modifier = Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Recently Played",
@@ -198,31 +195,23 @@ fun RecentlyPlayedScreen(
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        FilledTonalButton(
+                        GlassmorphicActionButton(
+                            text = "Play All",
+                            icon = Icons.Default.PlayArrow,
                             onClick = { onPlayAll(tracks) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Play All")
-                        }
+                            modifier = Modifier.weight(1f),
+                            enabled = tracks.isNotEmpty(),
+                            isPrimary = true
+                        )
 
-                        OutlinedButton(
+                        GlassmorphicActionButton(
+                            text = "Shuffle",
+                            icon = Icons.Default.Shuffle,
                             onClick = { onShuffleAll(tracks) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Shuffle,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Shuffle")
-                        }
+                            modifier = Modifier.weight(1f),
+                            enabled = tracks.isNotEmpty(),
+                            isPrimary = false
+                        )
                     }
                 }
 
