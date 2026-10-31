@@ -7,14 +7,18 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import com.wally.musesick.R
 import com.wally.musesick.ui.components.GlassBackButton
+import com.wally.musesick.ui.components.GlassBorderBrush
+import com.wally.musesick.ui.components.GlassBorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -187,23 +191,30 @@ fun SettingsScreen(
             // Profile Avatar (Google Profile Picture when logged in, Default Profile Logo when Guest)
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(42.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(Color.White.copy(alpha = 0.10f))
+                    .border(
+                        1.dp,
+                        GlassBorderBrush,
+                        CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 if (!ytAccountInfo?.avatarUrl.isNullOrEmpty()) {
                     AsyncImage(
                         model = ytAccountInfo!!.avatarUrl,
                         contentDescription = ytAccountInfo.name,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = "Default Profile",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -447,7 +458,8 @@ fun SettingsAppThemeScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                                        .background(Color.White.copy(alpha = 0.08f))
+                                        .border(1.dp, GlassBorderBrush, RoundedCornerShape(12.dp))
                                         .padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -518,7 +530,8 @@ fun SettingsAppThemeScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(RoundedCornerShape(12.dp))
-                                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                            .border(1.dp, GlassBorderBrush, RoundedCornerShape(12.dp))
                                             .padding(12.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
@@ -526,7 +539,7 @@ fun SettingsAppThemeScreen(
                                             modifier = Modifier
                                                 .size(54.dp)
                                                 .clip(RoundedCornerShape(10.dp))
-                                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                                                .border(1.dp, GlassBorderBrush, RoundedCornerShape(10.dp)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             AsyncImage(
@@ -556,64 +569,37 @@ fun SettingsAppThemeScreen(
                                         OutlinedButton(
                                             onClick = { photoPickerLauncher.launch("image/*") },
                                             shape = RoundedCornerShape(20.dp),
+                                            border = BorderStroke(1.dp, GlassBorderBrush),
                                             contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                                         ) {
                                             Text("Change", style = MaterialTheme.typography.labelMedium)
                                         }
                                     }
                                 } else {
-                                    Button(
-                                        onClick = { photoPickerLauncher.launch("image/*") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.primary,
-                                            contentColor = MaterialTheme.colorScheme.onPrimary
-                                        )
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.20f))
+                                            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                                            .clickable { photoPickerLauncher.launch("image/*") }
+                                            .padding(vertical = 12.dp),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AddPhotoAlternate,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Select Wallpaper Image")
-                                    }
-                                }
-                            }
-                        }
-                        theme == AppTheme.AQUA -> {
-                            {
-                                AnimatedVisibility(
-                                    visible = isThemeSelected,
-                                    enter = slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = spring(
-                                            dampingRatio = 0.65f,
-                                            stiffness = 500f
-                                        )
-                                    ) + fadeIn(animationSpec = tween(250)),
-                                    exit = slideOutVertically(
-                                        targetOffsetY = { it },
-                                        animationSpec = tween(200)
-                                    ) + fadeOut(animationSpec = tween(150))
-                                ) {
-                                    val previewRes = if (currentVariant == "damegami") R.drawable.damegami else R.drawable.darugami
-                                    Column(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalAlignment = Alignment.End
-                                    ) {
-                                        Spacer(modifier = Modifier.height(10.dp))
-                                        Image(
-                                            painter = painterResource(id = previewRes),
-                                            contentDescription = if (currentVariant == "damegami") "Damegami" else "Darugami",
-                                            modifier = Modifier
-                                                .height(90.dp)
-                                                .width(55.dp)
-                                                .padding(end = 4.dp)
-                                                .clip(RoundedCornerShape(10.dp)),
-                                            contentScale = ContentScale.Crop
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.AddPhotoAlternate,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                "Select Wallpaper Image",
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -657,42 +643,138 @@ private fun ThemeCardWithVariants(
     onSelectVariant: (String) -> Unit,
     customContent: (@Composable () -> Unit)? = null
 ) {
-    val isLight = MaterialTheme.colorScheme.surface.isLight()
-    val unselectedCardColor = MaterialTheme.colorScheme.surfaceVariant
-    val selectedCardColor = if (isLight) {
-        blendColors(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurface, 0.18f)
+    val isAquaSelected = theme == AppTheme.AQUA && isSelected
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    val cardBorder = if (isAquaSelected) {
+        BorderStroke(
+            1.5.dp,
+            Brush.linearGradient(
+                listOf(
+                    Color(0xFF40C4FF),
+                    Color.White.copy(alpha = 0.6f),
+                    Color(0xFF40C4FF).copy(alpha = 0.85f)
+                )
+            )
+        )
+    } else if (isSelected) {
+        BorderStroke(
+            1.5.dp,
+            Brush.linearGradient(
+                listOf(
+                    primaryColor,
+                    Color.White.copy(alpha = 0.5f),
+                    primaryColor.copy(alpha = 0.75f)
+                )
+            )
+        )
     } else {
-        blendColors(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.primary, 0.22f)
+        BorderStroke(1.dp, GlassBorderBrush)
     }
 
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onSelectTheme(theme, if (selectedVariant.isNotBlank()) selectedVariant else theme.defaultVariant) },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) selectedCardColor else unselectedCardColor
-        )
+            .clip(RoundedCornerShape(16.dp))
+            .then(
+                if (isAquaSelected) {
+                    Modifier
+                } else if (isSelected) {
+                    Modifier.background(primaryColor.copy(alpha = 0.18f))
+                } else {
+                    Modifier.background(Color(0x381A1A1A))
+                }
+            )
+            .border(cardBorder, RoundedCornerShape(16.dp))
+            .clickable {
+                onSelectTheme(
+                    theme,
+                    if (selectedVariant.isNotBlank()) selectedVariant else theme.defaultVariant
+                )
+            }
     ) {
+        // If Aqua theme is selected, the photo itself is the card background with gradient overlay
+        if (isAquaSelected) {
+            Image(
+                painter = painterResource(id = R.drawable.damegami),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.matchParentSize()
+            )
+            // Left-to-right gradient to keep title and icons crisp and readable
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color.Black.copy(alpha = 0.88f),
+                                Color.Black.copy(alpha = 0.60f),
+                                Color.Black.copy(alpha = 0.20f)
+                            )
+                        )
+                    )
+            )
+            // Top-to-bottom vignette gradient with Aqua cyan tint
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                Color(0xFF001F3F).copy(alpha = 0.50f)
+                            )
+                        )
+                    )
+            )
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Glassmorphism Circular Icon Box
                 Box(
                     modifier = Modifier
-                        .size(42.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .size(44.dp)
+                        .clip(CircleShape)
                         .background(
-                            if (isSelected) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
-                            } else {
-                                MaterialTheme.colorScheme.surface
+                            when {
+                                isAquaSelected -> Color(0xFF40C4FF).copy(alpha = 0.30f)
+                                isSelected -> primaryColor.copy(alpha = 0.25f)
+                                else -> Color.White.copy(alpha = 0.08f)
                             }
+                        )
+                        .border(
+                            1.dp,
+                            when {
+                                isAquaSelected -> Brush.linearGradient(
+                                    listOf(
+                                        Color(0xFF40C4FF),
+                                        Color.White.copy(alpha = 0.60f)
+                                    )
+                                )
+                                isSelected -> Brush.linearGradient(
+                                    listOf(
+                                        primaryColor,
+                                        Color.White.copy(alpha = 0.50f)
+                                    )
+                                )
+                                else -> Brush.linearGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = 0.35f),
+                                        Color.White.copy(alpha = 0.10f),
+                                        Color.White.copy(alpha = 0.20f)
+                                    )
+                                )
+                            },
+                            CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
@@ -701,7 +783,7 @@ private fun ThemeCardWithVariants(
                             painter = painterResource(id = R.drawable.ic_theme_aqua),
                             contentDescription = null,
                             tint = if (isSelected) {
-                                MaterialTheme.colorScheme.primary
+                                Color(0xFF40C4FF)
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
@@ -712,7 +794,7 @@ private fun ThemeCardWithVariants(
                             imageVector = icon,
                             contentDescription = null,
                             tint = if (isSelected) {
-                                MaterialTheme.colorScheme.primary
+                                primaryColor
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
@@ -723,21 +805,36 @@ private fun ThemeCardWithVariants(
 
                 Spacer(modifier = Modifier.width(14.dp))
 
-                Text(
-                    text = theme.displayName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = theme.displayName,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = Color.White
+                    )
+                    if (isAquaSelected) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Damegami Artwork & Cyan Glass",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF40C4FF).copy(alpha = 0.9f)
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.width(8.dp))
 
                 RadioButton(
                     selected = isSelected,
-                    onClick = { onSelectTheme(theme, if (selectedVariant.isNotBlank()) selectedVariant else theme.defaultVariant) },
+                    onClick = {
+                        onSelectTheme(
+                            theme,
+                            if (selectedVariant.isNotBlank()) selectedVariant else theme.defaultVariant
+                        )
+                    },
                     colors = RadioButtonDefaults.colors(
-                        selectedColor = MaterialTheme.colorScheme.primary
+                        selectedColor = if (isAquaSelected) Color(0xFF40C4FF) else primaryColor,
+                        unselectedColor = Color.White.copy(alpha = 0.4f)
                     )
                 )
             }
@@ -750,7 +847,7 @@ private fun ThemeCardWithVariants(
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = primaryColor,
                     modifier = Modifier.padding(bottom = 6.dp)
                 )
                 LazyRow(
@@ -770,7 +867,7 @@ private fun ThemeCardWithVariants(
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedContainerColor = primaryColor,
                                 selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                             )
                         )
@@ -805,14 +902,17 @@ private fun SettingsMenuCard(
     isLoading: Boolean = false,
     onClick: () -> Unit
 ) {
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0x381A1A1A))
+            .border(
+                1.dp,
+                GlassBorderBrush,
+                RoundedCornerShape(16.dp)
+            )
+            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier
@@ -820,11 +920,23 @@ private fun SettingsMenuCard(
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Glassmorphism Menu Icon Container
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.10f))
+                    .border(
+                        1.dp,
+                        Brush.linearGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.40f),
+                                Color.White.copy(alpha = 0.10f),
+                                Color.White.copy(alpha = 0.25f)
+                            )
+                        ),
+                        CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -846,13 +958,18 @@ private fun SettingsMenuCard(
                         text = title,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = Color.White
                     )
                     if (!badgeText.isNullOrEmpty()) {
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.20f))
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                    RoundedCornerShape(6.dp)
+                                )
                                 .padding(horizontal = 7.dp, vertical = 2.dp)
                         ) {
                             Text(
@@ -902,22 +1019,32 @@ private fun ThemeOptionSelectCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val isLight = MaterialTheme.colorScheme.surface.isLight()
-    val unselectedCardColor = MaterialTheme.colorScheme.surfaceVariant
-    val selectedCardColor = if (isLight) {
-        blendColors(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurface, 0.18f)
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    val cardBorder = if (isSelected) {
+        BorderStroke(
+            1.5.dp,
+            Brush.linearGradient(
+                listOf(
+                    primaryColor,
+                    Color.White.copy(alpha = 0.5f),
+                    primaryColor.copy(alpha = 0.75f)
+                )
+            )
+        )
     } else {
-        blendColors(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.primary, 0.22f)
+        BorderStroke(1.dp, GlassBorderBrush)
     }
 
-    Card(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) selectedCardColor else unselectedCardColor
-        )
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                if (isSelected) primaryColor.copy(alpha = 0.18f) else Color(0x381A1A1A)
+            )
+            .border(cardBorder, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier
@@ -925,16 +1052,37 @@ private fun ThemeOptionSelectCard(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Glassmorphism Circular Icon Box
             Box(
                 modifier = Modifier
                     .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(CircleShape)
                     .background(
                         if (isSelected) {
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                            primaryColor.copy(alpha = 0.25f)
                         } else {
-                            MaterialTheme.colorScheme.surface
+                            Color.White.copy(alpha = 0.08f)
                         }
+                    )
+                    .border(
+                        1.dp,
+                        if (isSelected) {
+                            Brush.linearGradient(
+                                listOf(
+                                    primaryColor,
+                                    Color.White.copy(alpha = 0.5f)
+                                )
+                            )
+                        } else {
+                            Brush.linearGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.35f),
+                                    Color.White.copy(alpha = 0.10f),
+                                    Color.White.copy(alpha = 0.20f)
+                                )
+                            )
+                        },
+                        CircleShape
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -942,7 +1090,7 @@ private fun ThemeOptionSelectCard(
                     imageVector = icon,
                     contentDescription = null,
                     tint = if (isSelected) {
-                        MaterialTheme.colorScheme.primary
+                        primaryColor
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
@@ -958,7 +1106,7 @@ private fun ThemeOptionSelectCard(
                         text = title,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = Color.White
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -973,7 +1121,7 @@ private fun ThemeOptionSelectCard(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = Color.White,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -984,7 +1132,8 @@ private fun ThemeOptionSelectCard(
                 selected = isSelected,
                 onClick = onClick,
                 colors = RadioButtonDefaults.colors(
-                    selectedColor = MaterialTheme.colorScheme.primary
+                    selectedColor = primaryColor,
+                    unselectedColor = Color.White.copy(alpha = 0.4f)
                 )
             )
         }
@@ -1010,14 +1159,22 @@ private fun ColorPresetItem(
         Box(
             modifier = Modifier
                 .size(44.dp)
+                .shadow(if (isSelected) 6.dp else 2.dp, CircleShape)
                 .clip(CircleShape)
                 .background(preset.primaryColor)
-                .then(
-                    if (isSelected) {
-                        Modifier.border(2.5.dp, Color.White, CircleShape)
+                .border(
+                    width = if (isSelected) 2.5.dp else 1.dp,
+                    brush = if (isSelected) {
+                        Brush.linearGradient(
+                            listOf(
+                                Color.White,
+                                Color.White.copy(alpha = 0.7f)
+                            )
+                        )
                     } else {
-                        Modifier
-                    }
+                        GlassBorderBrush
+                    },
+                    shape = CircleShape
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -1025,7 +1182,7 @@ private fun ColorPresetItem(
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = "Selected",
-                    tint = Color.White,
+                    tint = if (preset.primaryColor.isLight()) Color.Black else Color.White,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -1130,41 +1287,71 @@ fun SettingsAutoSyncScreen(
             }
         }
 
-        // Bottom-Centered "Sync Now" Button
-        Button(
-            onClick = onSyncNow,
-            enabled = !isSyncing,
-            shape = RoundedCornerShape(24.dp),
-            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp),
+        // Bottom-Centered Glassmorphic "Sync Now" Button
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 24.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                            Color(0x332A2A2A),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                        )
+                    )
+                )
+                .border(
+                    1.5.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                            Color.White.copy(alpha = 0.50f),
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.70f)
+                        )
+                    ),
+                    RoundedCornerShape(28.dp)
+                )
+                .clickable(
+                    enabled = !isSyncing,
+                    onClick = onSyncNow
+                )
+                .padding(horizontal = 36.dp, vertical = 16.dp),
+            contentAlignment = Alignment.Center
         ) {
-            if (isSyncing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "Syncing...",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.Sync,
-                    contentDescription = "Sync Now",
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "Sync Now",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (isSyncing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.5.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Syncing...",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Sync,
+                        contentDescription = "Sync Now",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Sync Now",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
     }

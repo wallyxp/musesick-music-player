@@ -1,6 +1,7 @@
 package com.wally.musesick.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -28,13 +30,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wally.musesick.R
+import com.wally.musesick.model.AppTheme
+import com.wally.musesick.ui.theme.LocalAppTheme
 import com.wally.musesick.ui.theme.NothingBorder
 import com.wally.musesick.ui.theme.NothingCard
 import com.wally.musesick.ui.theme.NothingCardElevated
@@ -227,6 +235,9 @@ fun GlassBackButton(
     borderColor: Color? = null,
     isGlassmorphism: Boolean = true
 ) {
+    val appTheme = LocalAppTheme.current
+    val isAqua = appTheme == AppTheme.AQUA
+
     val bg = containerColor ?: if (isGlassmorphism) Color(0x3D1A1A1A) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.88f)
     val borderStroke = if (borderColor != null) {
         BorderStroke(1.dp, borderColor)
@@ -235,9 +246,12 @@ fun GlassBackButton(
     } else {
         BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     }
+
+    val buttonSize = if (isAqua && size <= 42.dp) 44.dp else size
+
     Surface(
         modifier = modifier
-            .size(size)
+            .size(buttonSize)
             .clip(CircleShape)
             .clickable(onClick = onClick),
         shape = CircleShape,
@@ -250,12 +264,36 @@ fun GlassBackButton(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Back",
-                tint = tint,
-                modifier = Modifier.size(iconSize)
-            )
+            if (isAqua) {
+                // Thick back icon in the middle (behind Aqua)
+                Image(
+                    painter = painterResource(id = R.drawable.aqua_back_arrow),
+                    contentDescription = "Back",
+                    modifier = Modifier
+                        .size(24.dp)
+                        .align(Alignment.Center),
+                    colorFilter = ColorFilter.tint(Color.White)
+                )
+
+                Image(
+                    painter = painterResource(id = R.drawable.aqua_back_peeking),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .align(Alignment.CenterEnd)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.FillHeight
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = tint,
+                    modifier = Modifier
+                        .size(iconSize)
+                        .align(Alignment.Center)
+                )
+            }
         }
     }
 }

@@ -365,10 +365,7 @@ fun MainScreen(
         TimeThemeHelper.getCurrentHour()
     }
 
-    val aquaBackgroundDrawableRes = when (appThemeVariant) {
-        "damegami" -> R.drawable.damegami
-        else -> R.drawable.darugami
-    }
+    val aquaBackgroundDrawableRes = R.drawable.damegami
 
     // All 4 themes (DEFAULT, AQUA, CUSTOM_IMAGE, CUSTOM_COLOR) use immersive glassmorphic styling
     val isGlassmorphism = true
@@ -404,17 +401,12 @@ fun MainScreen(
                 )
             }
             AppTheme.AQUA -> {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(aquaBackgroundDrawableRes)
-                        .size(180, 320) // Downscaled thumbnail: natural bilinear blur at 0 GPU cost!
-                        .crossfade(false)
-                        .build(),
+                Image(
+                    painter = painterResource(id = R.drawable.aqua_ambient_bg),
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
                         .scale(1.05f)
-                        .blur(6.dp)
                         .clipToBounds(),
                     contentScale = ContentScale.Crop
                 )
@@ -426,17 +418,20 @@ fun MainScreen(
             }
             AppTheme.CUSTOM_IMAGE -> {
                 if (!customThemeImagePath.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
+                    val context = LocalContext.current
+                    val customImageReq = remember(customThemeImagePath) {
+                        ImageRequest.Builder(context)
                             .data(File(customThemeImagePath!!))
-                            .size(180, 320) // Downscaled thumbnail: silky smooth bokeh at 0 GPU cost
+                            .size(360, 640)
                             .crossfade(false)
-                            .build(),
+                            .build()
+                    }
+                    AsyncImage(
+                        model = customImageReq,
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxSize()
                             .scale(1.05f)
-                            .blur(6.dp)
                             .clipToBounds(),
                         contentScale = ContentScale.Crop
                     )
@@ -720,8 +715,9 @@ fun MainScreen(
                             miniPlayerState = miniPlayerState,
                             onTogglePlayPause = { viewModel.togglePlayPause() },
                             onNext = { viewModel.nextTrack() },
+                            onPrevious = { viewModel.previousTrack() },
                             onOpenFullPlayer = { viewModel.openFullPlayer() },
-                            onDoubleTapNowPlaying = {
+                            onTripleTapNowPlaying = {
                                 viewModel.closeFullPlayer()
                                 viewModel.stopSong()
                             },
@@ -882,10 +878,25 @@ fun MainScreen(
                                         .height(48.dp)
                                         .align(Alignment.CenterStart)
                                 ) {
-                                    Box(
-                                        modifier = Modifier.padding(horizontal = 18.dp),
-                                        contentAlignment = Alignment.Center
+                                    Row(
+                                        modifier = Modifier.padding(
+                                            start = if (appTheme == AppTheme.AQUA) 0.dp else 18.dp,
+                                            end = 18.dp
+                                        ),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        if (appTheme == AppTheme.AQUA) {
+                                            Image(
+                                                painter = painterResource(id = R.drawable.aqua_tab_winking),
+                                                contentDescription = null,
+                                                modifier = Modifier
+                                                    .height(48.dp)
+                                                    .clip(RoundedCornerShape(topStart = 28.dp, bottomStart = 28.dp)),
+                                                contentScale = ContentScale.FillHeight
+                                            )
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                        }
+
                                         AnimatedContent(
                                             targetState = pageTitles.getOrElse(pagerState.currentPage) { "Stream" },
                                             transitionSpec = {
@@ -898,7 +909,7 @@ fun MainScreen(
                                                 text = title,
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.Bold,
-                                                color = if (isGlassmorphism) Color.White.copy(alpha = 0.95f) else MaterialTheme.colorScheme.onBackground
+                                                color = Color.White
                                             )
                                         }
                                     }

@@ -14,7 +14,9 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
@@ -36,10 +38,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
+import com.wally.musesick.R
+import com.wally.musesick.model.AppTheme
+import com.wally.musesick.model.AudioFormat
+import com.wally.musesick.ui.theme.LocalAppTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -49,6 +58,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -64,11 +74,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.wally.musesick.model.PlaybackState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -78,10 +92,10 @@ import kotlinx.coroutines.launch
  * Unified interactive bottom bar providing:
  * 1. Bottom-center rectangular circular Search Bar when no track is active (~1/3+ width, centered).
  * 2. When a track starts playing, moves the search bar to the left with a sliding and bouncing animation,
- *    transforms itself into the search icon button, while the Now Playing bar slides in from the right.
- * 3. Double-tapping the Now Playing bar stops the current song, slides it back to the right, and restores
- *    the search bar to its centered resting position.
- * 4. Supports glassmorphism styling for Ambient and Custom Image themes, floating above content with visible edges.
+ *    transforms itself into the circular search button, while the Now Playing bar and the external Source Icon
+ *    slide in to form a centered 3-element control bar: [Search] [NowPlaying] [Source].
+ * 3. Upon closing the miniplayer (triple tap), only the centered search bar remains.
+ * 4. Height has been increased on top and bottom for both the miniplayer and search bar (64dp).
  */
 @Composable
 fun BottomNavigationControlBar(
@@ -90,12 +104,13 @@ fun BottomNavigationControlBar(
     miniPlayerState: PlaybackState,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
+    onPrevious: () -> Unit = {},
     onOpenFullPlayer: () -> Unit,
-    onDoubleTapNowPlaying: () -> Unit = {},
+    onTripleTapNowPlaying: () -> Unit = {},
+    onDoubleTapNowPlaying: () -> Unit = onTripleTapNowPlaying,
     isGlassmorphism: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    // Instant direct trigger for search opening
     val triggerSearchExpansion: () -> Unit = {
         onSearchClick()
     }
@@ -103,59 +118,58 @@ fun BottomNavigationControlBar(
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 16.dp) // Elevated position
+            .padding(start = 8.dp, end = 8.dp, top = 2.dp, bottom = 16.dp)
     ) {
         val availableWidth = maxWidth
-        val barHeight = 56.dp
-        // Expanded search bar width (wider pill resting state)
-        val searchRestingWidth = 230.dp.coerceAtMost(availableWidth - 20.dp)
-        // Set searchIconSize equal to barHeight so it is ALWAYS an exact 1:1 circle
-        val searchIconSize = barHeight
-        val gap = 6.dp
+        // Increased height on top and bottom: 64dp
+        val barHeight = 64.dp
+        val iconButtonSize = barHeight // Perfect 64x64 circle
+        val gap = 8.dp
 
-        // Target X offset for search pill/icon:
-        // When no track is active, centered: (availableWidth - searchRestingWidth) / 2
-        // When track is active, slid to left: 0.dp
-        val searchTargetOffsetX = if (hasActiveTrack) {
-            0.dp
-        } else {
-            ((availableWidth - searchRestingWidth) / 2).coerceAtLeast(0.dp)
-        }
+        // Miniplayer width matches search resting width
+        val miniPlayerWidth = 220.dp.coerceAtMost(availableWidth - (iconButtonSize * 2 + gap * 2 + 16.dp))
+        val searchRestingWidth = miniPlayerWidth
+        val totalActiveWidth = iconButtonSize + gap + miniPlayerWidth + gap + iconButtonSize
+
+        val groupTargetOffsetX = ((availableWidth - totalActiveWidth) / 2).coerceAtLeast(0.dp)
+        val searchRestingOffsetX = ((availableWidth - searchRestingWidth) / 2).coerceAtLeast(0.dp)
+
+        val searchTargetOffsetX = if (hasActiveTrack) groupTargetOffsetX else searchRestingOffsetX
 
         // Animated bouncing offset from center to left (and left to center)
         val searchOffsetX by animateDpAsState(
             targetValue = searchTargetOffsetX,
             animationSpec = spring(
-                dampingRatio = 0.65f, // Bouncing spring!
+                dampingRatio = 0.65f,
                 stiffness = 380f
             ),
             label = "search_offset_x"
         )
 
         // Dynamic width of the search element:
-        // When no track is active: 230.dp (wider pill, centered)
-        // When track is active: 56.dp (ALWAYS a 56x56 perfect circle)
+        // When no track is active: resting width (wider pill, centered)
+        // When track is active: iconButtonSize (exact circle)
         val searchWidth by animateDpAsState(
-            targetValue = if (hasActiveTrack) searchIconSize else searchRestingWidth,
+            targetValue = if (hasActiveTrack) iconButtonSize else searchRestingWidth,
             animationSpec = spring(
-                dampingRatio = 0.65f, // Bouncing spring!
+                dampingRatio = 0.65f,
                 stiffness = 380f
             ),
             label = "search_bar_width"
         )
 
-        // SEARCH PILL OR CIRCLE (slides left and shrinks to circular button when track active)
+        // 1. SEARCH PILL OR CIRCLE (slides left and shrinks to circular button when track active)
         SearchPillOrIcon(
             hasActiveTrack = hasActiveTrack,
             width = searchWidth,
+            height = barHeight,
             isGlassmorphism = isGlassmorphism,
             onClick = triggerSearchExpansion,
-            modifier = Modifier.offset(x = searchOffsetX)
+            modifier = Modifier.graphicsLayer { translationX = searchOffsetX.toPx() }
         )
 
-        // NOW PLAYING BAR (Slides in from the right when active; wider player footprint)
-        val nowPlayingStartOffset = searchIconSize + gap
-        val nowPlayingWidth = (availableWidth - nowPlayingStartOffset).coerceAtLeast(0.dp)
+        // 2. NOW PLAYING BAR (in the middle between search icon and source icon)
+        val nowPlayingStartOffset = searchOffsetX + iconButtonSize + gap
 
         AnimatedVisibility(
             visible = hasActiveTrack,
@@ -168,35 +182,65 @@ fun BottomNavigationControlBar(
                 animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f)
             ) + fadeOut(tween(120)),
             modifier = Modifier
-                .offset(x = nowPlayingStartOffset)
-                .width(nowPlayingWidth)
+                .graphicsLayer { translationX = nowPlayingStartOffset.toPx() }
+                .width(miniPlayerWidth)
         ) {
             NowPlayingPillBar(
                 state = miniPlayerState,
                 onTogglePlayPause = onTogglePlayPause,
                 onNext = onNext,
+                onPrevious = onPrevious,
                 onClick = onOpenFullPlayer,
-                onDoubleTap = onDoubleTapNowPlaying,
+                onTripleTap = onTripleTapNowPlaying,
                 isGlassmorphism = isGlassmorphism,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
+                    .width(miniPlayerWidth)
+                    .height(barHeight)
+            )
+        }
+
+        // 3. SOURCE ICON BUTTON (outside the miniplayer on the right side)
+        val sourceStartOffset = searchOffsetX + iconButtonSize + gap + miniPlayerWidth + gap
+
+        AnimatedVisibility(
+            visible = hasActiveTrack,
+            enter = slideInHorizontally(
+                initialOffsetX = { fullWidth -> fullWidth },
+                animationSpec = spring(dampingRatio = 0.68f, stiffness = 380f)
+            ) + fadeIn(tween(140)),
+            exit = slideOutHorizontally(
+                targetOffsetX = { fullWidth -> fullWidth },
+                animationSpec = spring(dampingRatio = 0.75f, stiffness = 400f)
+            ) + fadeOut(tween(120)),
+            modifier = Modifier.graphicsLayer { translationX = sourceStartOffset.toPx() }
+        ) {
+            val track = miniPlayerState.currentTrack
+            SourceIconButton(
+                isLocal = track?.isLocal == true,
+                size = iconButtonSize,
+                isGlassmorphism = isGlassmorphism,
+                onClick = {},
+                modifier = Modifier.size(iconButtonSize)
             )
         }
     }
 }
 
 /**
- * Search Bar in either resting centered 1/3+ pill state or transformed circular button state.
+ * Search Bar in either resting centered pill state or transformed circular button state.
  */
 @Composable
 fun SearchPillOrIcon(
     hasActiveTrack: Boolean,
     width: Dp,
+    height: Dp = 64.dp,
     isGlassmorphism: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val appTheme = LocalAppTheme.current
+    val isAqua = appTheme == AppTheme.AQUA
+
     val glassBorder = BorderStroke(
         1.dp,
         Brush.linearGradient(
@@ -220,12 +264,12 @@ fun SearchPillOrIcon(
         BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     }
 
-    val shape = if (hasActiveTrack && width <= 58.dp) CircleShape else RoundedCornerShape(28.dp)
+    val shape = if (hasActiveTrack && width <= (height + 2.dp)) CircleShape else RoundedCornerShape(32.dp)
 
     Surface(
         modifier = modifier
             .width(width)
-            .height(56.dp)
+            .height(height)
             .clip(shape)
             .clickable(onClick = onClick),
         shape = shape,
@@ -250,30 +294,57 @@ fun SearchPillOrIcon(
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Search",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
+                        tint = if (isAqua) Color.White else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
                 } else {
-                    // Standalone 1/3+ pill state
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Search",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1
-                        )
+                    if (isAqua) {
+                        // Aqua theme: Search writing centered in the middle of the pill with Crying Aqua peeking
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Search",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+
+                            Image(
+                                painter = painterResource(id = R.drawable.aqua_search_crying),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .height(48.dp)
+                                    .align(Alignment.BottomStart)
+                                    .padding(start = 14.dp),
+                                contentScale = ContentScale.FillHeight
+                            )
+                        }
+                    } else {
+                        // Standalone pill state
+                        Row(
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Search",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }
@@ -282,50 +353,19 @@ fun SearchPillOrIcon(
 }
 
 /**
- * Now Playing Bar styled as a sleek rectangular search bar (pill shaped), supporting glassmorphism and double-tap to stop.
+ * Standalone circular indicator button on the right side outside the miniplayer,
+ * indicating track source (Local phone storage vs Cloud stream).
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun NowPlayingPillBar(
-    state: PlaybackState,
-    onTogglePlayPause: () -> Unit,
-    onNext: () -> Unit,
-    onClick: () -> Unit,
-    onDoubleTap: () -> Unit = {},
-    onSwipeUp: () -> Unit = onClick,
-    isGlassmorphism: Boolean = false,
+fun SourceIconButton(
+    isLocal: Boolean,
+    size: Dp = 64.dp,
+    isGlassmorphism: Boolean,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val track = state.currentTrack ?: return
-    var verticalDragAccumulator by remember { mutableFloatStateOf(0f) }
-    var nextClickTrigger by remember { mutableIntStateOf(0) }
-    val nextButtonScale by animateFloatAsState(
-        targetValue = if (nextClickTrigger > 0) 0.82f else 1f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
-        finishedListener = { if (nextClickTrigger > 0) nextClickTrigger = 0 },
-        label = "mini_pill_next_scale"
-    )
-
-    var lastTapTimestamp by remember { mutableLongStateOf(0L) }
-    var pendingTapJob by remember { mutableStateOf<Job?>(null) }
-    val coroutineScope = rememberCoroutineScope()
-
-    // Ultra-responsive tap handler: reliably detects double-tap to remove miniplayer without opening full player
-    val handlePillClick: () -> Unit = {
-        val now = SystemClock.uptimeMillis()
-        if (now - lastTapTimestamp < 260L) {
-            pendingTapJob?.cancel()
-            pendingTapJob = null
-            lastTapTimestamp = 0L
-            onDoubleTap()
-        } else {
-            lastTapTimestamp = now
-            pendingTapJob = coroutineScope.launch {
-                delay(190)
-                onClick()
-            }
-        }
-    }
+    val appTheme = LocalAppTheme.current
+    val isAqua = appTheme == AppTheme.AQUA
 
     val glassBorder = BorderStroke(
         1.dp,
@@ -352,7 +392,108 @@ fun NowPlayingPillBar(
 
     Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
+            .size(size)
+            .clip(CircleShape)
+            .clickable(onClick = onClick),
+        shape = CircleShape,
+        color = surfaceColor,
+        border = borderStroke,
+        tonalElevation = if (isGlassmorphism) 0.dp else 3.dp,
+        shadowElevation = if (isGlassmorphism) 8.dp else 4.dp
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isLocal) Icons.Default.PhoneAndroid else Icons.Default.Cloud,
+                contentDescription = if (isLocal) "Local audio" else "Cloud stream",
+                tint = if (isAqua) Color.White else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Now Playing Bar styled as a sleek rectangular pill matching the search bar size:
+ * - Album art covers the entirety of the miniplayer background
+ * - Initial state: Song title in marquee text with artist name below it
+ * - Single tap / slide up: Opens the fullscreen player as usual
+ * - Double tap: Toggles/brings out the naked song controls (Previous, Play/Pause, Next) without quitting/stopping
+ * - Triple tap: Closes the player / stops the song
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun NowPlayingPillBar(
+    state: PlaybackState,
+    onTogglePlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit = {},
+    onClick: () -> Unit,
+    onTripleTap: () -> Unit = {},
+    onSwipeUp: () -> Unit = onClick,
+    isGlassmorphism: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val track = state.currentTrack ?: return
+    var verticalDragAccumulator by remember { mutableFloatStateOf(0f) }
+
+    // Toggle controls mode (double-tap brings out controls; track change resets to song title marquee)
+    var showControls by remember { mutableStateOf(false) }
+
+    LaunchedEffect(track.id) {
+        showControls = false
+    }
+
+    var tapCount by remember { mutableIntStateOf(0) }
+    var pendingTapJob by remember { mutableStateOf<Job?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Multi-tap detector: 1 tap -> open full player, 2 taps -> show controls, 3 taps -> stop song
+    val handlePillTap: () -> Unit = {
+        pendingTapJob?.cancel()
+        val nextCount = tapCount + 1
+        tapCount = nextCount
+
+        if (nextCount >= 3) {
+            // Triple tap immediately stops playback and closes miniplayer
+            tapCount = 0
+            pendingTapJob = null
+            onTripleTap()
+        } else {
+            pendingTapJob = coroutineScope.launch {
+                delay(190)
+                val finalCount = tapCount
+                tapCount = 0
+                when (finalCount) {
+                    1 -> onClick()
+                    2 -> showControls = !showControls
+                }
+            }
+        }
+    }
+
+    val glassBorder = BorderStroke(
+        1.dp,
+        Brush.linearGradient(
+            listOf(
+                Color.White.copy(alpha = 0.45f),
+                Color.White.copy(alpha = 0.12f),
+                Color.White.copy(alpha = 0.32f)
+            )
+        )
+    )
+
+    val borderStroke = if (isGlassmorphism) {
+        glassBorder
+    } else {
+        BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+    }
+
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(32.dp))
             .draggable(
                 orientation = Orientation.Vertical,
                 state = rememberDraggableState { delta ->
@@ -369,137 +510,158 @@ fun NowPlayingPillBar(
                     verticalDragAccumulator = 0f
                 }
             )
-            .clickable(onClick = handlePillClick),
-        shape = RoundedCornerShape(28.dp),
-        color = surfaceColor,
+            .clickable(onClick = handlePillTap),
+        shape = RoundedCornerShape(32.dp),
+        color = Color(0xFF181818),
         border = borderStroke,
-        tonalElevation = if (isGlassmorphism) 0.dp else 3.dp,
+        tonalElevation = 0.dp,
         shadowElevation = if (isGlassmorphism) 8.dp else 4.dp
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 6.dp, end = 5.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Album Art thumbnail (circular pill style)
+            // 1. Album art covers the entirety of the miniplayer background
+            val artworkUrl = track.lowResThumbnailUrl ?: track.thumbnailUrl ?: track.highResThumbnailUrl
+            if (!artworkUrl.isNullOrEmpty()) {
+                val context = LocalContext.current
+                val imageRequest = remember(artworkUrl) {
+                    ImageRequest.Builder(context)
+                        .data(artworkUrl)
+                        .size(300, 100)
+                        .crossfade(false)
+                        .build()
+                }
+                AsyncImage(
+                    model = imageRequest,
+                    contentDescription = track.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(if (isGlassmorphism) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerHighest),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val thumbUrl = track.lowResThumbnailUrl ?: track.thumbnailUrl
-                    if (!thumbUrl.isNullOrEmpty()) {
-                        AsyncImage(
-                            model = thumbUrl,
-                            contentDescription = track.title,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        NothingFormatBadge(
-                            label = track.audioFormat.label,
-                            isHighlighted = track.isLocal
-                        )
-                    }
-                }
+                        .fillMaxSize()
+                        .background(Color(0xFF222222))
+                )
+            }
 
-                Spacer(modifier = Modifier.width(8.dp))
+            // Dark scrim overlay for high-contrast readability
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.45f))
+            )
 
-                // Title & Artist
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = track.title,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(1.dp))
-                    Text(
-                        text = "${track.artist} • ${track.audioFormat.label}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                // Play / Pause Button
-                FilledIconButton(
-                    onClick = onTogglePlayPause,
-                    modifier = Modifier.size(36.dp),
-                    colors = if (isGlassmorphism) {
-                        IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
-                            contentColor = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                ) {
-                    if (state.isBuffering) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (state.isPlaying) "Pause" else "Play",
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(2.dp))
-
-                // Next Button
-                IconButton(
-                    onClick = {
-                        nextClickTrigger++
-                        onNext()
-                    },
-                    modifier = Modifier
-                        .size(34.dp)
-                        .graphicsLayer {
-                            scaleX = nextButtonScale
-                            scaleY = nextButtonScale
+            // 2. Animated Content: Initial Marquee Title/Artist vs Double-tap Controls
+            AnimatedContent(
+                targetState = showControls,
+                transitionSpec = {
+                    fadeIn(tween(180)) togetherWith fadeOut(tween(140))
+                },
+                label = "mini_pill_mode",
+                modifier = Modifier.fillMaxSize()
+            ) { isControlsMode ->
+                if (isControlsMode) {
+                    // Controls Mode: Previous, Play/Pause, Next (naked icons without glassmorphism circles)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        IconButton(
+                            onClick = onPrevious,
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SkipPrevious,
+                                contentDescription = "Previous",
+                                tint = Color.White,
+                                modifier = Modifier.size(26.dp)
+                            )
                         }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SkipNext,
-                        contentDescription = "Next",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(22.dp)
-                    )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        IconButton(
+                            onClick = onTogglePlayPause,
+                            modifier = Modifier.size(46.dp)
+                        ) {
+                            if (state.isBuffering) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = if (state.isPlaying) "Pause" else "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        IconButton(
+                            onClick = onNext,
+                            modifier = Modifier.size(42.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SkipNext,
+                                contentDescription = "Next",
+                                tint = Color.White,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                    }
+                } else {
+                    // Initial Info Mode: Marquee Title on top, Artist name below it
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 18.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = track.title,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            ),
+                            maxLines = 1,
+                            modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = track.artist,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.82f)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 
-            // Sleek dynamic progress bar along the bottom of the pill
+            // 3. Dynamic progress bar along the bottom edge of the pill
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(2.5.dp)
                     .align(Alignment.BottomCenter)
-                    .background(if (isGlassmorphism) Color.White.copy(alpha = 0.12f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                    .background(Color.White.copy(alpha = 0.18f))
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(state.progressFraction)
                         .height(2.5.dp)
-                        .background(MaterialTheme.colorScheme.primary)
+                        .background(Color.White)
                 )
             }
         }
@@ -514,6 +676,7 @@ fun MiniPlayerBar(
     state: PlaybackState,
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
+    onPrevious: () -> Unit = {},
     onClick: () -> Unit,
     onSwipeUp: () -> Unit = onClick,
     modifier: Modifier = Modifier
@@ -522,8 +685,9 @@ fun MiniPlayerBar(
         state = state,
         onTogglePlayPause = onTogglePlayPause,
         onNext = onNext,
+        onPrevious = onPrevious,
         onClick = onClick,
-        onDoubleTap = {},
+        onTripleTap = {},
         onSwipeUp = onSwipeUp,
         isGlassmorphism = false,
         modifier = modifier

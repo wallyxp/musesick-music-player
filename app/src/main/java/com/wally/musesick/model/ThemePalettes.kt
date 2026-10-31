@@ -122,7 +122,7 @@ object ThemePalettes {
 
     private val PALETTES: Map<AppTheme, Map<String, ThemePalette>> = mapOf(
         AppTheme.AQUA to mapOf(
-            "darugami" to AQUA_DARUGAMI,
+            "" to AQUA_DAMEGAMI,
             "damegami" to AQUA_DAMEGAMI
         )
     )

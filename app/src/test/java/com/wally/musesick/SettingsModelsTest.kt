@@ -54,28 +54,14 @@ class SettingsModelsTest {
 
     @Test
     fun testThemePalettes_variants() {
-        // Test that themes with variants return valid palettes for all defined variants
-        val themesWithVariants = listOf(
-            AppTheme.AQUA
-        )
+        // Aqua is now a consolidated single theme (Damegami color scheme) without variants
+        assertTrue(AppTheme.AQUA.availableVariants.isEmpty())
 
-        for (theme in themesWithVariants) {
-            assertTrue(theme.availableVariants.isNotEmpty())
-            assertTrue(theme.defaultVariant.isNotBlank())
-
-            // Default variant lookup
-            val defaultPalette = ThemePalettes.getPalette(theme, null)
-            assertNotNull("Default palette for ${theme.name} should exist", defaultPalette)
-            assertEquals(theme.defaultVariant, defaultPalette?.id)
-
-            // Each specific variant lookup
-            for (variant in theme.availableVariants) {
-                val palette = ThemePalettes.getPalette(theme, variant.id)
-                assertNotNull("Palette for ${theme.name} variant ${variant.id} should exist", palette)
-                assertEquals(variant.id, palette?.id)
-                assertNotNull("ColorScheme should be generatable", palette?.toColorScheme())
-            }
-        }
+        // Palette lookup returns Damegami palette
+        val aquaPalette = ThemePalettes.getPalette(AppTheme.AQUA, null)
+        assertNotNull("Default palette for AQUA should exist", aquaPalette)
+        assertEquals("damegami", aquaPalette?.id)
+        assertNotNull("ColorScheme should be generatable", aquaPalette?.toColorScheme())
     }
 
     @Test
