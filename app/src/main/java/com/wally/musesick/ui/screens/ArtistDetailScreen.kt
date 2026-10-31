@@ -109,10 +109,9 @@ fun ArtistDetailScreen(
     val density = LocalDensity.current
     val heroHeight = (configuration.screenHeightDp.dp / 3).coerceIn(240.dp, 360.dp)
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val rawBg = MaterialTheme.colorScheme.background
     val appBg = if (rawBg == Color.Transparent || rawBg.alpha < 0.1f) {
-        if (isDark) Color(0xFF070505) else Color(0xFFF7F5FA)
+        Color(0xFF070505)
     } else {
         rawBg
     }

@@ -1,6 +1,7 @@
 # Gradle / Android
 .gradle/
 **/build/
+**/build.nosync/
 !gradle/wrapper/gradle-wrapper.jar
 local.properties
 *.apk
