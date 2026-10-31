@@ -4,8 +4,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -20,7 +22,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
@@ -486,39 +491,32 @@ fun FullPlayerSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Scrubber Slider
+            // Squiggly Media Progress Bar (All Themes)
             var sliderPosition by remember { mutableFloatStateOf(-1f) }
             val currentProgress = if (sliderPosition >= 0f) sliderPosition else state.progressFraction
 
-            if (appTheme == AppTheme.AQUA) {
-                AquaPlayerSeekbar(
-                    progress = currentProgress,
-                    onSeek = { sliderPosition = it },
-                    onSeekFinished = {
-                        if (sliderPosition >= 0f) {
-                            onSeek(sliderPosition)
-                            sliderPosition = -1f
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
+            SquigglyPlayerSeekbar(
+                progress = currentProgress,
+                isPlaying = state.isPlaying,
+                appTheme = appTheme,
+                onSeek = { sliderPosition = it },
+                onSeekFinished = {
+                    if (sliderPosition >= 0f) {
+                        onSeek(sliderPosition)
+                        sliderPosition = -1f
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            val currentPositionText = if (sliderPosition >= 0f && state.durationMs > 0) {
+                val ms = (sliderPosition * state.durationMs).toLong()
+                val totalSeconds = (ms / 1000).coerceAtLeast(0)
+                val minutes = totalSeconds / 60
+                val seconds = totalSeconds % 60
+                String.format("%02d:%02d", minutes, seconds)
             } else {
-                Slider(
-                    value = currentProgress,
-                    onValueChange = { sliderPosition = it },
-                    onValueChangeFinished = {
-                        if (sliderPosition >= 0f) {
-                            onSeek(sliderPosition)
-                            sliderPosition = -1f
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = Color.White,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.35f)
-                    )
-                )
+                state.formattedPosition
             }
 
             // Timestamp Row
@@ -529,7 +527,7 @@ fun FullPlayerSheet(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = state.formattedPosition,
+                    text = currentPositionText,
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White.copy(alpha = 0.8f)
                 )
@@ -1193,8 +1191,10 @@ fun FullPlayerSheet(
     }
 
 @Composable
-private fun AquaPlayerSeekbar(
+private fun SquigglyPlayerSeekbar(
     progress: Float,
+    isPlaying: Boolean,
+    appTheme: AppTheme,
     onSeek: (Float) -> Unit,
     onSeekFinished: () -> Unit,
     modifier: Modifier = Modifier
@@ -1202,7 +1202,41 @@ private fun AquaPlayerSeekbar(
     var isInteracting by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
 
-    val bounceScale by animateFloatAsState(
+    val isAqua = appTheme == AppTheme.AQUA
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    // Active wave color: Aqua and Custom Color use their themed accent; Default/Image use crisp white
+    val activeColor = when (appTheme) {
+        AppTheme.AQUA, AppTheme.CUSTOM_COLOR -> primaryColor
+        else -> Color.White
+    }
+    val inactiveTrackColor = Color.White.copy(alpha = 0.28f)
+
+    // Animated amplitude: springs between 3.5.dp when playing and 0.dp when paused (smooth flattening)
+    val targetAmplitude = if (isPlaying) 3.5.dp else 0.dp
+    val animatedAmplitude by animateDpAsState(
+        targetValue = targetAmplitude,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "SquigglyAmplitude"
+    )
+
+    // Continuous smooth phase progression for squiggly wave
+    val infiniteTransition = rememberInfiniteTransition(label = "SquigglyTransition")
+    val phase by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "SquigglyPhase"
+    )
+
+    // Aqua avatar thumb bounce & wobble
+    val aquaBounceScale by animateFloatAsState(
         targetValue = if (isInteracting) 1.22f else 1.0f,
         animationSpec = spring(
             dampingRatio = 0.42f,
@@ -1210,9 +1244,6 @@ private fun AquaPlayerSeekbar(
         ),
         label = "AquaThumbBounce"
     )
-
-    // Subtle gentle wobble while dragging
-    val infiniteTransition = rememberInfiniteTransition(label = "AquaWobble")
     val dragWobble by infiniteTransition.animateFloat(
         initialValue = -3.5f,
         targetValue = 3.5f,
@@ -1222,22 +1253,32 @@ private fun AquaPlayerSeekbar(
         ),
         label = "WobbleAngle"
     )
-    val rotationAngle = if (isDragging) dragWobble else 0f
+    val aquaRotationAngle = if (isDragging) dragWobble else 0f
 
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val trackBgColor = Color.White.copy(alpha = 0.28f)
+    // Sleek glassmorphic thumb scale for non-Aqua themes
+    val sleekThumbScale by animateFloatAsState(
+        targetValue = if (isInteracting) 1.28f else 1.0f,
+        animationSpec = spring(
+            dampingRatio = 0.5f,
+            stiffness = 450f
+        ),
+        label = "SleekThumbScale"
+    )
+
+    val thumbRadiusDp = if (isAqua) 18.dp else 9.dp
+    val thumbSizeDp = if (isAqua) 36.dp else 18.dp
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .pointerInput(Unit) {
+            .height(44.dp)
+            .pointerInput(thumbRadiusDp) {
                 awaitEachGesture {
-                    val down = awaitFirstDown()
+                    val down = awaitFirstDown(requireUnconsumed = false)
                     down.consume()
                     isInteracting = true
 
-                    val thumbRadiusPx = 18.dp.toPx()
+                    val thumbRadiusPx = thumbRadiusDp.toPx()
                     val usablePx = (size.width - thumbRadiusPx * 2f).coerceAtLeast(1f)
                     val initialFraction = ((down.position.x - thumbRadiusPx) / usablePx).coerceIn(0f, 1f)
                     onSeek(initialFraction)
@@ -1267,66 +1308,136 @@ private fun AquaPlayerSeekbar(
         contentAlignment = Alignment.CenterStart
     ) {
         val widthPx = constraints.maxWidth.toFloat()
-        val thumbRadiusDp = 18.dp
-        val thumbSizeDp = 36.dp
-
         val density = androidx.compose.ui.platform.LocalDensity.current
         val thumbRadiusPx = with(density) { thumbRadiusDp.toPx() }
         val usablePx = (widthPx - thumbRadiusPx * 2f).coerceAtLeast(1f)
         val activeWidthPx = usablePx * progress.coerceIn(0f, 1f)
         val thumbOffsetPx = activeWidthPx.toInt()
 
-        // Seekbar track reverted to standard thickness (4.dp)
-        Canvas(modifier = Modifier.fillMaxWidth().height(40.dp)) {
+        // Seekbar track with Squiggly active wave and inactive line
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+        ) {
             val centerY = size.height / 2f
             val trackThickness = 4.dp.toPx()
+            val startX = thumbRadiusPx
+            val endX = thumbRadiusPx + activeWidthPx
+            val totalTrackEndX = size.width - thumbRadiusPx
 
             // Inactive track
-            drawLine(
-                color = trackBgColor,
-                start = Offset(thumbRadiusPx, centerY),
-                end = Offset(size.width - thumbRadiusPx, centerY),
-                strokeWidth = trackThickness,
-                cap = StrokeCap.Round
-            )
-
-            // Active track
-            if (activeWidthPx > 0f) {
+            if (endX < totalTrackEndX) {
                 drawLine(
-                    color = primaryColor,
-                    start = Offset(thumbRadiusPx, centerY),
-                    end = Offset(thumbRadiusPx + activeWidthPx, centerY),
+                    color = inactiveTrackColor,
+                    start = Offset(endX, centerY),
+                    end = Offset(totalTrackEndX, centerY),
                     strokeWidth = trackThickness,
                     cap = StrokeCap.Round
                 )
             }
+
+            // Active squiggly wave track
+            if (activeWidthPx > 0f) {
+                val amplitudePx = animatedAmplitude.toPx()
+
+                if (amplitudePx <= 0.08f) {
+                    // Straight flat line when paused
+                    drawLine(
+                        color = activeColor,
+                        start = Offset(startX, centerY),
+                        end = Offset(endX, centerY),
+                        strokeWidth = trackThickness,
+                        cap = StrokeCap.Round
+                    )
+                } else {
+                    // Squiggly sine wave when playing, smoothly tapering at both ends
+                    val wavelengthPx = 36.dp.toPx()
+                    val rampDistPx = 16.dp.toPx().coerceAtMost(activeWidthPx / 2f)
+                    val stepPx = 2.dp.toPx()
+
+                    val wavePath = Path()
+                    wavePath.moveTo(startX, centerY)
+
+                    var currentX = startX
+                    while (currentX < endX) {
+                        val progressFromStart = currentX - startX
+                        val remainToEnd = endX - currentX
+
+                        val rampFactor = if (rampDistPx > 0f) {
+                            (minOf(progressFromStart, remainToEnd) / rampDistPx).coerceIn(0f, 1f)
+                        } else {
+                            0f
+                        }
+
+                        val localAmp = amplitudePx * rampFactor
+                        val angle = ((currentX - startX) / wavelengthPx) * (2f * Math.PI.toFloat()) - phase
+                        val y = centerY + localAmp * kotlin.math.sin(angle)
+
+                        wavePath.lineTo(currentX, y)
+                        currentX += stepPx
+                    }
+
+                    wavePath.lineTo(endX, centerY)
+
+                    drawPath(
+                        path = wavePath,
+                        color = activeColor,
+                        style = Stroke(
+                            width = trackThickness,
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round
+                        )
+                    )
+                }
+            }
         }
 
-        // Timestamp Indicator: larger white circle with playseekbar.png and bounce animation
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(thumbOffsetPx, 0) }
-                .size(thumbSizeDp)
-                .graphicsLayer {
-                    scaleX = bounceScale
-                    scaleY = bounceScale
-                    this.rotationZ = rotationAngle
-                    if (isInteracting) {
-                        shadowElevation = 10f
-                    }
-                }
-                .clip(CircleShape)
-                .background(Color.White)
-                .border(1.5.dp, primaryColor, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.playseekbar2),
-                contentDescription = "Playback Position",
-                contentScale = ContentScale.Crop,
+        // Thumb Indicator
+        if (isAqua) {
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .offset { IntOffset(thumbOffsetPx, 0) }
+                    .size(thumbSizeDp)
+                    .graphicsLayer {
+                        scaleX = aquaBounceScale
+                        scaleY = aquaBounceScale
+                        this.rotationZ = aquaRotationAngle
+                        if (isInteracting) {
+                            shadowElevation = 10f
+                        }
+                    }
                     .clip(CircleShape)
+                    .background(Color.White)
+                    .border(1.5.dp, primaryColor, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.playseekbar2),
+                    contentDescription = "Playback Position",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape)
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(thumbOffsetPx, 0) }
+                    .size(thumbSizeDp)
+                    .graphicsLayer {
+                        scaleX = sleekThumbScale
+                        scaleY = sleekThumbScale
+                        shadowElevation = if (isInteracting) 8f else 2f
+                    }
+                    .clip(CircleShape)
+                    .background(if (appTheme == AppTheme.CUSTOM_COLOR) primaryColor else Color.White)
+                    .border(
+                        1.5.dp,
+                        Color.White.copy(alpha = 0.85f),
+                        CircleShape
+                    )
             )
         }
     }
