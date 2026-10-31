@@ -4,6 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+layout.buildDirectory.set(file("build.nosync"))
+
 android {
     namespace = "com.wally.musesick"
     compileSdk = 35

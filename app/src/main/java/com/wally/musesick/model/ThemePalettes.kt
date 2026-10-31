@@ -2,7 +2,6 @@ package com.wally.musesick.model
 
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -36,57 +35,30 @@ data class ThemePalette(
     val onError: Color = Color.White
 ) {
     fun toColorScheme(): ColorScheme {
-        return if (isDark) {
-            darkColorScheme(
-                primary = primary,
-                onPrimary = onPrimary,
-                primaryContainer = primaryContainer,
-                onPrimaryContainer = onPrimaryContainer,
-                secondary = secondary,
-                onSecondary = onSecondary,
-                secondaryContainer = secondaryContainer,
-                onSecondaryContainer = onSecondaryContainer,
-                tertiary = tertiary,
-                onTertiary = onTertiary,
-                tertiaryContainer = tertiaryContainer,
-                onTertiaryContainer = onTertiaryContainer,
-                background = background,
-                onBackground = onBackground,
-                surface = surface,
-                onSurface = onSurface,
-                surfaceVariant = surfaceVariant,
-                onSurfaceVariant = onSurfaceVariant,
-                outline = outline,
-                outlineVariant = outlineVariant,
-                error = error,
-                onError = onError
-            )
-        } else {
-            lightColorScheme(
-                primary = primary,
-                onPrimary = onPrimary,
-                primaryContainer = primaryContainer,
-                onPrimaryContainer = onPrimaryContainer,
-                secondary = secondary,
-                onSecondary = onSecondary,
-                secondaryContainer = secondaryContainer,
-                onSecondaryContainer = onSecondaryContainer,
-                tertiary = tertiary,
-                onTertiary = onTertiary,
-                tertiaryContainer = tertiaryContainer,
-                onTertiaryContainer = onTertiaryContainer,
-                background = background,
-                onBackground = onBackground,
-                surface = surface,
-                onSurface = onSurface,
-                surfaceVariant = surfaceVariant,
-                onSurfaceVariant = onSurfaceVariant,
-                outline = outline,
-                outlineVariant = outlineVariant,
-                error = error,
-                onError = onError
-            )
-        }
+        return darkColorScheme(
+            primary = primary,
+            onPrimary = onPrimary,
+            primaryContainer = primaryContainer,
+            onPrimaryContainer = onPrimaryContainer,
+            secondary = secondary,
+            onSecondary = onSecondary,
+            secondaryContainer = secondaryContainer,
+            onSecondaryContainer = onSecondaryContainer,
+            tertiary = tertiary,
+            onTertiary = onTertiary,
+            tertiaryContainer = tertiaryContainer,
+            onTertiaryContainer = onTertiaryContainer,
+            background = background,
+            onBackground = onBackground,
+            surface = surface,
+            onSurface = onSurface,
+            surfaceVariant = surfaceVariant,
+            onSurfaceVariant = onSurfaceVariant,
+            outline = outline,
+            outlineVariant = outlineVariant,
+            error = error,
+            onError = onError
+        )
     }
 }
 
