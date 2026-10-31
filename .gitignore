@@ -1,7 +1,7 @@
 # Gradle / Android
 .gradle/
 **/build/
-android/local.properties
+!gradle/wrapper/gradle-wrapper.jar
 local.properties
 *.apk
 *.aab
@@ -11,18 +11,6 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# Xcode / iOS
-**/DerivedData/
-**/build/
-*.xcuserstate
-project.xcworkspace/xcuserdata/
-*.xcuserdatad/
-*.swp
-*.lock
-Podfile.lock
-Pods/
-.build/
-
 # IDE / OS
 .idea/
 *.iml
@@ -31,3 +19,6 @@ Pods/
 *.log
 Thumbs.db
 .vscode/
+
+# Release Notes
+ReleaseNotes.md
