@@ -1099,12 +1099,16 @@ fun FullPlayerSheet(
                 ) {
                     // Frosted glass theme with background from album art for full screen player (downsampled for zero GPU stutter)
                     if (!highResCover.isNullOrEmpty()) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
+                        val context = LocalContext.current
+                        val coverReq = remember(highResCover) {
+                            ImageRequest.Builder(context)
                                 .data(highResCover)
                                 .size(160, 160) // Downscaled thumbnail: natural silky smooth bokeh!
                                 .crossfade(false)
-                                .build(),
+                                .build()
+                        }
+                        AsyncImage(
+                            model = coverReq,
                             contentDescription = null,
                             modifier = Modifier
                                 .fillMaxSize()

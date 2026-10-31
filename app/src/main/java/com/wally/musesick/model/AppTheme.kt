@@ -19,12 +19,7 @@ enum class AppTheme(
     ),
     AQUA(
         displayName = "Aqua",
-        description = "Immersive water goddess theme with Darugami & Damegami artwork backgrounds and vibrant glassmorphism",
-        defaultVariant = "darugami",
-        availableVariants = listOf(
-            ThemeVariantOption("darugami", "Darugami"),
-            ThemeVariantOption("damegami", "Damegami")
-        )
+        description = "Immersive water goddess theme with Damegami artwork background, custom cutouts and vibrant glassmorphism"
     ),
     CUSTOM_IMAGE(
         displayName = "Custom Image",

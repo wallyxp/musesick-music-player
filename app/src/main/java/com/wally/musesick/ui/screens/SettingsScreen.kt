@@ -598,7 +598,7 @@ fun SettingsAppThemeScreen(
                                         animationSpec = tween(200)
                                     ) + fadeOut(animationSpec = tween(150))
                                 ) {
-                                    val previewRes = if (currentVariant == "damegami") R.drawable.damegami else R.drawable.darugami
+                                    val previewRes = R.drawable.damegami
                                     Column(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalAlignment = Alignment.End
@@ -606,7 +606,7 @@ fun SettingsAppThemeScreen(
                                         Spacer(modifier = Modifier.height(10.dp))
                                         Image(
                                             painter = painterResource(id = previewRes),
-                                            contentDescription = if (currentVariant == "damegami") "Damegami" else "Darugami",
+                                            contentDescription = "Damegami",
                                             modifier = Modifier
                                                 .height(90.dp)
                                                 .width(55.dp)
