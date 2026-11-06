@@ -21,3 +21,21 @@ data class YouTubePlaylistData(
     val tracks: List<Track> = emptyList()
 )
 
+@Immutable
+data class SpotifyPlaylistData(
+    val id: String,
+    val title: String,
+    val author: String? = null,
+    val thumbnailUrl: String? = null,
+    val tracks: List<Track> = emptyList()
+)
+
+@Immutable
+data class SpotifyAccountInfo(
+    val id: String,
+    val displayName: String,
+    val email: String? = null,
+    val avatarUrl: String? = null
+)
+
+

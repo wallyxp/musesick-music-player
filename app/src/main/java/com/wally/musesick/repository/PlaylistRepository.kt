@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.wally.musesick.model.AudioFormat
 import com.wally.musesick.model.Playlist
+import com.wally.musesick.model.SpotifyPlaylistData
 import com.wally.musesick.model.Track
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -407,5 +408,45 @@ class PlaylistRepository(private val context: Context) {
         val localOnly = existing.filter { !it.id.startsWith("yt_sync_") }
         savePlaylists(localOnly)
         localOnly
+    }
+
+    suspend fun syncSpotifyPlaylists(spotifyPlaylists: List<SpotifyPlaylistData>): List<Playlist> = withContext(Dispatchers.IO) {
+        val existing = getPlaylists()
+        val existingById = existing.associateBy { it.id }
+        val otherPlaylists = existing.filter { !it.id.startsWith("spotify_sync_") }
+
+        val remoteSyncIds = spotifyPlaylists.map { "spotify_sync_${it.id}" }.toSet()
+        val pendingSyncedLocal = existing.filter { it.id.startsWith("spotify_sync_") && it.id !in remoteSyncIds }
+
+        val syncedPlaylists = spotifyPlaylists.map { spPl ->
+            val syncId = "spotify_sync_${spPl.id}"
+            val prev = existingById[syncId]
+            val prevTracks = prev?.tracks ?: emptyList()
+            val mergedTracks = if (spPl.tracks.isNotEmpty()) {
+                val remoteIds = spPl.tracks.map { it.id }.toSet()
+                val localExtra = prevTracks.filter { it.id !in remoteIds }
+                spPl.tracks + localExtra
+            } else {
+                prevTracks
+            }
+            Playlist(
+                id = syncId,
+                title = prev?.title?.takeIf { it.isNotBlank() } ?: spPl.title.trim(),
+                imageUri = prev?.imageUri ?: spPl.thumbnailUrl,
+                tracks = mergedTracks,
+                createdAt = prev?.createdAt ?: System.currentTimeMillis()
+            )
+        }
+
+        val combined = pendingSyncedLocal + syncedPlaylists + otherPlaylists
+        savePlaylists(combined)
+        combined
+    }
+
+    suspend fun removeSyncedSpotifyPlaylists(): List<Playlist> = withContext(Dispatchers.IO) {
+        val existing = getPlaylists()
+        val remaining = existing.filter { !it.id.startsWith("spotify_sync_") }
+        savePlaylists(remaining)
+        remaining
     }
 }

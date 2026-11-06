@@ -108,11 +108,14 @@ import com.wally.musesick.ui.components.MiniPlayerBar
 import com.wally.musesick.ui.components.NewPlaylistSheet
 import com.wally.musesick.ui.components.SongActionMenuSheet
 import com.wally.musesick.ui.components.NothingFormatBadge
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Person
 import com.wally.musesick.ui.components.UpdateDialog
 import com.wally.musesick.ui.components.YouTubeLoginDialog
+import com.wally.musesick.ui.components.ImportPlaylistDialog
 import com.wally.musesick.ui.screens.ArtistOnboardingScreen
 import com.wally.musesick.ui.screens.SettingsAppThemeScreen
+import com.wally.musesick.ui.screens.SettingsEditProfileScreen
 import com.wally.musesick.ui.screens.SettingsScreen
 import com.wally.musesick.ui.theme.TimeThemeHelper
 
@@ -221,6 +224,10 @@ fun MainScreen(
     val updateInfo by viewModel.updateInfo.collectAsState()
     val downloadProgress by viewModel.downloadProgress.collectAsState()
     val updateToastMessage by viewModel.updateToastMessage.collectAsState()
+
+    // Offline User Profile State
+    val userProfile by viewModel.userProfile.collectAsState()
+    var isImportPlaylistDialogOpen by remember { mutableStateOf(false) }
 
     // YouTube Music Account State
     val ytAccountInfo by viewModel.ytAccountInfo.collectAsState()
@@ -522,189 +529,209 @@ fun MainScreen(
                             .navigationBarsPadding(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Playlists Tab (Page 1): Floating Plus Button above bottom bar on the bottom right
-                        AnimatedVisibility(
-                            visible = isPlaylistLandedCompletely,
-                            enter = slideInVertically(
-                                initialOffsetY = { it },
-                                animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f)
-                            ) + fadeIn(tween(200)),
-                            exit = slideOutVertically(
-                                targetOffsetY = { it },
-                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 500f)
-                            ) + fadeOut(tween(140))
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.BottomCenter
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(end = 20.dp, bottom = 10.dp),
-                                horizontalArrangement = Arrangement.End
+                            // Playlists Tab (Page 1): Floating Plus & Link Buttons above bottom bar in bottom middle
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = isPlaylistLandedCompletely,
+                                enter = slideInVertically(
+                                    initialOffsetY = { it },
+                                    animationSpec = spring(dampingRatio = 0.84f, stiffness = 420f)
+                                ) + fadeIn(tween(200)),
+                                exit = slideOutVertically(
+                                    targetOffsetY = { it },
+                                    animationSpec = spring(dampingRatio = 0.90f, stiffness = 500f)
+                                ) + fadeOut(tween(140))
                             ) {
-                                GlassmorphicCircleButton(
-                                    icon = Icons.Default.Add,
-                                    onClick = { viewModel.openNewPlaylistSheet() },
-                                    size = 56.dp,
-                                    iconSize = 30.dp,
-                                    contentDescription = "New Playlist",
-                                    isGlassmorphism = isGlassmorphism
-                                )
-                            }
-                        }
-
-                        // Local Tab (Page 2): 4 Glassmorphism Circular Buttons (Downloaded, Device, Open, Refresh)
-                        AnimatedVisibility(
-                            visible = isLocalLandedCompletely,
-                            enter = slideInVertically(
-                                initialOffsetY = { it },
-                                animationSpec = spring(dampingRatio = 0.72f, stiffness = 380f)
-                            ) + fadeIn(tween(200)),
-                            exit = slideOutVertically(
-                                targetOffsetY = { it },
-                                animationSpec = spring(dampingRatio = 0.85f, stiffness = 500f)
-                            ) + fadeOut(tween(140))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
-                                horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val isDownloadedActive = localFilter == "DOWNLOADED"
-                                val isDeviceActive = localFilter != "DOWNLOADED"
-                                val localBtnSize = 54.dp
-
-                                // 1. Downloaded
-                                GlassmorphicCircleButton(
-                                    icon = Icons.Default.Download,
-                                    onClick = { viewModel.setLocalFormatFilter("DOWNLOADED") },
-                                    size = localBtnSize,
-                                    iconSize = 25.dp,
-                                    isSelected = isDownloadedActive,
-                                    tint = if (isDownloadedActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
-                                    contentDescription = "Downloaded",
-                                    isGlassmorphism = isGlassmorphism
-                                )
-
-                                // 2. Device (Phone icon)
-                                GlassmorphicCircleButton(
-                                    icon = Icons.Default.PhoneAndroid,
-                                    onClick = { viewModel.setLocalFormatFilter("DEVICE") },
-                                    size = localBtnSize,
-                                    iconSize = 25.dp,
-                                    isSelected = isDeviceActive,
-                                    tint = if (isDeviceActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
-                                    contentDescription = "Device",
-                                    isGlassmorphism = isGlassmorphism
-                                )
-
-                                // 3. Open (Plus icon)
-                                GlassmorphicCircleButton(
-                                    icon = Icons.Default.Add,
-                                    onClick = {
-                                        localFilePicker.launch(arrayOf("audio/*", "audio/mpeg", "audio/mp4", "audio/flac"))
-                                    },
-                                    size = localBtnSize,
-                                    iconSize = 27.dp,
-                                    contentDescription = "Open Audio Files",
-                                    isGlassmorphism = isGlassmorphism
-                                )
-
-                                // 4. Refresh (Refresh icon)
-                                GlassmorphicCircleButton(
-                                    icon = Icons.Default.Refresh,
-                                    onClick = { viewModel.loadLocalTracks() },
-                                    size = localBtnSize,
-                                    iconSize = 25.dp,
-                                    contentDescription = "Refresh",
-                                    isGlassmorphism = isGlassmorphism
-                                )
-                            }
-                        }
-
-                        // Detail Screens (Album, Artist, Playlist): Floating Shuffle & Play Buttons above search bar
-                        val isDetailScreenWithPlayback = currentScreen == ScreenState.ALBUM_DETAIL ||
-                                currentScreen == ScreenState.ARTIST_DETAIL ||
-                                currentScreen == ScreenState.PLAYLIST_DETAIL
-
-                        AnimatedVisibility(
-                            visible = isDetailScreenWithPlayback,
-                            enter = fadeIn(tween(160)) + slideInVertically { it / 2 },
-                            exit = fadeOut(tween(140)) + slideOutVertically { it / 2 }
-                        ) {
-                            val hasTracks: Boolean
-                            val isPlayingThis: Boolean
-                            val onShuffleClick: () -> Unit
-                            val onPlayClick: () -> Unit
-
-                            when (currentScreen) {
-                                ScreenState.ALBUM_DETAIL -> {
-                                    hasTracks = albumTracks.isNotEmpty()
-                                    isPlayingThis = isCurrentTrackPlaying && albumTracks.any { it.id == currentPlayingTrackId }
-                                    onShuffleClick = { viewModel.shuffleAll(albumTracks) }
-                                    onPlayClick = {
-                                        if (isPlayingThis) viewModel.togglePlayPause()
-                                        else viewModel.playAll(albumTracks)
-                                    }
-                                }
-                                ScreenState.ARTIST_DETAIL -> {
-                                    hasTracks = artistSongs.isNotEmpty()
-                                    isPlayingThis = isCurrentTrackPlaying && artistSongs.any { it.id == currentPlayingTrackId }
-                                    onShuffleClick = { selectedArtist?.let { viewModel.playArtist(it, shuffle = true) } }
-                                    onPlayClick = {
-                                        if (isPlayingThis) viewModel.togglePlayPause()
-                                        else selectedArtist?.let { viewModel.playArtist(it, shuffle = false) }
-                                    }
-                                }
-                                ScreenState.PLAYLIST_DETAIL -> {
-                                    val tracks = selectedPlaylist?.tracks ?: emptyList()
-                                    hasTracks = tracks.isNotEmpty()
-                                    isPlayingThis = isCurrentTrackPlaying && tracks.any { it.id == currentPlayingTrackId }
-                                    onShuffleClick = { selectedPlaylist?.let { viewModel.shuffleAllFromPlaylist(it) } }
-                                    onPlayClick = {
-                                        if (isPlayingThis) viewModel.togglePlayPause()
-                                        else selectedPlaylist?.let { viewModel.playAllFromPlaylist(it) }
-                                    }
-                                }
-                                else -> {
-                                    hasTracks = false
-                                    isPlayingThis = false
-                                    onShuffleClick = {}
-                                    onPlayClick = {}
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    GlassmorphicCircleButton(
+                                        icon = Icons.Default.Link,
+                                        onClick = { isImportPlaylistDialogOpen = true },
+                                        size = 56.dp,
+                                        iconSize = 26.dp,
+                                        contentDescription = "Import Playlist from Link",
+                                        isGlassmorphism = isGlassmorphism
+                                    )
+                                    GlassmorphicCircleButton(
+                                        icon = Icons.Default.Add,
+                                        onClick = { viewModel.openNewPlaylistSheet() },
+                                        size = 56.dp,
+                                        iconSize = 30.dp,
+                                        contentDescription = "New Playlist",
+                                        isGlassmorphism = isGlassmorphism
+                                    )
                                 }
                             }
 
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 10.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-                                verticalAlignment = Alignment.CenterVertically
+                            // Local Tab (Page 2): 4 Glassmorphism Circular Buttons (Downloaded, Device, Open, Refresh)
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = isLocalLandedCompletely,
+                                enter = slideInVertically(
+                                    initialOffsetY = { it },
+                                    animationSpec = spring(dampingRatio = 0.84f, stiffness = 420f)
+                                ) + fadeIn(tween(200)),
+                                exit = slideOutVertically(
+                                    targetOffsetY = { it },
+                                    animationSpec = spring(dampingRatio = 0.90f, stiffness = 500f)
+                                ) + fadeOut(tween(140))
                             ) {
-                                val buttonSize = 56.dp
-                                val iconSize = 26.dp
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val isDownloadedActive = localFilter == "DOWNLOADED"
+                                    val isDeviceActive = localFilter != "DOWNLOADED"
+                                    val localBtnSize = 54.dp
 
-                                // Circular Glassmorphism Shuffle Button
-                                GlassmorphicCircleButton(
-                                    icon = Icons.Default.Shuffle,
-                                    onClick = onShuffleClick,
-                                    size = buttonSize,
-                                    iconSize = iconSize,
-                                    enabled = hasTracks,
-                                    contentDescription = "Shuffle",
-                                    isGlassmorphism = isGlassmorphism
-                                )
+                                    // 1. Downloaded
+                                    GlassmorphicCircleButton(
+                                        icon = Icons.Default.Download,
+                                        onClick = { viewModel.setLocalFormatFilter("DOWNLOADED") },
+                                        size = localBtnSize,
+                                        iconSize = 25.dp,
+                                        isSelected = isDownloadedActive,
+                                        tint = if (isDownloadedActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
+                                        contentDescription = "Downloaded",
+                                        isGlassmorphism = isGlassmorphism
+                                    )
 
-                                // Circular Glassmorphism Play Button (strictly equal in size)
-                                GlassmorphicCircleButton(
-                                    icon = if (isPlayingThis) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    onClick = onPlayClick,
-                                    size = buttonSize,
-                                    iconSize = iconSize,
-                                    enabled = hasTracks,
-                                    contentDescription = if (isPlayingThis) "Pause" else "Play",
-                                    isGlassmorphism = isGlassmorphism
-                                )
+                                    // 2. Device (Phone icon)
+                                    GlassmorphicCircleButton(
+                                        icon = Icons.Default.PhoneAndroid,
+                                        onClick = { viewModel.setLocalFormatFilter("DEVICE") },
+                                        size = localBtnSize,
+                                        iconSize = 25.dp,
+                                        isSelected = isDeviceActive,
+                                        tint = if (isDeviceActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
+                                        contentDescription = "Device",
+                                        isGlassmorphism = isGlassmorphism
+                                    )
+
+                                    // 3. Open (Plus icon)
+                                    GlassmorphicCircleButton(
+                                        icon = Icons.Default.Add,
+                                        onClick = {
+                                            localFilePicker.launch(arrayOf("audio/*", "audio/mpeg", "audio/mp4", "audio/flac"))
+                                        },
+                                        size = localBtnSize,
+                                        iconSize = 27.dp,
+                                        contentDescription = "Open Audio Files",
+                                        isGlassmorphism = isGlassmorphism
+                                    )
+
+                                    // 4. Refresh (Refresh icon)
+                                    GlassmorphicCircleButton(
+                                        icon = Icons.Default.Refresh,
+                                        onClick = { viewModel.loadLocalTracks() },
+                                        size = localBtnSize,
+                                        iconSize = 25.dp,
+                                        contentDescription = "Refresh",
+                                        isGlassmorphism = isGlassmorphism
+                                    )
+                                }
+                            }
+
+                            // Detail Screens (Album, Artist, Playlist): Floating Shuffle & Play Buttons above search bar
+                            val isDetailScreenWithPlayback = currentScreen == ScreenState.ALBUM_DETAIL ||
+                                    currentScreen == ScreenState.ARTIST_DETAIL ||
+                                    currentScreen == ScreenState.PLAYLIST_DETAIL
+
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = isDetailScreenWithPlayback,
+                                enter = slideInVertically(
+                                    initialOffsetY = { it },
+                                    animationSpec = spring(dampingRatio = 0.84f, stiffness = 420f)
+                                ) + fadeIn(tween(200)),
+                                exit = slideOutVertically(
+                                    targetOffsetY = { it },
+                                    animationSpec = spring(dampingRatio = 0.90f, stiffness = 500f)
+                                ) + fadeOut(tween(140))
+                            ) {
+                                val hasTracks: Boolean
+                                val isPlayingThis: Boolean
+                                val onShuffleClick: () -> Unit
+                                val onPlayClick: () -> Unit
+
+                                when (currentScreen) {
+                                    ScreenState.ALBUM_DETAIL -> {
+                                        hasTracks = albumTracks.isNotEmpty()
+                                        isPlayingThis = isCurrentTrackPlaying && albumTracks.any { it.id == currentPlayingTrackId }
+                                        onShuffleClick = { viewModel.shuffleAll(albumTracks) }
+                                        onPlayClick = {
+                                            if (isPlayingThis) viewModel.togglePlayPause()
+                                            else viewModel.playAll(albumTracks)
+                                        }
+                                    }
+                                    ScreenState.ARTIST_DETAIL -> {
+                                        hasTracks = artistSongs.isNotEmpty()
+                                        isPlayingThis = isCurrentTrackPlaying && artistSongs.any { it.id == currentPlayingTrackId }
+                                        onShuffleClick = { selectedArtist?.let { viewModel.playArtist(it, shuffle = true) } }
+                                        onPlayClick = {
+                                            if (isPlayingThis) viewModel.togglePlayPause()
+                                            else selectedArtist?.let { viewModel.playArtist(it, shuffle = false) }
+                                        }
+                                    }
+                                    ScreenState.PLAYLIST_DETAIL -> {
+                                        val tracks = selectedPlaylist?.tracks ?: emptyList()
+                                        hasTracks = tracks.isNotEmpty()
+                                        isPlayingThis = isCurrentTrackPlaying && tracks.any { it.id == currentPlayingTrackId }
+                                        onShuffleClick = { selectedPlaylist?.let { viewModel.shuffleAllFromPlaylist(it) } }
+                                        onPlayClick = {
+                                            if (isPlayingThis) viewModel.togglePlayPause()
+                                            else selectedPlaylist?.let { viewModel.playAllFromPlaylist(it) }
+                                        }
+                                    }
+                                    else -> {
+                                        hasTracks = false
+                                        isPlayingThis = false
+                                        onShuffleClick = {}
+                                        onPlayClick = {}
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 10.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val buttonSize = 56.dp
+                                    val iconSize = 26.dp
+
+                                    // Circular Glassmorphism Shuffle Button
+                                    GlassmorphicCircleButton(
+                                        icon = Icons.Default.Shuffle,
+                                        onClick = onShuffleClick,
+                                        size = buttonSize,
+                                        iconSize = iconSize,
+                                        enabled = hasTracks,
+                                        contentDescription = "Shuffle",
+                                        isGlassmorphism = isGlassmorphism
+                                    )
+
+                                    // Circular Glassmorphism Play Button (strictly equal in size)
+                                    GlassmorphicCircleButton(
+                                        icon = if (isPlayingThis) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        onClick = onPlayClick,
+                                        size = buttonSize,
+                                        iconSize = iconSize,
+                                        enabled = hasTracks,
+                                        contentDescription = if (isPlayingThis) "Pause" else "Play",
+                                        isGlassmorphism = isGlassmorphism
+                                    )
+                                }
                             }
                         }
 
@@ -790,6 +817,7 @@ fun MainScreen(
                                         gridState = playlistsGridState,
                                         playlists = playlists,
                                         onCreatePlaylistClick = { viewModel.openNewPlaylistSheet() },
+                                        onImportPlaylistClick = { isImportPlaylistDialogOpen = true },
                                         onPlaylistClick = { viewModel.selectPlaylist(it) },
                                         onEditPlaylistClick = { editingPlaylist = it },
                                         onDeletePlaylistClick = { viewModel.deletePlaylist(it.id) }
@@ -989,10 +1017,11 @@ fun MainScreen(
                                                 .clickable { viewModel.openSettings() },
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            if (!ytAccountInfo?.avatarUrl.isNullOrEmpty()) {
+                                            val profileAvatar = userProfile.avatarPath
+                                            if (!profileAvatar.isNullOrBlank()) {
                                                 AsyncImage(
-                                                    model = ytAccountInfo!!.avatarUrl,
-                                                    contentDescription = ytAccountInfo?.name ?: "Profile",
+                                                    model = File(profileAvatar),
+                                                    contentDescription = userProfile.name,
                                                     modifier = Modifier.fillMaxSize(),
                                                     contentScale = ContentScale.Crop
                                                 )
@@ -1176,6 +1205,8 @@ fun MainScreen(
                             appThemeVariant = appThemeVariant,
                             customAccentColor = customAccentColor,
                             isCheckingUpdate = isCheckingUpdate,
+                            userProfile = userProfile,
+                            onOpenEditProfile = { viewModel.openEditProfile() },
                             ytAccountInfo = ytAccountInfo,
                             isSyncingYtAccount = isSyncingYtAccount,
                             autoSyncInterval = autoSyncInterval,
@@ -1214,6 +1245,15 @@ fun MainScreen(
                             onVariantSelected = { viewModel.setAppThemeVariant(it) },
                             onColorSelected = { viewModel.setCustomAccentColor(it) },
                             onSelectCustomImage = { viewModel.setCustomThemeImage(it) },
+                            onBack = { viewModel.navigateBack() }
+                        )
+                    }
+                    ScreenState.SETTINGS_EDIT_PROFILE -> {
+                        SettingsEditProfileScreen(
+                            currentProfile = userProfile,
+                            onSaveProfile = { name, avatarUri, removeAvatar ->
+                                viewModel.updateUserProfile(name, avatarUri, removeAvatar)
+                            },
                             onBack = { viewModel.navigateBack() }
                         )
                     }
@@ -1412,6 +1452,23 @@ fun MainScreen(
                 viewModel.onYtMusicLoginSuccess(cookie, fallbackName, fallbackAvatarUrl)
             },
             onDismiss = { isYtLoginDialogOpen = false }
+        )
+    }
+
+    // Import Playlist from Link Dialog
+    if (isImportPlaylistDialogOpen) {
+        val isImporting by viewModel.isImportingPlaylist.collectAsState()
+        ImportPlaylistDialog(
+            isImporting = isImporting,
+            onImport = { url ->
+                viewModel.importPlaylistFromUrl(url) { success, msg ->
+                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                    if (success) {
+                        isImportPlaylistDialogOpen = false
+                    }
+                }
+            },
+            onDismiss = { isImportPlaylistDialogOpen = false }
         )
     }
 

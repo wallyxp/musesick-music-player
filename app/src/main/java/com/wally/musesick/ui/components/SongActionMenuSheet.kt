@@ -2,6 +2,7 @@ package com.wally.musesick.ui.components
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -145,15 +146,14 @@ fun SongActionMenuSheet(
             }
 
             HorizontalDivider(
-                modifier = Modifier.padding(vertical = 6.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 5.dp),
+                color = Color.White.copy(alpha = 0.10f)
             )
 
             // Actions
             ActionMenuItem(
                 icon = Icons.Default.PlayArrow,
                 title = "Play now",
-                subtitle = "Start playing immediately",
                 onClick = {
                     onPlayNow()
                     onDismiss()
@@ -163,7 +163,6 @@ fun SongActionMenuSheet(
             ActionMenuItem(
                 icon = Icons.AutoMirrored.Filled.PlaylistPlay,
                 title = "Play next",
-                subtitle = "Insert right after current song",
                 onClick = {
                     onPlayNext()
                     onDismiss()
@@ -173,7 +172,6 @@ fun SongActionMenuSheet(
             ActionMenuItem(
                 icon = Icons.AutoMirrored.Filled.QueueMusic,
                 title = "Add to queue",
-                subtitle = "Add to the end of playback queue",
                 onClick = {
                     onAddToQueue()
                     onDismiss()
@@ -181,14 +179,13 @@ fun SongActionMenuSheet(
             )
 
             HorizontalDivider(
-                modifier = Modifier.padding(vertical = 6.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 5.dp),
+                color = Color.White.copy(alpha = 0.10f)
             )
 
             ActionMenuItem(
                 icon = Icons.AutoMirrored.Filled.PlaylistAdd,
                 title = "Add to existing playlist",
-                subtitle = "Choose from your saved playlists",
                 onClick = {
                     onAddToExistingPlaylist()
                 }
@@ -197,22 +194,20 @@ fun SongActionMenuSheet(
             ActionMenuItem(
                 icon = Icons.Default.Add,
                 title = "Add to new playlist",
-                subtitle = "Create a new playlist with custom photo",
                 onClick = {
                     onAddToNewPlaylist()
                 }
             )
 
             HorizontalDivider(
-                modifier = Modifier.padding(vertical = 6.dp),
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 5.dp),
+                color = Color.White.copy(alpha = 0.10f)
             )
 
             if (isDownloaded) {
                 ActionMenuItem(
                     icon = Icons.Default.CheckCircle,
                     title = "Downloaded",
-                    subtitle = "Saved for offline listening • Tap to remove",
                     onClick = {
                         onRemoveDownload()
                         onDismiss()
@@ -222,14 +217,12 @@ fun SongActionMenuSheet(
                 ActionMenuItem(
                     icon = Icons.Default.Downloading,
                     title = "Downloading (${(downloadProgress * 100).toInt()}%)",
-                    subtitle = "Saving audio for offline playback...",
                     onClick = { }
                 )
             } else {
                 ActionMenuItem(
                     icon = Icons.Default.Download,
                     title = "Download song",
-                    subtitle = "Listen offline without internet",
                     onClick = {
                         onDownload()
                         onDismiss()
@@ -245,44 +238,60 @@ fun SongActionMenuSheet(
 private fun ActionMenuItem(
     icon: ImageVector,
     title: String,
-    subtitle: String,
     onClick: () -> Unit
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
+            .padding(horizontal = 16.dp, vertical = 3.5.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(
+                1.dp,
+                GlassBorderBrush,
+                RoundedCornerShape(14.dp)
             )
-        }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.10f))
+                    .border(
+                        1.dp,
+                        Brush.linearGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.40f),
+                                Color.White.copy(alpha = 0.10f),
+                                Color.White.copy(alpha = 0.25f)
+                            )
+                        ),
+                        RoundedCornerShape(10.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
 
-        Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
-        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = Color.White,
+                modifier = Modifier.weight(1f)
             )
         }
     }

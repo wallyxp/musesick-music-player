@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -26,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -56,6 +56,7 @@ import com.wally.musesick.model.Playlist
 fun PlaylistsTab(
     playlists: List<Playlist>,
     onCreatePlaylistClick: () -> Unit,
+    onImportPlaylistClick: () -> Unit = {},
     onPlaylistClick: (Playlist) -> Unit,
     onEditPlaylistClick: ((Playlist) -> Unit)? = null,
     onDeletePlaylistClick: ((Playlist) -> Unit)? = null,
@@ -90,12 +91,39 @@ fun PlaylistsTab(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Long press any song to add it to a playlist,\nor create a new one with a custom cover photo.",
+                        text = "Create a custom playlist or import one\nusing any Spotify or YouTube Music link.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 32.dp),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        FilledTonalButton(
+                            onClick = onImportPlaylistClick,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Link,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Import Link")
+                        }
+                        FilledTonalButton(
+                            onClick = onCreatePlaylistClick,
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Create")
+                        }
+                    }
                 }
             }
         }

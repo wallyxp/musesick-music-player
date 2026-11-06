@@ -5,6 +5,8 @@ import android.content.SharedPreferences
 import android.net.Uri
 import com.wally.musesick.model.AppTheme
 import com.wally.musesick.model.PlayerStyle
+import com.wally.musesick.model.SpotifyAccountInfo
+import com.wally.musesick.model.UserProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -30,6 +32,17 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_YT_USER_AVATAR_URL = "yt_user_avatar_url"
         private const val KEY_AUTO_SYNC_INTERVAL = "yt_auto_sync_interval"
         private const val KEY_LAST_PLAYLIST_SYNC_TIME = "yt_last_playlist_sync_time"
+        // Offline User Profile keys
+        private const val KEY_USER_PROFILE_NAME = "user_profile_name"
+        private const val KEY_USER_PROFILE_AVATAR_PATH = "user_profile_avatar_path"
+        // Spotify Account keys
+        private const val KEY_SPOTIFY_ACCESS_TOKEN = "spotify_access_token"
+        private const val KEY_SPOTIFY_TOKEN_EXPIRATION = "spotify_token_expiration"
+        private const val KEY_SPOTIFY_COOKIE = "spotify_cookie"
+        private const val KEY_SPOTIFY_USER_ID = "spotify_user_id"
+        private const val KEY_SPOTIFY_USER_NAME = "spotify_user_name"
+        private const val KEY_SPOTIFY_USER_EMAIL = "spotify_user_email"
+        private const val KEY_SPOTIFY_USER_AVATAR_URL = "spotify_user_avatar_url"
         const val DEFAULT_ACCENT_COLOR = 0xFF6750A4.toInt() // Royal Violet
     }
 
@@ -101,6 +114,110 @@ class SettingsRepository(private val context: Context) {
             .remove(KEY_YT_USER_HANDLE)
             .remove(KEY_YT_USER_AVATAR_URL)
             .remove(KEY_LAST_PLAYLIST_SYNC_TIME)
+            .apply()
+    }
+
+    // --- Offline User Profile (completely decoupled from online logins) ---
+    fun getUserProfile(): UserProfile {
+        val name = prefs.getString(KEY_USER_PROFILE_NAME, "Guest")?.ifBlank { "Guest" } ?: "Guest"
+        val path = prefs.getString(KEY_USER_PROFILE_AVATAR_PATH, null)?.takeIf { it.isNotBlank() }
+        val validAvatar = if (path != null && File(path).exists()) path else null
+        return UserProfile(name = name, avatarPath = validAvatar)
+    }
+
+    fun saveUserProfile(name: String, avatarPath: String?) {
+        val cleanName = name.trim().ifBlank { "Guest" }
+        prefs.edit()
+            .putString(KEY_USER_PROFILE_NAME, cleanName)
+            .putString(KEY_USER_PROFILE_AVATAR_PATH, avatarPath)
+            .apply()
+    }
+
+    suspend fun saveProfileAvatar(sourceUri: Uri): String? = withContext(Dispatchers.IO) {
+        try {
+            val fileName = "profile_avatar_${System.currentTimeMillis()}.jpg"
+            val targetFile = File(context.filesDir, fileName)
+            context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                FileOutputStream(targetFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            val oldAvatar = prefs.getString(KEY_USER_PROFILE_AVATAR_PATH, null)
+            if (!oldAvatar.isNullOrBlank() && oldAvatar != targetFile.absolutePath) {
+                try { File(oldAvatar).delete() } catch (_: Exception) {}
+            }
+            targetFile.absolutePath
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun removeProfileAvatar() {
+        val oldAvatar = prefs.getString(KEY_USER_PROFILE_AVATAR_PATH, null)
+        if (!oldAvatar.isNullOrBlank()) {
+            try { File(oldAvatar).delete() } catch (_: Exception) {}
+        }
+        prefs.edit().remove(KEY_USER_PROFILE_AVATAR_PATH).apply()
+    }
+
+    // --- Spotify Account & Auth ---
+    fun getSpotifyAccessToken(): String? {
+        return prefs.getString(KEY_SPOTIFY_ACCESS_TOKEN, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setSpotifyAccessToken(token: String?, expirationMs: Long = 0L) {
+        prefs.edit()
+            .putString(KEY_SPOTIFY_ACCESS_TOKEN, token)
+            .putLong(KEY_SPOTIFY_TOKEN_EXPIRATION, expirationMs)
+            .apply()
+    }
+
+    fun getSpotifyTokenExpiration(): Long {
+        return prefs.getLong(KEY_SPOTIFY_TOKEN_EXPIRATION, 0L)
+    }
+
+    fun getSpotifyCookie(): String? {
+        return prefs.getString(KEY_SPOTIFY_COOKIE, null)?.takeIf { it.isNotBlank() }
+    }
+
+    fun setSpotifyCookie(cookie: String?) {
+        prefs.edit().putString(KEY_SPOTIFY_COOKIE, cookie).apply()
+    }
+
+    fun getSpotifyAccountInfo(): SpotifyAccountInfo? {
+        val id = prefs.getString(KEY_SPOTIFY_USER_ID, null) ?: return null
+        val name = prefs.getString(KEY_SPOTIFY_USER_NAME, "Spotify User") ?: "Spotify User"
+        val email = prefs.getString(KEY_SPOTIFY_USER_EMAIL, null)
+        val avatar = prefs.getString(KEY_SPOTIFY_USER_AVATAR_URL, null)
+        return SpotifyAccountInfo(id = id, displayName = name, email = email, avatarUrl = avatar)
+    }
+
+    fun setSpotifyAccountInfo(info: SpotifyAccountInfo?) {
+        val editor = prefs.edit()
+        if (info == null) {
+            editor.remove(KEY_SPOTIFY_USER_ID)
+                .remove(KEY_SPOTIFY_USER_NAME)
+                .remove(KEY_SPOTIFY_USER_EMAIL)
+                .remove(KEY_SPOTIFY_USER_AVATAR_URL)
+        } else {
+            editor.putString(KEY_SPOTIFY_USER_ID, info.id)
+                .putString(KEY_SPOTIFY_USER_NAME, info.displayName)
+                .putString(KEY_SPOTIFY_USER_EMAIL, info.email)
+                .putString(KEY_SPOTIFY_USER_AVATAR_URL, info.avatarUrl)
+        }
+        editor.apply()
+    }
+
+    fun clearSpotifyAccount() {
+        prefs.edit()
+            .remove(KEY_SPOTIFY_ACCESS_TOKEN)
+            .remove(KEY_SPOTIFY_TOKEN_EXPIRATION)
+            .remove(KEY_SPOTIFY_COOKIE)
+            .remove(KEY_SPOTIFY_USER_ID)
+            .remove(KEY_SPOTIFY_USER_NAME)
+            .remove(KEY_SPOTIFY_USER_EMAIL)
+            .remove(KEY_SPOTIFY_USER_AVATAR_URL)
             .apply()
     }
 
