@@ -1704,6 +1704,26 @@ class YouTubeRepository {
         }
     }
 
+    suspend fun resolveTrackMetadata(track: Track): Track? = withContext(Dispatchers.IO) {
+        val rawId = track.id.trim()
+        if (!track.isLocal && rawId.length == 11 && !rawId.contains("-") && !rawId.startsWith("spotify_") && !rawId.startsWith("sp_")) {
+            return@withContext track
+        }
+        try {
+            val query = "${track.title} ${track.artist}".trim()
+            val found = searchTracks(query).firstOrNull()
+            if (found != null && found.id.isNotBlank()) {
+                track.copy(
+                    id = found.id,
+                    thumbnailUrl = found.thumbnailUrl ?: track.thumbnailUrl,
+                    durationMs = if (track.durationMs > 0) track.durationMs else found.durationMs
+                )
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     suspend fun createYouTubePlaylist(
         title: String,
         videoIds: List<String> = emptyList(),

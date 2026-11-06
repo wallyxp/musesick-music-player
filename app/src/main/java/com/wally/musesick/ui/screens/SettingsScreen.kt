@@ -95,9 +95,12 @@ import java.io.File
 import com.wally.musesick.model.AccentColorPresets
 import com.wally.musesick.model.AppTheme
 import com.wally.musesick.model.ColorPreset
+import com.wally.musesick.model.SpotifyAccountInfo
+import com.wally.musesick.model.UserProfile
 import com.wally.musesick.repository.SettingsRepository
 import com.wally.musesick.repository.YtAccountInfo
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
@@ -117,6 +120,8 @@ fun SettingsScreen(
     appThemeVariant: String = "",
     customAccentColor: Color,
     isCheckingUpdate: Boolean,
+    userProfile: UserProfile = UserProfile(),
+    onOpenEditProfile: () -> Unit = {},
     ytAccountInfo: YtAccountInfo? = null,
     isSyncingYtAccount: Boolean = false,
     autoSyncInterval: SettingsRepository.AutoSyncInterval = SettingsRepository.AutoSyncInterval.DAILY,
@@ -188,7 +193,7 @@ fun SettingsScreen(
             GlassBackButton(onClick = onBack)
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Profile Avatar (Google Profile Picture when logged in, Default Profile Logo when Guest)
+            // Profile Avatar (Offline User Profile photo, or default vector when not set)
             Box(
                 modifier = Modifier
                     .size(42.dp)
@@ -201,10 +206,11 @@ fun SettingsScreen(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                if (!ytAccountInfo?.avatarUrl.isNullOrEmpty()) {
+                val avatarPath = userProfile.avatarPath
+                if (!avatarPath.isNullOrBlank()) {
                     AsyncImage(
-                        model = ytAccountInfo!!.avatarUrl,
-                        contentDescription = ytAccountInfo.name,
+                        model = File(avatarPath),
+                        contentDescription = userProfile.name,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(CircleShape),
@@ -223,7 +229,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.width(12.dp))
 
             Text(
-                text = ytAccountInfo?.name?.ifBlank { "Guest" } ?: "Guest",
+                text = userProfile.name.ifBlank { "Guest" },
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
@@ -237,9 +243,10 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
             contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
         ) {
+            // USER PROFILE SECTION
             item {
                 Text(
-                    text = "APPLICATION & UPDATES",
+                    text = "USER PROFILE",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
@@ -248,18 +255,29 @@ fun SettingsScreen(
                 )
             }
 
-            // 1. Check for Updates
             item {
                 SettingsMenuCard(
-                    icon = Icons.Default.SystemUpdate,
-                    title = "Check for Updates",
-                    subtitle = if (isCheckingUpdate) "Checking for new releases..." else "Current version: v$currentVersion",
-                    isLoading = isCheckingUpdate,
-                    onClick = onCheckForUpdates
+                    icon = Icons.Default.Person,
+                    title = "Edit Profile",
+                    trailingIcon = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                    onClick = onOpenEditProfile
                 )
             }
 
-            // 2. Login with YouTube Music
+            // ACCOUNTS & PLAYLIST SYNC SECTION
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "ACCOUNTS & PLAYLIST SYNC",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                )
+            }
+
+            // YouTube Music Card
             item {
                 val isLoggedIn = ytAccountInfo != null
                 SettingsMenuCard(
@@ -268,7 +286,7 @@ fun SettingsScreen(
                     subtitle = when {
                         isSyncingYtAccount -> "Syncing your YouTube Music playlists..."
                         isLoggedIn -> "Connected • Tap to sync playlists or log out"
-                        else -> "Sign in with Google to sync your playlists & profile"
+                        else -> "Sign in with Google to sync your playlists"
                     },
                     isLoading = isSyncingYtAccount,
                     onClick = {
@@ -281,7 +299,7 @@ fun SettingsScreen(
                 )
             }
 
-            // 3. Automatic Sync
+            // Automatic Sync
             item {
                 SettingsMenuCard(
                     icon = Icons.Default.Sync,
@@ -290,6 +308,29 @@ fun SettingsScreen(
                     trailingIcon = Icons.AutoMirrored.Filled.ArrowForwardIos,
                     isLoading = isSyncingYtAccount,
                     onClick = onOpenAutoSync
+                )
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "APPLICATION & UPDATES",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                )
+            }
+
+            // Check for Updates
+            item {
+                SettingsMenuCard(
+                    icon = Icons.Default.SystemUpdate,
+                    title = "Check for Updates",
+                    subtitle = if (isCheckingUpdate) "Checking for new releases..." else "Current version: v$currentVersion",
+                    isLoading = isCheckingUpdate,
+                    onClick = onCheckForUpdates
                 )
             }
 
@@ -479,11 +520,6 @@ fun SettingsAppThemeScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
-                                        Text(
-                                            text = "Gradient shifts automatically based on device local time",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
                                     }
                                 }
                             }
@@ -558,11 +594,6 @@ fun SettingsAppThemeScreen(
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "Darkened & blurred behind app",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
 
@@ -812,14 +843,6 @@ private fun ThemeCardWithVariants(
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         color = Color.White
                     )
-                    if (isAquaSelected) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Damegami Artwork & Cyan Glass",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF40C4FF).copy(alpha = 0.9f)
-                        )
-                    }
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -896,7 +919,7 @@ private fun getThemeIcon(theme: AppTheme): ImageVector {
 private fun SettingsMenuCard(
     icon: ImageVector,
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     badgeText: String? = null,
     trailingIcon: ImageVector? = null,
     isLoading: Boolean = false,
@@ -982,12 +1005,14 @@ private fun SettingsMenuCard(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (!subtitle.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             if (isLoading) {

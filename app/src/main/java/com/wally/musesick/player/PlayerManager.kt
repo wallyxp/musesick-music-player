@@ -17,6 +17,7 @@ import com.wally.musesick.model.PlaybackState
 import com.wally.musesick.model.PlaybackStatus
 import com.wally.musesick.model.Track
 import com.wally.musesick.repository.DownloadRepository
+import com.wally.musesick.repository.YouTubeRepository
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -304,7 +305,36 @@ class PlayerManager private constructor(private val context: Context) {
                     ).show()
                 }
             } else {
-                playYouTubeVideo(effectiveTrack.id)
+                val rawId = effectiveTrack.id.trim()
+                val isDirectYouTubeId = rawId.length == 11 && !rawId.contains("-") && !rawId.startsWith("spotify_") && !rawId.startsWith("sp_")
+                if (isDirectYouTubeId) {
+                    playYouTubeVideo(rawId)
+                } else {
+                    scope.launch(Dispatchers.IO) {
+                        val ytRepo = YouTubeRepository()
+                        val resolvedTrack = ytRepo.resolveTrackMetadata(effectiveTrack)
+                        if (resolvedTrack != null && resolvedTrack.id.isNotBlank()) {
+                            mainHandler.post {
+                                _playbackState.value = _playbackState.value.copy(currentTrack = resolvedTrack)
+                                playYouTubeVideo(resolvedTrack.id)
+                            }
+                        } else {
+                            val resolvedId = ytRepo.resolveVideoIdForTrack(effectiveTrack)
+                            if (!resolvedId.isNullOrBlank()) {
+                                mainHandler.post {
+                                    playYouTubeVideo(resolvedId)
+                                }
+                            } else {
+                                mainHandler.post {
+                                    _playbackState.value = _playbackState.value.copy(
+                                        status = PlaybackStatus.ERROR,
+                                        errorMessage = "Audio stream not found"
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 

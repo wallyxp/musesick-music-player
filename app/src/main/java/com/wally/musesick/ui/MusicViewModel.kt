@@ -31,14 +31,19 @@ import com.wally.musesick.repository.SettingsRepository
 import com.wally.musesick.repository.PlayCountRepository
 import com.wally.musesick.repository.SuggestedPlaylistsRepository
 import com.wally.musesick.model.LyricsUiState
+import com.wally.musesick.model.SpotifyAccountInfo
+import com.wally.musesick.model.SpotifyPlaylistData
+import com.wally.musesick.model.UserProfile
 import com.wally.musesick.repository.DownloadRepository
 import com.wally.musesick.repository.DownloadedTrack
 import com.wally.musesick.repository.LyricsRepository
 import com.wally.musesick.repository.LyricsResult
+import com.wally.musesick.repository.SpotifyRepository
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +55,9 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 
 enum class ScreenState {
     HOME,
@@ -62,7 +70,8 @@ enum class ScreenState {
     RECENTLY_PLAYED,
     SETTINGS,
     SETTINGS_APP_THEME,
-    SETTINGS_AUTO_SYNC
+    SETTINGS_AUTO_SYNC,
+    SETTINGS_EDIT_PROFILE
 }
 
 enum class ArtistTrackListType {
@@ -72,6 +81,7 @@ enum class ArtistTrackListType {
 class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val ytRepository = YouTubeRepository()
+    private val spotifyRepository = SpotifyRepository()
     private val localRepository = LocalAudioRepository(application)
     private val playlistRepository = PlaylistRepository(application)
     private val artistRepository = ArtistRepository(application)
@@ -223,6 +233,8 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _selectedPlaylist = MutableStateFlow<Playlist?>(null)
     val selectedPlaylist: StateFlow<Playlist?> = _selectedPlaylist.asStateFlow()
 
+    private val _activeArtworkResolutions = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
     // YouTube Playlist Import State
     private val _isImportingYtPlaylist = MutableStateFlow(false)
     val isImportingYtPlaylist: StateFlow<Boolean> = _isImportingYtPlaylist.asStateFlow()
@@ -328,6 +340,14 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _isFullPlayerOpen = MutableStateFlow(false)
     val isFullPlayerOpen: StateFlow<Boolean> = _isFullPlayerOpen.asStateFlow()
+
+    // Offline User Profile (completely decoupled from accounts)
+    private val _userProfile = MutableStateFlow(settingsRepository.getUserProfile())
+    val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
+
+    // Playlist Link Import State
+    private val _isImportingPlaylist = MutableStateFlow(false)
+    val isImportingPlaylist: StateFlow<Boolean> = _isImportingPlaylist.asStateFlow()
 
     // YouTube Music Account & Sync State
     private val _ytAccountInfo = MutableStateFlow<com.wally.musesick.repository.YtAccountInfo?>(
@@ -606,6 +626,79 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // --- Offline User Profile Actions ---
+    fun openEditProfile() {
+        _currentScreen.value = ScreenState.SETTINGS_EDIT_PROFILE
+    }
+
+    fun updateUserProfile(name: String, newAvatarUri: Uri? = null, removeAvatar: Boolean = false) {
+        viewModelScope.launch {
+            var avatarPath = _userProfile.value.avatarPath
+            if (removeAvatar) {
+                settingsRepository.removeProfileAvatar()
+                avatarPath = null
+            } else if (newAvatarUri != null) {
+                val saved = settingsRepository.saveProfileAvatar(newAvatarUri)
+                if (saved != null) {
+                    avatarPath = saved
+                }
+            }
+            val cleanName = name.trim().ifBlank { "Guest" }
+            settingsRepository.saveUserProfile(cleanName, avatarPath)
+            _userProfile.value = UserProfile(name = cleanName, avatarPath = avatarPath)
+            _updateToastMessage.value = "Profile updated"
+        }
+    }
+
+    // --- Playlist Import via Link (Spotify / YouTube Music) ---
+    fun importPlaylistFromUrl(url: String, onComplete: (Boolean, String) -> Unit) {
+        val trimmed = url.trim()
+        if (trimmed.isBlank()) {
+            onComplete(false, "Please enter a valid playlist link")
+            return
+        }
+        viewModelScope.launch {
+            _isImportingPlaylist.value = true
+            try {
+                if (trimmed.contains("spotify.com") || trimmed.contains("spotify:playlist:")) {
+                    val imported = spotifyRepository.fetchPlaylistFromEmbed(trimmed, ytRepository)
+                    if (imported != null && imported.tracks.isNotEmpty()) {
+                        val created = playlistRepository.createPlaylistWithTracks(
+                            title = imported.title,
+                            imagePath = imported.coverUrl,
+                            tracks = imported.tracks
+                        )
+                        loadPlaylists()
+                        onComplete(true, "Imported '${imported.title}' (${imported.tracks.size} tracks)")
+                        resolveArtworkForPlaylistInBackground(created.id)
+                    } else {
+                        onComplete(false, "Could not extract tracks from this Spotify link")
+                    }
+                } else if (trimmed.contains("youtube.com") || trimmed.contains("youtu.be")) {
+                    val ytPlaylist = ytRepository.fetchPlaylistFromYouTube(trimmed)
+                    if (ytPlaylist != null && ytPlaylist.tracks.isNotEmpty()) {
+                        playlistRepository.createPlaylistWithTracks(
+                            title = ytPlaylist.title,
+                            imagePath = ytPlaylist.thumbnailUrl,
+                            tracks = ytPlaylist.tracks
+                        )
+                        loadPlaylists()
+                        onComplete(true, "Imported '${ytPlaylist.title}' (${ytPlaylist.tracks.size} tracks)")
+                    } else {
+                        onComplete(false, "Could not extract tracks from this YouTube link")
+                    }
+                } else {
+                    onComplete(false, "Unsupported link. Please paste a Spotify or YouTube Music link.")
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onComplete(false, "Failed to import playlist: ${e.message}")
+            } finally {
+                _isImportingPlaylist.value = false
+            }
+        }
+    }
+
     private fun observePlaybackForRecentHistory() {
         viewModelScope.launch {
             playerManager.playbackState.collect { state ->
@@ -836,6 +929,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 true
             }
             ScreenState.SETTINGS_AUTO_SYNC -> {
+                _currentScreen.value = ScreenState.SETTINGS
+                true
+            }
+            ScreenState.SETTINGS_EDIT_PROFILE -> {
                 _currentScreen.value = ScreenState.SETTINGS
                 true
             }
@@ -1313,7 +1410,17 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // --- Playlist Management ---
     fun loadPlaylists() {
         viewModelScope.launch {
-            _playlists.value = playlistRepository.getPlaylists()
+            val list = playlistRepository.getPlaylists()
+            _playlists.value = list
+            _selectedPlaylist.value?.let { sel ->
+                val fresh = list.find { it.id == sel.id }
+                if (fresh != null) {
+                    _selectedPlaylist.value = fresh
+                    if (fresh.tracks.any { it.id.startsWith("spotify_") || it.id.startsWith("sp_") }) {
+                        resolveArtworkForPlaylistInBackground(fresh.id)
+                    }
+                }
+            }
         }
     }
 
@@ -1439,6 +1546,74 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun selectPlaylist(playlist: Playlist) {
         _selectedPlaylist.value = playlist
         _currentScreen.value = ScreenState.PLAYLIST_DETAIL
+        if (playlist.tracks.any { it.id.startsWith("spotify_") || it.id.startsWith("sp_") }) {
+            resolveArtworkForPlaylistInBackground(playlist.id)
+        }
+    }
+
+    fun resolveArtworkForPlaylistInBackground(playlistId: String) {
+        if (!_activeArtworkResolutions.add(playlistId)) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val current = playlistRepository.getPlaylists().find { it.id == playlistId } ?: return@launch
+                val tracks = current.tracks.toMutableList()
+                val indicesToResolve = tracks.mapIndexedNotNull { index, track ->
+                    if (track.id.startsWith("spotify_") || track.id.startsWith("sp_")) index else null
+                }
+                if (indicesToResolve.isEmpty()) return@launch
+
+                val semaphore = Semaphore(2)
+                var hasNewUpdates = false
+                var resolvedBatchCount = 0
+
+                for (idx in indicesToResolve) {
+                    val freshPlaylist = playlistRepository.getPlaylists().find { it.id == playlistId } ?: break
+                    val track = freshPlaylist.tracks.getOrNull(idx) ?: continue
+                    if (!track.id.startsWith("spotify_") && !track.id.startsWith("sp_")) continue
+
+                    val resolved = try {
+                        semaphore.withPermit {
+                            delay(80)
+                            ytRepository.resolveTrackMetadata(track)
+                        }
+                    } catch (_: Exception) {
+                        null
+                    }
+
+                    if (resolved != null && resolved.id.isNotBlank()) {
+                        tracks[idx] = resolved
+                        hasNewUpdates = true
+                        resolvedBatchCount++
+
+                        // Save every 4 tracks so UI updates album art smoothly in real-time
+                        if (resolvedBatchCount % 4 == 0) {
+                            val updatedList = playlistRepository.updatePlaylistTracks(playlistId, tracks.toList())
+                            withContext(Dispatchers.Main) {
+                                _playlists.value = updatedList
+                                if (_selectedPlaylist.value?.id == playlistId) {
+                                    _selectedPlaylist.value = updatedList.find { it.id == playlistId }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (hasNewUpdates) {
+                    val updatedList = playlistRepository.updatePlaylistTracks(playlistId, tracks.toList())
+                    withContext(Dispatchers.Main) {
+                        _playlists.value = updatedList
+                        if (_selectedPlaylist.value?.id == playlistId) {
+                            _selectedPlaylist.value = updatedList.find { it.id == playlistId }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _activeArtworkResolutions.remove(playlistId)
+            }
+        }
     }
 
     fun reorderTracksInPlaylist(playlistId: String, from: Int, to: Int) {
